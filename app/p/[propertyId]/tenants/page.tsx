@@ -2582,8 +2582,9 @@ Scroll vertically to browse all residents without pagination limits
                       activeWhatsAppMenuId === occ.id || isActionMenuOpen ? "z-40" : "z-0"
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-3">
+                    {/* Top Row: Avatar + Name/Plate + Status Badge (Plan C Spacious Layout) */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
                         <div className="relative shrink-0">
                           <div className="w-11 h-11 rounded-full border border-gray-200 bg-gray-100 flex items-center justify-center overflow-hidden">
                             {occ.avatar && occ.avatar.length > 0 && !occ.avatar.includes("dicebear") ? (
@@ -2656,7 +2657,8 @@ Scroll vertically to browse all residents without pagination limits
                         </Link>
                       </div>
 
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      {/* Payment Status Badge cleanly positioned on Top Right */}
+                      <div className="shrink-0 pt-0.5">
                         <span
                           className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase select-none ${
                             occ.paymentStatus === "Paid"
@@ -2668,90 +2670,122 @@ Scroll vertically to browse all residents without pagination limits
                         >
                           {occ.paymentStatus}
                         </span>
+                      </div>
+                    </div>
 
-                        {/* Mobile WhatsApp Chat Action Button */}
-                        <div className={`relative ${activeWhatsAppMenuId === occ.id ? "z-50" : ""}`}>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveWhatsAppMenuId(activeWhatsAppMenuId === occ.id ? null : occ.id);
-                            }}
-                            className="p-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:scale-95 transition-all cursor-pointer min-h-[32px] min-w-[32px] flex items-center justify-center"
-                            title="WhatsApp Actions"
-                          >
-                            <MessageSquare className="w-3.5 h-3.5" />
-                          </button>
+                    {/* Middle Row: Room and Payment Due Date */}
+                    <div className="grid grid-cols-2 gap-2 text-xs border-t border-b border-gray-100 py-2.5 my-1">
+                      <div>
+                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">
+                          Room
+                        </span>
+                        <span className="font-bold text-gray-900">
+                          Room {occ.roomNumber} ({occ.bedCode})
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">
+                          Payment Due
+                        </span>
+                        <span className={`font-bold ${occ.paymentStatus === "Paid" ? "text-emerald-700" : "text-[#c2652a]"}`}>
+                          {resolveOccupantPaymentDueDate(occ, currentSettings)}
+                        </span>
+                      </div>
+                    </div>
 
-                          {activeWhatsAppMenuId === occ.id && (
-                            <>
-                              <div
-                                className="fixed inset-0 z-40"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveWhatsAppMenuId(null);
-                                }}
-                              />
-                              <div
-                                onClick={(e) => e.stopPropagation()}
-                                className="absolute right-0 top-full mt-1.5 w-56 max-w-[calc(100vw-32px)] bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-50 animate-in fade-in zoom-in-95 text-xs space-y-0.5 font-semibold text-left whitespace-nowrap"
-                              >
-                                <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
-                                  WhatsApp for {occ.name}
-                                </div>
-                                <a
-                                  href={getIndividualRentReminderUrl(occ)}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  onClick={() => setActiveWhatsAppMenuId(null)}
-                                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-emerald-900 hover:bg-emerald-50 transition-all text-left cursor-pointer"
-                                >
-                                  <CreditCard className="w-4 h-4 text-emerald-600 shrink-0" />
-                                  <span>Send Rent Reminder</span>
-                                </a>
-                                <a
-                                  href={buildWhatsAppUrl(occ.phone, `Hi ${occ.name}! `)}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  onClick={() => setActiveWhatsAppMenuId(null)}
-                                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-700 hover:bg-emerald-50 transition-all text-left cursor-pointer"
-                                >
-                                  <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
-                                  <span>Send Custom Message</span>
-                                </a>
+                    {/* Bottom Row: Action Grid (Profile, WhatsApp, More Options, Collect Rent) */}
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <Link
+                        href={`/p/${propertyId}/tenants/${occ.id}`}
+                        className="flex-1 py-2 px-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 whitespace-nowrap"
+                      >
+                        <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <span>View Profile</span>
+                      </Link>
+
+                      {/* Mobile WhatsApp Chat Action Button */}
+                      <div className={`relative ${activeWhatsAppMenuId === occ.id ? "z-50" : ""}`}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveWhatsAppMenuId(activeWhatsAppMenuId === occ.id ? null : occ.id);
+                          }}
+                          className="p-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:scale-95 transition-all cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center shrink-0"
+                          title="WhatsApp Actions"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                        </button>
+
+                        {activeWhatsAppMenuId === occ.id && (
+                          <>
+                            <div
+                              className="fixed inset-0 z-40"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveWhatsAppMenuId(null);
+                              }}
+                            />
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute right-0 bottom-full mb-2 w-56 max-w-[calc(100vw-32px)] bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-50 animate-in fade-in zoom-in-95 text-xs space-y-0.5 font-semibold text-left whitespace-nowrap"
+                            >
+                              <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
+                                WhatsApp for {occ.name}
                               </div>
-                            </>
-                          )}
-                        </div>
-
-                        {/* Mobile Three-Dots Action Button */}
-                        <div className={`relative ${isActionMenuOpen ? "z-50" : ""}`}>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveActionDropdownId(isActionMenuOpen ? null : occ.id);
-                            }}
-                            className="p-1.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 active:scale-95 transition-all cursor-pointer min-h-[32px] min-w-[32px] flex items-center justify-center"
-                            title="More Actions"
-                          >
-                            <MoreVertical className="w-3.5 h-3.5" />
-                          </button>
-
-                          {/* Mobile Action Dropdown Popup */}
-                          {isActionMenuOpen && (
-                            <>
-                              <div
-                                className="fixed inset-0 z-40"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveActionDropdownId(null);
-                                }}
-                              />
-                              <div
-                                onClick={(e) => e.stopPropagation()}
-                                className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-50 animate-in fade-in zoom-in-95 text-xs space-y-1 font-semibold"
+                              <a
+                                href={getIndividualRentReminderUrl(occ)}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={() => setActiveWhatsAppMenuId(null)}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-emerald-900 hover:bg-emerald-50 transition-all text-left cursor-pointer"
                               >
+                                <CreditCard className="w-4 h-4 text-emerald-600 shrink-0" />
+                                <span>Send Rent Reminder</span>
+                              </a>
+                              <a
+                                href={buildWhatsAppUrl(occ.phone, `Hi ${occ.name}! `)}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={() => setActiveWhatsAppMenuId(null)}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-700 hover:bg-emerald-50 transition-all text-left cursor-pointer"
+                              >
+                                <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                                <span>Send Custom Message</span>
+                              </a>
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Mobile Three-Dots Action Button */}
+                      <div className={`relative ${isActionMenuOpen ? "z-50" : ""}`}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveActionDropdownId(isActionMenuOpen ? null : occ.id);
+                          }}
+                          className="p-2 rounded-xl border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 active:scale-95 transition-all cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center shrink-0"
+                          title="More Actions"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+
+                        {/* Mobile Action Dropdown Popup */}
+                        {isActionMenuOpen && (
+                          <>
+                            <div
+                              className="fixed inset-0 z-40"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveActionDropdownId(null);
+                              }}
+                            />
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute right-0 bottom-full mb-2 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-50 animate-in fade-in zoom-in-95 text-xs space-y-1 font-semibold"
+                            >
                               <Link
                                 href={`/p/${propertyId}/tenants/${occ.id}`}
                                 className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-700 hover:bg-orange-50 hover:text-[#c2652a] transition-all"
@@ -2801,45 +2835,18 @@ Scroll vertically to browse all residents without pagination limits
                             </div>
                           </>
                         )}
-                        </div>
                       </div>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-xs border-t border-b border-gray-100 py-2.5 my-1">
-                      <div>
-                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">
-                          Room
-                        </span>
-                        <span className="font-bold text-gray-900">
-                          Room {occ.roomNumber} ({occ.bedCode})
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">
-                          Payment Due
-                        </span>
-                        <span className={`font-bold ${occ.paymentStatus === "Paid" ? "text-emerald-700" : "text-[#c2652a]"}`}>
-                          {resolveOccupantPaymentDueDate(occ, currentSettings)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <Link
-                        href={`/p/${propertyId}/tenants/${occ.id}`}
-                        className="flex-1 py-2 px-3 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95"
-                      >
-                        <User className="w-3.5 h-3.5 text-gray-400" /> View Profile
-                      </Link>
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           setCollectRentOccupant(occ);
                         }}
-                        className="flex-1 py-2 px-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all active:scale-95 cursor-pointer"
+                        className="flex-1 py-2 px-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all active:scale-95 cursor-pointer whitespace-nowrap"
                       >
-                        <CreditCard className="w-3.5 h-3.5" /> Collect Rent
+                        <CreditCard className="w-3.5 h-3.5 shrink-0" />
+                        <span>Collect Rent</span>
                       </button>
                     </div>
                   </div>
