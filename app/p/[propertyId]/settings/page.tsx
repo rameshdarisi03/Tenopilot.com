@@ -58,6 +58,7 @@ import { WhatsAppWalletModal } from "@/components/dashboard/WhatsAppWalletModal"
 import { whatsappCreditStore, WhatsAppCreditTransaction } from "@/constants/whatsappCreditStore";
 import { useAuth } from "@/providers/AuthProvider";
 import { PoliceVerificationRegister } from "@/components/dashboard/PoliceVerificationRegister";
+import { syncVehicleParkingChargesToOccupants } from "@/lib/firestoreService";
 
 const SETTINGS_TABS: {
   id: "FINANCIAL" | "PROPERTY" | "RENT_CHARGES" | "PARTNERS" | "QR_PROFILES" | "POLICE_REGISTER" | "CONFIG";
@@ -362,8 +363,21 @@ export default function PropertySettingsPage({
     e.preventDefault();
     setIsSaving(true);
     await propertySettingsStore.updateSettings(settings, propertyId);
+
+    // 🚗 Auto-cascade Vehicle Parking Charges to all residents with registered vehicles
+    let vehicleSyncMsg = "";
+    const parkingFee = settings.parkingCharges !== undefined ? Number(settings.parkingCharges) : 0;
+    try {
+      const { updatedCount, totalVehicles } = await syncVehicleParkingChargesToOccupants(propertyId, parkingFee);
+      if (totalVehicles > 0 && parkingFee > 0) {
+        vehicleSyncMsg = ` • Parking fee (₹${parkingFee}/mo) auto-applied to ${totalVehicles} resident${totalVehicles > 1 ? "s" : ""} with vehicles.`;
+      }
+    } catch (syncErr) {
+      console.warn("Notice syncing vehicle parking charges:", syncErr);
+    }
+
     setIsSaving(false);
-    triggerToast("🎉 Settings saved! All billing rules, tariffs, and property preferences have been updated instantly.");
+    triggerToast(`🎉 Settings saved! All billing rules, tariffs, and property preferences have been updated instantly.${vehicleSyncMsg}`);
   };
 
   const handleResetDefaults = () => {
@@ -1474,8 +1488,8 @@ export default function PropertySettingsPage({
                         className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-sm text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                       />
                     </div>
-                    <p className="text-[10px] text-gray-400 font-medium leading-relaxed">
-                      Applied automatically to occupants with registered vehicle numbers. Overridable per tenant in their edit profile. If set to ₹0, no parking fee breakup is displayed.
+                    <p className="text-[10px] text-gray-500 font-medium leading-relaxed">
+                      ⚡ Saving this fee automatically updates all residents with registered vehicles. If any resident needs a special exception (such as free parking or a custom rate), you can set an individual exception in their tenant profile.
                     </p>
                   </div>
                 </div>

@@ -669,13 +669,22 @@ export function resolveOccupantParkingFee(
   if (!occupant) return 0;
   if (!occupantHasRegisteredVehicle(occupant)) return 0;
 
-  if (occupant.parkingCharges !== undefined && occupant.parkingCharges !== null) {
+  const globalFee = settings?.parkingCharges !== undefined ? Number(settings.parkingCharges) : 0;
+  const validGlobal = isNaN(globalFee) || globalFee < 0 ? 0 : globalFee;
+
+  // 1. If occupant has an explicit custom exception set by owner
+  if (occupant.isParkingException) {
     const parsed = Number(occupant.parkingCharges);
     return isNaN(parsed) || parsed < 0 ? 0 : parsed;
   }
 
-  const globalFee = settings?.parkingCharges !== undefined ? Number(settings.parkingCharges) : 0;
-  return isNaN(globalFee) || globalFee < 0 ? 0 : globalFee;
+  // 2. If occupant has a non-zero parking fee already stored
+  if (occupant.parkingCharges !== undefined && occupant.parkingCharges !== null && Number(occupant.parkingCharges) > 0) {
+    return Number(occupant.parkingCharges);
+  }
+
+  // 3. Otherwise (unassigned or legacy 0 without explicit exception), inherit the property's global fee
+  return validGlobal;
 }
 
 export interface FinancialStatementSummary {

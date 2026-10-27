@@ -85,6 +85,7 @@ export interface Occupant {
   vehicleNumber?: string;
   vehicleNumbers?: string[];
   parkingCharges?: number;
+  isParkingException?: boolean;
   paymentHistory?: PaymentHistoryItem[];
   checkoutSettlement?: CheckoutSettlementAudit;
 }

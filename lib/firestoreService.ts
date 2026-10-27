@@ -246,6 +246,67 @@ export function subscribeOccupantsFromFirestore(
 }
 
 /**
+ * Automatically cascades global vehicle parking charges to all residents with registered vehicles.
+ * If resident has an explicit custom exception (isParkingException = true), their custom fee is preserved.
+ * Occupants without vehicles will have their parking charges set to 0.
+ */
+export async function syncVehicleParkingChargesToOccupants(
+  propertyId: string,
+  newParkingFee: number
+): Promise<{ updatedCount: number; totalVehicles: number }> {
+  try {
+    const occupants = await fetchOccupantsFromFirestore(propertyId);
+    let updatedCount = 0;
+    let totalVehicles = 0;
+    const batchUpdates: Promise<any>[] = [];
+
+    for (const occ of occupants) {
+      const single = occ.vehicleNumber ? String(occ.vehicleNumber).trim() : "";
+      const hasVeh = single.length > 0 || (Array.isArray(occ.vehicleNumbers) && occ.vehicleNumbers.some((v) => v && String(v).trim().length > 0));
+
+      if (hasVeh) {
+        totalVehicles++;
+        // If resident does NOT have a custom exception, update to new global fee
+        if (!occ.isParkingException) {
+          const targetCharge = newParkingFee > 0 ? newParkingFee : 0;
+          if (occ.parkingCharges !== targetCharge) {
+            const occRef = doc(db, "properties", propertyId, "occupants", occ.id);
+            batchUpdates.push(
+              updateDoc(occRef, {
+                parkingCharges: targetCharge,
+                updatedAt: new Date().toISOString(),
+              })
+            );
+            occ.parkingCharges = targetCharge;
+            updatedCount++;
+          }
+        }
+      } else if (occ.parkingCharges && occ.parkingCharges > 0 && !occ.isParkingException) {
+        // Resident without vehicle should not have a parking charge
+        const occRef = doc(db, "properties", propertyId, "occupants", occ.id);
+        batchUpdates.push(
+          updateDoc(occRef, {
+            parkingCharges: 0,
+            updatedAt: new Date().toISOString(),
+          })
+        );
+        occ.parkingCharges = 0;
+        updatedCount++;
+      }
+    }
+
+    if (batchUpdates.length > 0) {
+      await Promise.all(batchUpdates);
+    }
+
+    return { updatedCount, totalVehicles };
+  } catch (err) {
+    console.error("Error syncing vehicle parking charges to occupants:", err);
+    return { updatedCount: 0, totalVehicles: 0 };
+  }
+}
+
+/**
  * Save or update full property layout structure in Firebase Cloud Firestore
  * Document Path: properties/{propertyId}/layout/structure
  */

@@ -583,7 +583,20 @@ export default function IndividualTenantProfilePage({
   const [editOccupation, setEditOccupation] = useState<string>(occupantState?.occupation || "");
   const [editWorkplace, setEditWorkplace] = useState<string>(occupantState?.workplace || "");
   const [editPurposeOfVisit, setEditPurposeOfVisit] = useState<string>(occupantState?.purposeOfVisit || "");
-  const [editParkingCharges, setEditParkingCharges] = useState<string>(occupantState?.parkingCharges !== undefined && occupantState?.parkingCharges !== null ? String(occupantState.parkingCharges) : "");
+  const [editParkingCharges, setEditParkingCharges] = useState<string>(() => {
+    if (occupantState?.isParkingException) {
+      return occupantState.parkingCharges !== undefined ? String(occupantState.parkingCharges) : "0";
+    }
+    if (occupantState?.parkingCharges !== undefined && occupantState.parkingCharges > 0) {
+      return String(occupantState.parkingCharges);
+    }
+    const hasVeh = (occupantState?.vehicleNumbers && occupantState.vehicleNumbers.length > 0) || Boolean(occupantState?.vehicleNumber);
+    const globalFee = propertySettings?.parkingCharges || 0;
+    if (hasVeh && globalFee > 0) {
+      return String(globalFee);
+    }
+    return occupantState?.parkingCharges !== undefined && occupantState?.parkingCharges !== null ? String(occupantState.parkingCharges) : "";
+  });
   const [editVehicleNumbers, setEditVehicleNumbers] = useState<string[]>(() => {
     if (occupantState?.vehicleNumbers && occupantState.vehicleNumbers.length > 0) {
       return occupantState.vehicleNumbers;
@@ -1675,7 +1688,17 @@ export default function IndividualTenantProfilePage({
     setEditOccupation(occupantState.occupation || "");
     setEditWorkplace(occupantState.workplace || "");
     setEditPurposeOfVisit(occupantState.purposeOfVisit || "");
-    setEditParkingCharges(occupantState.parkingCharges !== undefined && occupantState.parkingCharges !== null ? String(occupantState.parkingCharges) : "");
+    const globalFee = propertySettings?.parkingCharges || 0;
+    const hasVeh = (occupantState.vehicleNumbers && occupantState.vehicleNumbers.length > 0) || Boolean(occupantState.vehicleNumber);
+    if (occupantState.isParkingException) {
+      setEditParkingCharges(occupantState.parkingCharges !== undefined ? String(occupantState.parkingCharges) : "0");
+    } else if (occupantState.parkingCharges !== undefined && occupantState.parkingCharges !== null && occupantState.parkingCharges > 0) {
+      setEditParkingCharges(String(occupantState.parkingCharges));
+    } else if (hasVeh && globalFee > 0) {
+      setEditParkingCharges(String(globalFee));
+    } else {
+      setEditParkingCharges(occupantState.parkingCharges !== undefined && occupantState.parkingCharges !== null ? String(occupantState.parkingCharges) : "");
+    }
     if (occupantState.vehicleNumbers && occupantState.vehicleNumbers.length > 0) {
       setEditVehicleNumbers(occupantState.vehicleNumbers);
     } else if (occupantState.vehicleNumber) {
@@ -1761,7 +1784,20 @@ export default function IndividualTenantProfilePage({
       purposeOfVisit: editPurposeOfVisit.trim() || undefined,
       vehicleNumber: cleanVehicles[0] || undefined,
       vehicleNumbers: cleanVehicles.length > 0 ? cleanVehicles : undefined,
-      parkingCharges: editParkingCharges.trim() === "" ? 0 : Number(editParkingCharges),
+      parkingCharges: (() => {
+        const globalParkingFee = propertySettings?.parkingCharges || 0;
+        const hasAnyVehicle = cleanVehicles.length > 0;
+        if (!hasAnyVehicle) return 0;
+        if (editParkingCharges.trim() === "") return globalParkingFee;
+        return Number(editParkingCharges);
+      })(),
+      isParkingException: (() => {
+        const globalParkingFee = propertySettings?.parkingCharges || 0;
+        const hasAnyVehicle = cleanVehicles.length > 0;
+        if (!hasAnyVehicle) return false;
+        if (editParkingCharges.trim() === "") return false;
+        return globalParkingFee > 0 && Number(editParkingCharges) !== globalParkingFee;
+      })(),
     };
 
     setOccupantState(updated);
@@ -4983,11 +5019,22 @@ export default function IndividualTenantProfilePage({
                       <label className="block font-bold text-gray-700">
                         Vehicle Parking Charges (₹)
                       </label>
-                      {editParkingCharges !== "" && (
-                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                          Individual Override
-                        </span>
-                      )}
+                      {(() => {
+                        const globalFee = propertySettings?.parkingCharges || 0;
+                        const currentVal = editParkingCharges.trim() === "" ? globalFee : Number(editParkingCharges);
+                        if (editParkingCharges.trim() !== "" && globalFee > 0 && currentVal !== globalFee) {
+                          return (
+                            <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                              {currentVal === 0 ? "Free Parking Exception" : `Custom Exception (₹${currentVal})`}
+                            </span>
+                          );
+                        }
+                        return (
+                          <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                            Property Default: ₹{globalFee}/mo
+                          </span>
+                        );
+                      })()}
                     </div>
                     <div className="relative">
                       <span className="absolute left-3 top-2.5 text-gray-400 font-bold text-xs">₹</span>
@@ -5004,7 +5051,9 @@ export default function IndividualTenantProfilePage({
                       />
                     </div>
                     <p className="text-[10px] text-gray-400 mt-1">
-                      Leave empty or 0 if no parking fee applies. When entered, it is added to outstanding dues with breakup.
+                      {propertySettings?.parkingCharges && propertySettings.parkingCharges > 0
+                        ? `Standard rate is ₹${propertySettings.parkingCharges}/mo. To grant an exception (such as free parking or a custom fee), enter an override here.`
+                        : `No global parking fee configured. Enter an individual charge if applicable.`}
                     </p>
                   </div>
                 </div>
