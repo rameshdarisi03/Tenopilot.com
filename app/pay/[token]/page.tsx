@@ -50,6 +50,13 @@ export default function TenantPaymentBridgePage() {
   const [details, setDetails] = useState<DecodedPaymentDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [copiedUpi, setCopiedUpi] = useState(false);
+  const [isAndroid, setIsAndroid] = useState(true);
+
+  useEffect(() => {
+    if (typeof navigator !== "undefined") {
+      setIsAndroid(/android/i.test(navigator.userAgent));
+    }
+  }, []);
 
   // Proof Submission Form State
   const [reportedAmount, setReportedAmount] = useState<number>(0);
@@ -134,31 +141,59 @@ export default function TenantPaymentBridgePage() {
     setLoading(false);
   }, [rawToken, searchParams]);
 
-  // Construct NPCI Standard UPI Intent String
-  const upiIntentString = useMemo(() => {
+  // Construct Standard NPCI UPI Query Parameters with precise 2-decimal amount
+  const upiQueryParams = useMemo(() => {
     if (!details) return "";
     const cleanUpi = details.upiId.trim();
-    const cleanAmt = details.amount;
-    const cleanPayee = encodeURIComponent(details.partnerName || details.propertyName || "PG Management");
-    const cleanNote = encodeURIComponent(`Rent ${details.roomNumber} - ${details.tenantName}`);
-    return `upi://pay?pa=${cleanUpi}&pn=${cleanPayee}&am=${cleanAmt}&cu=INR&tn=${cleanNote}`;
+    // NPCI standard requires 2 decimal places (e.g. 12500.00)
+    const cleanAmt = Number(details.amount).toFixed(2);
+    const cleanPayee = encodeURIComponent(details.partnerName || details.propertyName || "PG Accommodation");
+    const cleanNote = encodeURIComponent(`Rent ${details.roomNumber || ""}`.trim());
+    const cleanTr = `TP${Date.now().toString().slice(-8)}`;
+    return `pa=${cleanUpi}&pn=${cleanPayee}&am=${cleanAmt}&cu=INR&tn=${cleanNote}&tr=${cleanTr}`;
   }, [details]);
 
-  // Specific App Deep Link URLs
+  // Universal fallback for QR code and iOS
+  const upiIntentString = useMemo(() => {
+    if (!upiQueryParams) return "";
+    return `upi://pay?${upiQueryParams}`;
+  }, [upiQueryParams]);
+
+  // PhonePe URL: Uses Android Intent package to bypass home screen and pre-fill amount
   const phonePeUrl = useMemo(() => {
-    if (!upiIntentString) return "";
-    return `phonepe://upi/pay?${upiIntentString.replace("upi://pay?", "")}`;
-  }, [upiIntentString]);
+    if (!upiQueryParams) return "";
+    if (isAndroid) {
+      return `intent://pay?${upiQueryParams}#Intent;scheme=upi;package=com.phonepe.app;S.browser_fallback_url=${encodeURIComponent(`upi://pay?${upiQueryParams}`)};end;`;
+    }
+    return `phonepe://pay?${upiQueryParams}`;
+  }, [upiQueryParams, isAndroid]);
 
+  // Google Pay URL: Uses Android Intent package to land directly on pay screen with pre-filled amount
   const gPayUrl = useMemo(() => {
-    if (!upiIntentString) return "";
-    return `tez://upi/pay?${upiIntentString.replace("upi://pay?", "")}`;
-  }, [upiIntentString]);
+    if (!upiQueryParams) return "";
+    if (isAndroid) {
+      return `intent://pay?${upiQueryParams}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;S.browser_fallback_url=${encodeURIComponent(`tez://upi/pay?${upiQueryParams}`)};end;`;
+    }
+    return `tez://upi/pay?${upiQueryParams}`;
+  }, [upiQueryParams, isAndroid]);
 
+  // Paytm URL: Uses Android Intent package to land directly on payment authorization
   const paytmUrl = useMemo(() => {
-    if (!upiIntentString) return "";
-    return `paytmmp://upi/pay?${upiIntentString.replace("upi://pay?", "")}`;
-  }, [upiIntentString]);
+    if (!upiQueryParams) return "";
+    if (isAndroid) {
+      return `intent://pay?${upiQueryParams}#Intent;scheme=upi;package=net.one97.paytm;S.browser_fallback_url=${encodeURIComponent(`upi://pay?${upiQueryParams}`)};end;`;
+    }
+    return `paytmmp://pay?${upiQueryParams}`;
+  }, [upiQueryParams, isAndroid]);
+
+  // Any UPI App: Native OS Chooser for BHIM, Cred, Amazon Pay, etc.
+  const anyUpiUrl = useMemo(() => {
+    if (!upiQueryParams) return "";
+    if (isAndroid) {
+      return `intent://pay?${upiQueryParams}#Intent;scheme=upi;end;`;
+    }
+    return `upi://pay?${upiQueryParams}`;
+  }, [upiQueryParams, isAndroid]);
 
   const handleCopyUpi = () => {
     if (!details?.upiId) return;
@@ -419,7 +454,7 @@ export default function TenantPaymentBridgePage() {
 
               {/* Any Other UPI App */}
               <a
-                href={upiIntentString}
+                href={anyUpiUrl}
                 className="flex items-center gap-2.5 p-3 rounded-2xl bg-orange-50 hover:bg-orange-100/80 border border-orange-200 text-orange-950 font-bold text-xs shadow-2xs active:scale-95 transition-all"
               >
                 <div className="w-7 h-7 rounded-full bg-[#c2652a] text-white font-black text-xs flex items-center justify-center shadow-xs shrink-0">
