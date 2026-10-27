@@ -2579,7 +2579,7 @@ Scroll vertically to browse all residents without pagination limits
                     className={`bg-white border rounded-2xl p-4 shadow-xs space-y-3 transition-all relative select-none touch-manipulation cursor-pointer ${
                       isSelected ? "border-[#c2652a] bg-orange-50/40 ring-1 ring-[#c2652a]" : "border-gray-200"
                     } ${
-                      activeWhatsAppMenuId === occ.id || isActionMenuOpen ? "z-40" : "z-0"
+                      activeWhatsAppMenuId === occ.id ? "z-40" : "z-0"
                     }`}
                   >
                     {/* Dynamic Font Sizing for Tenant Name based on Length & Overdue Tag */}
@@ -2743,84 +2743,7 @@ Scroll vertically to browse all residents without pagination limits
                                 )}
                               </div>
 
-                              {/* Mobile Three-Dots Action Button */}
-                              <div className={`relative ${isActionMenuOpen ? "z-50" : ""}`}>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setActiveActionDropdownId(isActionMenuOpen ? null : occ.id);
-                                  }}
-                                  className="p-1 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 active:scale-95 transition-all cursor-pointer min-h-[28px] min-w-[28px] flex items-center justify-center shrink-0"
-                                  title="More Actions"
-                                >
-                                  <MoreVertical className="w-3.5 h-3.5" />
-                                </button>
 
-                                {/* Mobile Action Dropdown Popup */}
-                                {isActionMenuOpen && (
-                                  <>
-                                    <div
-                                      className="fixed inset-0 z-40"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setActiveActionDropdownId(null);
-                                      }}
-                                    />
-                                    <div
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-50 animate-in fade-in zoom-in-95 text-xs space-y-1 font-semibold"
-                                    >
-                                      <Link
-                                        href={`/p/${propertyId}/tenants/${occ.id}`}
-                                        className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-700 hover:bg-orange-50 hover:text-[#c2652a] transition-all"
-                                      >
-                                        <Eye className="w-4 h-4 text-gray-400" /> View Details & KYC
-                                      </Link>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setActiveActionDropdownId(null);
-                                          setCollectRentOccupant(occ);
-                                        }}
-                                        className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-emerald-700 hover:bg-emerald-50 transition-all text-left cursor-pointer"
-                                      >
-                                        <CreditCard className="w-4 h-4 text-emerald-600" /> Collect / Record Rent
-                                      </button>
-                                      <Link
-                                        href={`/p/${propertyId}/property-map`}
-                                        className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-700 hover:bg-orange-50 hover:text-[#c2652a] transition-all"
-                                      >
-                                        <ArrowRightLeft className="w-4 h-4 text-gray-400" /> Swap / Transfer Room
-                                      </Link>
-                                      {occ.lifecycleStatus === "Active" && (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setActiveActionDropdownId(null);
-                                            setCheckOutModalOccupant(occ);
-                                          }}
-                                          className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-rose-700 hover:bg-rose-50 transition-all text-left cursor-pointer font-bold border-t border-gray-100"
-                                        >
-                                          <FileText className="w-4 h-4 text-rose-600" /> Check-Out & Settle
-                                        </button>
-                                      )}
-                                      {isPastTenant && (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setActiveActionDropdownId(null);
-                                            setDeletePastTenantTarget(occ);
-                                          }}
-                                          className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-red-600 hover:bg-red-50 transition-all text-left cursor-pointer font-bold border-t border-gray-100"
-                                        >
-                                          <Trash2 className="w-4 h-4 text-red-600" /> Delete Past Tenant 🗑️
-                                        </button>
-                                      )}
-                                    </div>
-                                  </>
-                                )}
-                              </div>
                             </div>
                           </div>
 
