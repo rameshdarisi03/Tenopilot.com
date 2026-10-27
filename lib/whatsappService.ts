@@ -511,7 +511,7 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
           ownerName: p.ownerName || "",
         });
         const agreementUrl = `${baseUrl}/api/agreement/pdf?${agreementParams.toString()}`;
-        const fileName = `Rental_Agreement_${payload.recipientName.replace(/\s+/g, "_")}.pdf`;
+        const fileName = `📄_RENTAL_AGREEMENT_${payload.recipientName.toUpperCase().replace(/[^A-Z0-9]/g, "_")}.pdf`;
         const tariffFormatted = Number(p.rentAmount || p.amount || 0).toLocaleString("en-IN");
         const rawManagerPhone = p.managerPhone || p.propertyPhone || p.ownerPhone || "9206651295";
         const cleanManagerPhone = rawManagerPhone.replace(/\D/g, "").slice(-10) || "9206651295";
@@ -705,9 +705,12 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         }
 
         const pdfUrl = `${baseUrl}/api/receipt/pdf?${pdfParams.toString()}`;
-        const fileName = `${receiptNoStr}_${payload.recipientName.replace(/\s+/g, "_")}.pdf`;
-
         const isCorrectedReceipt = Boolean(p.replacesReceiptNo || p.isReplacement || p.isCorrected);
+        const cleanReceiptNo = receiptNoStr.replace(/^#+/, "");
+        const fileName = isCorrectedReceipt
+          ? `🔴_REVISED_RECEIPT_${cleanReceiptNo}.pdf`
+          : `🧾_OFFICIAL_RECEIPT_${cleanReceiptNo}.pdf`;
+
         const activeTemplateName = isCorrectedReceipt
           ? "pg_rent_receipt_corrected_v1"
           : "pg_rent_payment_receipt_actions_v1";
@@ -800,7 +803,7 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         const p = payload.params || {};
         const invoiceNo = p.receiptId || `INV-${Date.now().toString().slice(-6)}`;
         const pName = payload.propertyName || "Your Property";
-        const fileName = `TenoPilot_Tax_Invoice_${invoiceNo}.pdf`;
+        const fileName = `💳_TAX_INVOICE_${invoiceNo.replace(/^#+/, "")}.pdf`;
         const origin = process.env.NEXT_PUBLIC_APP_URL || "https://www.tenopilot.com";
         const pdfUrl = p.receiptUrl || `${origin}/api/subscription/invoice/pdf?invoiceNo=${encodeURIComponent(invoiceNo)}`;
 
@@ -967,7 +970,11 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         });
 
         const pdfUrl = `${baseUrl}/api/receipt/pdf?${pdfParams.toString()}`;
-        const fileName = `${receiptNoStr}_${payload.recipientName.replace(/\s+/g, "_")}.pdf`;
+        const isCorrectedReceipt = Boolean(p.replacesReceiptNo || p.isReplacement || p.isCorrected);
+        const cleanReceiptNo = receiptNoStr.replace(/^#+/, "");
+        const fileName = isCorrectedReceipt
+          ? `🔴_REVISED_RECEIPT_${cleanReceiptNo}.pdf`
+          : `🧾_OFFICIAL_RECEIPT_${cleanReceiptNo}.pdf`;
 
         const fallbackBody = {
           messaging_product: "whatsapp",
@@ -1046,7 +1053,7 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
           propertyName: pName,
         });
         const agreementUrl = `${baseUrl}/api/agreement/pdf?${agreementParams.toString()}`;
-        const fileName = `Rental_Agreement_${payload.recipientName.replace(/\s+/g, "_")}.pdf`;
+        const fileName = `📄_RENTAL_AGREEMENT_${payload.recipientName.toUpperCase().replace(/[^A-Z0-9]/g, "_")}.pdf`;
         const tariffFormatted = Number(p.rentAmount || p.amount || 0).toLocaleString("en-IN");
 
         const fallbackBody = {
