@@ -419,7 +419,11 @@ export default function ApexCommandClientsPage() {
     if (selectedCustomer360) {
       const isPro = selectedCustomer360.subscriptionStatus === "ACTIVE_PRO" || selectedCustomer360.subscriptionStatus === "PRO_PRE_EXPIRY";
       const hasCustomOverride = Boolean(selectedCustomer360.hasCustomLimitsOverride);
-      setCapacityMaxProps(hasCustomOverride && selectedCustomer360.maxPropertiesAllowed ? selectedCustomer360.maxPropertiesAllowed : globalAllowedProps);
+      setCapacityMaxProps(
+        (hasCustomOverride || (Number(selectedCustomer360.maxPropertiesAllowed) > 1)) && selectedCustomer360.maxPropertiesAllowed
+          ? selectedCustomer360.maxPropertiesAllowed
+          : globalAllowedProps
+      );
       setCapacityBaseTenants(hasCustomOverride && selectedCustomer360.maxTenantsLimit ? selectedCustomer360.maxTenantsLimit : (isPro ? globalProLimit : globalTrialLimit));
       setCapacityExtensionPacks(selectedCustomer360.tenantExtensionPacks ?? 0);
       setCapacityWhatsAppCredits(selectedCustomer360.whatsappCreditsLimit ?? (isPro ? (platformConfig.proWhatsAppCredits || 1000) : (platformConfig.trialWhatsAppCredits || 10)));

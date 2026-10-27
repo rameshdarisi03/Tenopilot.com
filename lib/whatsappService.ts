@@ -280,6 +280,24 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
       const invoiceNo = p.receiptId || `INV-${Date.now().toString().slice(-6)}`;
       const planName = p.planName || p.bankLabel || "Pro Plan";
       const invoiceUrl = p.receiptUrl || "";
+      const isMultiProperty =
+        planName === "MULTI_PROPERTY_MONTHLY" ||
+        planName.toLowerCase().includes("multi_property") ||
+        planName.toLowerCase().includes("multi-property");
+
+      if (isMultiProperty) {
+        return (
+          `*TenoPilot.com* 🏢🚀\n\n` +
+          `Congratulations, *${ownerName}*! 🎉\n\n` +
+          `Your *Multi-Property Expansion* for *${pName}* has been successfully approved!\n\n` +
+          `Your building limit is now upgraded. You can now log in to your portfolio dashboard at tenopilot.com/home and tap *[+ Add New Property]* to onboard your next building.\n\n` +
+          `Attached is your official Tax Invoice & Payment Receipt (*#${invoiceNo}*) for your records.\n\n` +
+          (invoiceUrl ? `📄 *Download Invoice*: ${invoiceUrl}\n\n` : "") +
+          `If you need any assistance, our Founder Support Desk is always here for you at *+91 92066 51295*.\n\n` +
+          `Warm regards,\n` +
+          `*Team TenoPilot* 🏢✨`
+        );
+      }
 
       return (
         `*TenoPilot.com* 🚀\n\n` +
@@ -785,6 +803,13 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         const p = payload.params || {};
         const invoiceNo = p.receiptId || `INV-${Date.now().toString().slice(-6)}`;
         const pName = payload.propertyName || "Your Property";
+        const isMultiProp =
+          (p.planName || "").includes("MULTI_PROPERTY") ||
+          (p.planName || "").toLowerCase().includes("multi-property") ||
+          (p.planName || "").toLowerCase().includes("multi_property");
+        const displayPropertyTarget = isMultiProp
+          ? `${pName} (Building Expansion)`
+          : pName;
         const fileName = `TAX_INVOICE_${invoiceNo.replace(/^#+/, "")}.pdf`;
         const origin = process.env.NEXT_PUBLIC_APP_URL || "https://www.tenopilot.com";
         const pdfUrl = p.receiptUrl || `${origin}/api/subscription/invoice/pdf?invoiceNo=${encodeURIComponent(invoiceNo)}`;
@@ -814,7 +839,7 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
                 type: "body",
                 parameters: [
                   { type: "text", text: payload.recipientName || "Property Partner" },
-                  { type: "text", text: pName },
+                  { type: "text", text: displayPropertyTarget },
                   { type: "text", text: invoiceNo },
                 ],
               },

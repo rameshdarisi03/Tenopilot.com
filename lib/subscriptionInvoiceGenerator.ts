@@ -225,8 +225,9 @@ export async function generateSubscriptionInvoicePdfBuffer(data: SubscriptionInv
   page.drawText("VALIDITY PERIOD", { x: 170, y: bannerY + 28, size: 7.5, font: fontManropeBold, color: cMuted });
   page.drawText(validityPeriod, { x: 170, y: bannerY + 12, size: 9.5, font: fontManropeSemiBold, color: cEspresso });
 
-  page.drawText("PLAN LEVEL", { x: 330, y: bannerY + 28, size: 7.5, font: fontManropeBold, color: cMuted });
-  page.drawText(planLevel.slice(0, 24), { x: 330, y: bannerY + 12, size: 10.5, font: fontPlayfairBold, color: cTerracotta });
+  page.drawText("PLAN LEVEL", { x: 320, y: bannerY + 28, size: 7.5, font: fontManropeBold, color: cMuted });
+  const planFontSize = planLevel.length > 20 ? 8.5 : 9.5;
+  page.drawText(planLevel.slice(0, 28), { x: 320, y: bannerY + 12, size: planFontSize, font: fontManropeBold, color: cTerracotta });
 
   // Paid Status Badge
   page.drawRectangle({

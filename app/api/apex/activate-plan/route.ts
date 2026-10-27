@@ -205,14 +205,22 @@ export async function POST(req: NextRequest) {
       updatedAt: nowIso,
     };
 
-    // If activating Multi-Property Add-on, increment maxPropertiesAllowed
+    // If activating Multi-Property Add-on, increment maxPropertiesAllowed and lock individual override
+    let isMultiPropertyAddon = false;
+    let bumpedMaxProps: number | null = null;
     if (plan === "MULTI_PROPERTY_MONTHLY") {
-      updatePayload.maxPropertiesAllowed = Math.max(1, existingMaxProperties) + 1;
+      isMultiPropertyAddon = true;
+      bumpedMaxProps = Math.max(1, existingMaxProperties) + 1;
+      updatePayload.maxPropertiesAllowed = bumpedMaxProps;
+      updatePayload.hasCustomLimitsOverride = true;
+      updatePayload.customLimitsOverrideAt = nowIso;
     }
 
     // If activating Tenant Extension Pack, increment tenantExtensionPacks
     if (plan === "TENANT_EXTENSION_PACK_25") {
       updatePayload.tenantExtensionPacks = existingExtensionPacks + 1;
+      updatePayload.hasCustomLimitsOverride = true;
+      updatePayload.customLimitsOverrideAt = nowIso;
     }
 
     // 1. Update users collection (by explicit userId, email, verified phone, and linked accounts)
@@ -328,20 +336,24 @@ export async function POST(req: NextRequest) {
 
     // 3. Update founder_clients document
     try {
-      await setDoc(
-        doc(db, "founder_clients", cleanEmail),
-        {
-          ownerEmail: cleanEmail,
-          plan: resolvedPlan,
-          subscriptionStatus: resolvedSubscriptionStatus,
-          planExpiresAt: expiryIso,
-          lastPaymentMode: paymentMode,
-          lastReceiptNumber: receiptNumber,
-          activatedAt: nowIso,
-          activatedBy: activatedBy,
-        },
-        { merge: true }
-      );
+      const fcUpdate: Record<string, any> = {
+        ownerEmail: cleanEmail,
+        plan: resolvedPlan,
+        subscriptionStatus: resolvedSubscriptionStatus,
+        planExpiresAt: expiryIso,
+        lastPaymentMode: paymentMode,
+        lastReceiptNumber: receiptNumber,
+        activatedAt: nowIso,
+        activatedBy: activatedBy,
+      };
+
+      if (isMultiPropertyAddon && bumpedMaxProps !== null) {
+        fcUpdate.maxPropertiesAllowed = bumpedMaxProps;
+        fcUpdate.hasCustomLimitsOverride = true;
+        fcUpdate.customLimitsOverrideAt = nowIso;
+      }
+
+      await setDoc(doc(db, "founder_clients", cleanEmail), fcUpdate, { merge: true });
     } catch (fcErr) {
       console.warn("founder_clients sync notice:", fcErr);
     }

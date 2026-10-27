@@ -29,6 +29,7 @@ export interface UserProfile {
   pendingPaymentRequest?: boolean;
   lastPaymentRejectionReason?: string;
   maxPropertiesAllowed?: number;
+  hasCustomLimitsOverride?: boolean;
   maxTenantsLimit?: number;
   tenantExtensionPacks?: number;
   primaryUid?: string;
@@ -257,6 +258,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         trialEndsAtMs: masterDocData.trialEndsAtMs || null,
                         tenantExtensionPacks: masterDocData.tenantExtensionPacks || 0,
                         maxPropertiesAllowed: masterDocData.maxPropertiesAllowed || 1,
+                        hasCustomLimitsOverride: masterDocData.hasCustomLimitsOverride ?? data.hasCustomLimitsOverride ?? (Number(masterDocData.maxPropertiesAllowed || data.maxPropertiesAllowed) > 1),
                         masterAdminUid: masterDocUid,
                         ownerEmail: masterDocData.email || masterOwnerEmail,
                         organizationId: masterDocData.organizationId || data.organizationId,
@@ -413,6 +415,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         trialEndsAtMs: data.trialEndsAtMs || null,
                         tenantExtensionPacks: data.tenantExtensionPacks || 0,
                         maxPropertiesAllowed: data.maxPropertiesAllowed || 1,
+                        hasCustomLimitsOverride: data.hasCustomLimitsOverride ?? (Number(data.maxPropertiesAllowed) > 1),
                       };
                       for (const cand of candidateDocs) {
                         const candScore = getDocScore(cand.data);

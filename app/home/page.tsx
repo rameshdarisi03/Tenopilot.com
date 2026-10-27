@@ -46,7 +46,7 @@ import { compressPaymentScreenshot } from "@/lib/imageCompression";
 import { EditProfileModal } from "@/components/dashboard/EditProfileModal";
 
 import { portfolioStore, PortfolioProperty } from "@/constants/portfolioStore";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 export default function HomeWorkspacePage() {
@@ -434,33 +434,174 @@ export default function HomeWorkspacePage() {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
 
+    const cleanPropId = slugId ? `prop-${Date.now()}-${slugId}` : `prop-${Date.now()}`;
+    const ownerEmail = (profile?.email || "").toLowerCase().trim();
+    const orgId = profile?.organizationId || `org_${profile?.uid || "estate_01"}`;
+
+    // 🔄 Fetch and inherit operational billing cycle & due date rules from primary property
+    let inheritedSettings: any = null;
+    if (properties.length > 0 && properties[0]?.id) {
+      try {
+        const primId = properties[0].id;
+        const localSettings = propertySettingsStore.getSettings(primId);
+        if (localSettings && localSettings.propertyName !== "Sunshine Luxury PG") {
+          inheritedSettings = localSettings;
+        } else if (db) {
+          const cfgSnap = await getDoc(doc(db, `properties/${primId}/settings/config`));
+          if (cfgSnap.exists()) inheritedSettings = cfgSnap.data();
+        }
+      } catch (inheritErr) {
+        console.warn("Notice inheriting primary property settings:", inheritErr);
+      }
+    }
+
     const newBuilding: PortfolioProperty = {
-      id: slugId || `prop-${Date.now()}`,
+      id: cleanPropId,
       name: newPropName.trim(),
-      location: newPropLocation.trim() || "Hyderabad, Telangana",
+      location: newPropLocation.trim() || "Bengaluru, Karnataka",
       bedsCount: Number(newPropBeds) || 0,
       occupancyRate: "0.0%",
       collectionRate: "0%",
       status: "HEALTHY",
       createdAt: new Date().toISOString(),
-      ownerEmail: profile?.email || "",
+      ownerEmail: ownerEmail,
     };
 
+    // 1. Initialize clean property database baseline with inherited rules
     await initializeCleanProperty(
       newBuilding.id,
       newBuilding.name,
       profile?.displayName || userDisplayName,
       newPropLocation.trim() || undefined,
-      profile?.phone || undefined
+      profile?.phone || undefined,
+      inheritedSettings
     );
+
+    // 2. Add to active in-memory portfolioStore
     await portfolioStore.addProperty(newBuilding, profile?.email);
+
+    // 3. Atomically register in Cloud Firestore portfolio_properties for Apex Command & Staff Scanner
+    if (db) {
+      try {
+        await setDoc(
+          doc(db, "portfolio_properties", cleanPropId),
+          {
+            id: cleanPropId,
+            name: newBuilding.name,
+            propertyName: newBuilding.name,
+            city: newBuilding.location,
+            location: newBuilding.location,
+            totalBeds: newBuilding.bedsCount,
+            bedsCount: newBuilding.bedsCount,
+            ownerEmail: ownerEmail,
+            ownerUid: profile?.uid || "",
+            ownerPhone: profile?.phone || "",
+            organizationId: orgId,
+            createdAt: new Date().toISOString(),
+            status: "HEALTHY",
+          },
+          { merge: true }
+        );
+
+        // 4. Update owner's users document propertyIds array
+        if (profile?.uid) {
+          const uRef = doc(db, "users", profile.uid);
+          const uSnap = await getDoc(uRef);
+          if (uSnap.exists()) {
+            const uData = uSnap.data();
+            const existingPropIds = Array.isArray(uData.propertyIds)
+              ? uData.propertyIds
+              : uData.assignedPropertyId
+              ? [uData.assignedPropertyId]
+              : [];
+            if (!existingPropIds.includes(cleanPropId)) {
+              await setDoc(
+                uRef,
+                {
+                  propertyIds: [...existingPropIds, cleanPropId],
+                  organizationId: orgId,
+                  updatedAt: new Date().toISOString(),
+                },
+                { merge: true }
+              );
+            }
+          }
+        }
+
+        // 5. Update staff_accounts for multi-building delegation
+        if (ownerEmail) {
+          const sRef = doc(db, "staff_accounts", ownerEmail);
+          const sSnap = await getDoc(sRef);
+          if (sSnap.exists()) {
+            const sData = sSnap.data();
+            const existingAssigned = Array.isArray(sData.assignedPropertyIds) ? sData.assignedPropertyIds : [];
+            if (!existingAssigned.includes(cleanPropId)) {
+              await setDoc(
+                sRef,
+                {
+                  assignedPropertyIds: [...existingAssigned, cleanPropId],
+                  organizationId: orgId,
+                  updatedAt: new Date().toISOString(),
+                },
+                { merge: true }
+              );
+            }
+          }
+        }
+
+        // 6. Initialize isolated credit wallets for this building
+        const waWalletRef = doc(db, `properties/${cleanPropId}/whatsapp/wallet`);
+        await setDoc(
+          waWalletRef,
+          {
+            credits: 25,
+            transactions: [
+              {
+                id: `tx-starter-${Date.now()}`,
+                type: "STARTER_BONUS",
+                amount: 25,
+                balanceAfter: 25,
+                description: `+25 Starter WhatsApp Credits (${newBuilding.name})`,
+                timestamp: new Date().toISOString(),
+                status: "DELIVERED",
+              },
+            ],
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+
+        const emailWalletRef = doc(db, `properties/${cleanPropId}/email/wallet`);
+        await setDoc(
+          emailWalletRef,
+          {
+            credits: 100,
+            transactions: [
+              {
+                id: `tx-starter-email-${Date.now()}`,
+                type: "STARTER_BONUS",
+                amount: 100,
+                balanceAfter: 100,
+                description: `+100 Starter Email Credits (${newBuilding.name})`,
+                timestamp: new Date().toISOString(),
+                status: "DELIVERED",
+              },
+            ],
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (cloudErr) {
+        console.warn("Notice syncing building to cloud portfolio:", cloudErr);
+      }
+    }
 
     setShowAddPropertyModal(false);
     setNewPropName("");
     setNewPropLocation("");
     setNewPropBeds(30);
 
-    triggerToast(`✓ Successfully onboarded "${newBuilding.name}"! Synced to cloud 🟢`);
+    triggerToast(`✓ Successfully onboarded "${newBuilding.name}" under Organization ${orgId}! 🟢`);
   };
 
   // Dynamic Time-Aware Greeting
@@ -679,39 +820,57 @@ export default function HomeWorkspacePage() {
 
             {/* Add New Property Card Trigger (Master Admin Only) */}
             {activeRole === "master_admin" && (
-              <button
-                onClick={() => {
-                  if (isMultiPropertyGated) {
+              <>
+                {/* 1. UNLOCKED CARD (When user has available building capacity) */}
+                {!isMultiPropertyGated && (
+                  <button
+                    onClick={() => setShowAddPropertyModal(true)}
+                    className="group relative border-2 border-dashed border-emerald-500/40 bg-emerald-500/[0.03] rounded-3xl p-6 flex flex-col items-center justify-center min-h-[300px] sm:min-h-[340px] hover:border-emerald-600 hover:bg-emerald-500/[0.08] transition-all text-center active:scale-98 cursor-pointer shadow-xs hover:shadow-xl overflow-hidden"
+                  >
+                    <div className="absolute top-4 right-4 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 text-[10px] font-bold shadow-xs">
+                      <Sparkles className="w-3 h-3 text-emerald-700" />
+                      <span>Slot Available ({properties.length + 1}/{maxAllowedProperties})</span>
+                    </div>
+
+                    <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mb-4 text-emerald-800 group-hover:bg-emerald-600 group-hover:text-white transition-all transform group-hover:rotate-90 duration-300 shadow-xs">
+                      <Plus className="w-7 h-7" />
+                    </div>
+                    <span className="font-serif font-bold text-xl text-[#241b16] group-hover:text-emerald-700 transition-colors">
+                      Add New Property
+                    </span>
+                    <p className="text-xs text-[#8a7f74] mt-1 font-medium">
+                      Onboard Building #{properties.length + 1} to your organization
+                    </p>
+                  </button>
+                )}
+
+                {/* 2. LOCKED CARD (For expanding capacity to next building slot) */}
+                <button
+                  onClick={() => {
                     setMultiPropertySuccess(false);
                     setMultiPropertyError(null);
                     setMultiPropertyScreenshot(null);
                     setMultiPropertyFileName(null);
                     setShowMultiPropertyModal(true);
-                  } else {
-                    setShowAddPropertyModal(true);
-                  }
-                }}
-                className="group relative border-2 border-dashed border-[#241b16]/25 rounded-3xl p-6 flex flex-col items-center justify-center min-h-[300px] sm:min-h-[340px] hover:border-[#c6572a]/60 hover:bg-[#f1e7dd]/40 transition-all text-center active:scale-98 cursor-pointer shadow-xs hover:shadow-xl overflow-hidden"
-              >
-                {isMultiPropertyGated && (
+                  }}
+                  className="group relative border-2 border-dashed border-[#241b16]/25 rounded-3xl p-6 flex flex-col items-center justify-center min-h-[300px] sm:min-h-[340px] hover:border-[#c6572a]/60 hover:bg-[#f1e7dd]/40 transition-all text-center active:scale-98 cursor-pointer shadow-xs hover:shadow-xl overflow-hidden"
+                >
                   <div className="absolute top-4 right-4 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-bold shadow-xs">
                     <Lock className="w-3 h-3 text-amber-700" />
                     <span>Multi-Property Add-on</span>
                   </div>
-                )}
 
-                <div className="w-14 h-14 bg-[#f1e7dd] rounded-full flex items-center justify-center mb-4 text-[#241b16] group-hover:bg-[#c6572a]/15 group-hover:text-[#c6572a] transition-all transform group-hover:rotate-90 duration-300 shadow-xs">
-                  {isMultiPropertyGated ? <Lock className="w-6 h-6 text-[#964407]" /> : <Plus className="w-7 h-7" />}
-                </div>
-                <span className="font-serif font-bold text-xl text-[#241b16] group-hover:text-[#c6572a] transition-colors">
-                  Add New Property
-                </span>
-                <p className="text-xs text-[#8a7f74] mt-1">
-                  {isMultiPropertyGated
-                    ? `Expand your portfolio (₹${MULTI_PROPERTY_MONTHLY_PRICE}/mo)`
-                    : "Expand your PG or Hostel portfolio"}
-                </p>
-              </button>
+                  <div className="w-14 h-14 bg-[#f1e7dd] rounded-full flex items-center justify-center mb-4 text-[#241b16] group-hover:bg-[#c6572a]/15 group-hover:text-[#c6572a] transition-all transform group-hover:scale-105 duration-300 shadow-xs">
+                    <Lock className="w-6 h-6 text-[#964407]" />
+                  </div>
+                  <span className="font-serif font-bold text-xl text-[#241b16] group-hover:text-[#c6572a] transition-colors">
+                    Add New Property
+                  </span>
+                  <p className="text-xs text-[#8a7f74] mt-1">
+                    Expand your portfolio (₹{platformConfig.multiPropertyPrice || MULTI_PROPERTY_MONTHLY_PRICE}/mo)
+                  </p>
+                </button>
+              </>
             )}
           </div>
         )}
@@ -793,6 +952,20 @@ export default function HomeWorkspacePage() {
                   className="w-full px-4 py-2.5 rounded-xl border border-[#d7c2b9] focus:outline-none focus:ring-2 focus:ring-[#964407] font-medium text-xs bg-[#fff8f6]"
                 />
               </div>
+
+              {properties.length > 0 && (
+                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200/80 text-[11px] text-emerald-950 space-y-1.5">
+                  <div className="flex items-center gap-1.5 font-bold text-emerald-900">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>Auto-Inherited from {properties[0]?.name || "Primary Property"}:</span>
+                  </div>
+                  <ul className="text-[10px] text-emerald-800 space-y-0.5 list-disc list-inside">
+                    <li>Billing Cycle Mode & Monthly Rent Due Day</li>
+                    <li>Overdue Grace Period & House Rules</li>
+                    <li>Parent Organization ID ({profile?.organizationId || `org_${profile?.uid || "admin"}`})</li>
+                  </ul>
+                </div>
+              )}
 
               <div className="p-3 rounded-xl bg-orange-50 border border-orange-200 text-[10px] text-orange-950 font-medium leading-relaxed">
                 💡 <strong>Dynamic Routing:</strong> Adding this building creates a dedicated multi-tenant URL (`/p/${newPropName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}/overview`) with its own isolated layout and financial ledger.

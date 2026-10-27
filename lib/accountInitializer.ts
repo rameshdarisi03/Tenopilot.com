@@ -34,17 +34,25 @@ export async function initializeCleanProperty(
   propertyName: string = "New Property Estate",
   ownerName?: string,
   city?: string,
-  ownerPhone?: string
+  ownerPhone?: string,
+  inheritedSettings?: Partial<any>
 ) {
   if (typeof window === "undefined" || !propertyId) return;
 
   try {
-    // 1. Initialize Property Settings with clean zeroes & user's custom property name
+    // 1. Initialize Property Settings with clean zeroes, user's custom property name, and inherited operational rules
     const initialSettings = {
       ...CLEAN_ZERO_PROPERTY_SETTINGS,
+      billingCycleDates: inheritedSettings?.billingCycleDates || "1st to End of Month",
+      desiredDueDate: inheritedSettings?.desiredDueDate ?? 1,
+      gracePeriodDays: inheritedSettings?.gracePeriodDays ?? 3,
+      includeDepositInOutstanding: inheritedSettings?.includeDepositInOutstanding ?? false,
+      houseRulesAndRegulations: inheritedSettings?.houseRulesAndRegulations || "",
+      qrProfiles: Array.isArray(inheritedSettings?.qrProfiles) && inheritedSettings.qrProfiles.length > 0 ? inheritedSettings.qrProfiles : CLEAN_ZERO_PROPERTY_SETTINGS.qrProfiles,
+      upiPaymentId: inheritedSettings?.upiPaymentId || "",
       propertyName: propertyName,
       propertyAddress: city ? `${city}, India` : "Bengaluru, Karnataka",
-      managerPhone: ownerPhone || "",
+      managerPhone: ownerPhone || inheritedSettings?.managerPhone || "",
     };
     await propertySettingsStore.updateSettings(initialSettings, propertyId);
 

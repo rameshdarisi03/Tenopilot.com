@@ -312,9 +312,10 @@ export function getMaxAllowedProperties(userProfile?: any): number {
   if (userProfile.email?.toLowerCase() === "isharapandey01@gmail.com") return 999;
   const globalConfig = getGlobalCapacityConfig();
 
-  // 🔒 1. If Founder applied an explicit individual override for this client, preserve it!
-  if (userProfile.hasCustomLimitsOverride && userProfile.maxPropertiesAllowed !== undefined && Number(userProfile.maxPropertiesAllowed) > 0) {
-    return Number(userProfile.maxPropertiesAllowed);
+  // 🔒 1. If Founder applied an explicit individual override for this client OR user has granted extra properties (> 1), preserve it!
+  const userProps = Number(userProfile.maxPropertiesAllowed);
+  if ((userProfile.hasCustomLimitsOverride && userProps > 0) || userProps > 1) {
+    return userProps;
   }
 
   // 🌐 2. Otherwise inherit live from Master Platform Controls SSOT

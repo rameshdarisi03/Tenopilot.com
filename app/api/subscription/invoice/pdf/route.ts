@@ -48,16 +48,106 @@ export async function GET(req: NextRequest) {
       totalAmount = Math.round((taxableAmount + cgst + sgst) * 100) / 100;
     }
 
+    let resolvedPlanTitle = planName;
+    let customItems = undefined;
+
+    if (
+      planName === "MULTI_PROPERTY_MONTHLY" ||
+      planName.toLowerCase().includes("multi_property") ||
+      planName.toLowerCase().includes("multi-property")
+    ) {
+      resolvedPlanTitle = "Multi-Property Add-on";
+      customItems = [
+        {
+          sl: "01",
+          title: "Multi-Property Expansion Add-on — Building Slot #2",
+          subtitle: "Dedicated Multi-Building Layout Engine, Independent Ledgers & MPIN Access",
+          sac: "998314",
+          qty: "1 Month",
+          rate: taxableAmount.toFixed(2),
+        },
+        {
+          sl: "02",
+          title: "Organization Portfolio Integration & Multi-Branch Flight Deck",
+          subtitle: "Unified Owner Organization ID & Single-Sign-On Staff Delegation",
+          sac: "998319",
+          qty: "1 Add-on",
+          rate: "0.00 (Included)",
+        },
+      ];
+    } else if (planName === "PRO_MONTHLY") {
+      resolvedPlanTitle = "Pro Monthly";
+      customItems = [
+        {
+          sl: "01",
+          title: "TenoPilot Pro Operating System - Monthly Subscription",
+          subtitle: "Multi-Floor Layout Engine, Dual-Ledger Accounting, 2-Step MPIN",
+          sac: "998314",
+          qty: "1 Month",
+          rate: taxableAmount.toFixed(2),
+        },
+        {
+          sl: "02",
+          title: "FastTrack 1-Click AI Register Migration & Onboarding",
+          subtitle: "Full digital conversion of paper room/bed diaries into Cloud SSOT",
+          sac: "998319",
+          qty: "1 PG",
+          rate: "0.00 (Free)",
+        },
+      ];
+    } else if (planName === "TENANT_EXTENSION_PACK_25") {
+      resolvedPlanTitle = "Tenant Pack (+25)";
+      customItems = [
+        {
+          sl: "01",
+          title: "Active Resident Capacity Extension (+25 Tenant Slots)",
+          subtitle: "High-Concurrency Cloud Ledger & Extended Occupant Threshold",
+          sac: "998314",
+          qty: "1 Pack",
+          rate: taxableAmount.toFixed(2),
+        },
+      ];
+    } else if (planName === "PRO_ANNUAL" || planName.includes("Annual")) {
+      resolvedPlanTitle = "Pro Annual";
+      customItems = [
+        {
+          sl: "01",
+          title: "TenoPilot Pro Operating System - Annual Subscription",
+          subtitle: "Multi-Floor Layout Engine, Dual-Ledger Accounting, 2-Step MPIN",
+          sac: "998314",
+          qty: "1 Yr",
+          rate: (taxableAmount * 0.85).toFixed(2),
+        },
+        {
+          sl: "02",
+          title: "Meta WhatsApp Cloud Credits Package (Growth Tier)",
+          subtitle: "1,500 High-Deliverability Automated Rent Invoices & Reminders",
+          sac: "998413",
+          qty: "1 Pack",
+          rate: (taxableAmount * 0.15).toFixed(2),
+        },
+        {
+          sl: "03",
+          title: "FastTrack 1-Click AI Register Migration & Onboarding",
+          subtitle: "Full digital conversion of paper room/bed diaries into Cloud SSOT",
+          sac: "998319",
+          qty: "1 PG",
+          rate: "0.00 (Free)",
+        },
+      ];
+    }
+
     const pdfBuffer = await generateSubscriptionInvoicePdfBuffer({
       invoiceNumber,
       invoiceDate,
       validityPeriod,
-      planName,
+      planName: resolvedPlanTitle,
       ownerName,
       propertyName,
       propertyLocation,
       ownerEmail,
       ownerPhone,
+      items: customItems,
       subtotal,
       discountPercentage: discountPct > 0 ? discountPct : undefined,
       discountAmount: discountAmount > 0 ? discountAmount : undefined,
