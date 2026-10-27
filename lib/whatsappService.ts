@@ -376,30 +376,66 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
           ? (p.bankLabel ? `Cash at Desk (${p.bankLabel})` : "Cash at Front Desk / Reception")
           : (p.upiId || "PG Reception / Manager UPI");
 
-        requestBody = {
-          messaging_product: "whatsapp",
-          recipient_type: "individual",
-          to: formattedPhone,
-          type: "template",
-          template: {
-            name: "pg_rent_due_v4",
-            language: { code: "en_US" },
-            components: [
-              {
-                type: "body",
-                parameters: [
-                  { type: "text", text: pName },
-                  { type: "text", text: payload.recipientName },
-                  { type: "text", text: roomStay },
-                  { type: "text", text: amountStr },
-                  { type: "text", text: dueDateStr },
-                  { type: "text", text: payHeader },
-                  { type: "text", text: payDest },
-                ],
-              },
-            ],
-          },
-        };
+        const tokenParam = p.payUrl ? (p.payUrl.split("/pay/")[1] || "") : "";
+
+        if (tokenParam) {
+          requestBody = {
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: formattedPhone,
+            type: "template",
+            template: {
+              name: "pg_rent_due_upi_v1",
+              language: { code: "en_US" },
+              components: [
+                {
+                  type: "body",
+                  parameters: [
+                    { type: "text", text: pName },
+                    { type: "text", text: payload.recipientName },
+                    { type: "text", text: roomStay },
+                    { type: "text", text: amountStr },
+                    { type: "text", text: dueDateStr },
+                    { type: "text", text: payDest },
+                  ],
+                },
+                {
+                  type: "button",
+                  sub_type: "url",
+                  index: "0",
+                  parameters: [
+                    { type: "text", text: tokenParam },
+                  ],
+                },
+              ],
+            },
+          };
+        } else {
+          requestBody = {
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: formattedPhone,
+            type: "template",
+            template: {
+              name: "pg_rent_due_v4",
+              language: { code: "en_US" },
+              components: [
+                {
+                  type: "body",
+                  parameters: [
+                    { type: "text", text: pName },
+                    { type: "text", text: payload.recipientName },
+                    { type: "text", text: roomStay },
+                    { type: "text", text: amountStr },
+                    { type: "text", text: dueDateStr },
+                    { type: "text", text: payHeader },
+                    { type: "text", text: payDest },
+                  ],
+                },
+              ],
+            },
+          };
+        }
       } else if (payload.type === "TENANT_WELCOME") {
         const p = payload.params || {};
         const pName = payload.propertyName || "TenoPilot PG & Living";
@@ -725,6 +761,8 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         const utrStr = p.utrNumber || "Screenshot Attached";
         const proofParam = p.proofId || "";
 
+        const upiDest = p.upiId || "Partner Bank Account";
+
         requestBody = {
           messaging_product: "whatsapp",
           recipient_type: "individual",
@@ -737,10 +775,11 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
               {
                 type: "body",
                 parameters: [
-                  { type: "text", text: partnerName },
                   { type: "text", text: pName },
-                  { type: "text", text: roomStay },
+                  { type: "text", text: partnerName },
+                  { type: "text", text: upiDest },
                   { type: "text", text: amtStr },
+                  { type: "text", text: roomStay },
                   { type: "text", text: utrStr },
                 ],
               },
@@ -855,6 +894,58 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
             "Content-Type": "application/json",
           },
           body: JSON.stringify(fallbackBody),
+        });
+        resData = await response.json();
+      }
+
+      // Automatic Graceful Fallback: If pg_rent_due_upi_v1 is pending Meta review, fallback to approved pg_rent_due_v4
+      if (!response.ok && payload.type === "RENT_REMINDER" && requestBody?.template?.name === "pg_rent_due_upi_v1") {
+        console.warn("Notice: pg_rent_due_upi_v1 is pending approval, falling back to pg_rent_due_v4:", resData?.error?.message);
+        const p = payload.params || {};
+        const pName = payload.propertyName || "TenoPilot PG & Living";
+        const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` - ${p.bedCode}` : ""}`;
+        const baseAmountStr = Number(p.amount || 0).toLocaleString("en-IN");
+        const amountStr = p.breakupNote ? `${baseAmountStr} (${p.breakupNote})` : baseAmountStr;
+        const dueDateStr = p.dueDate || "5th of this month";
+        const isCash = p.upiId === "CASH_PAYMENT" || p.upiId === "CASH" || p.upiId?.toLowerCase().includes("cash") || p.accountType === "CASH_DESK";
+        const isBank = p.accountType === "BANK_TRANSFER" || (!isCash && !p.upiId?.includes("@") && Boolean(p.bankLabel));
+        const payHeader = isCash ? "Pay via Cash" : isBank ? "Pay to Bank" : "Pay to UPI";
+        const payDest = isCash
+          ? (p.bankLabel ? `Cash at Desk (${p.bankLabel})` : "Cash at Front Desk / Reception")
+          : (p.upiId || "PG Reception / Manager UPI");
+
+        const v4Fallback = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "template",
+          template: {
+            name: "pg_rent_due_v4",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: pName },
+                  { type: "text", text: payload.recipientName },
+                  { type: "text", text: roomStay },
+                  { type: "text", text: amountStr },
+                  { type: "text", text: dueDateStr },
+                  { type: "text", text: payHeader },
+                  { type: "text", text: payDest },
+                ],
+              },
+            ],
+          },
+        };
+
+        response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${metaToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(v4Fallback),
         });
         resData = await response.json();
       }
