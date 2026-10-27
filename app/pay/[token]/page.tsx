@@ -183,7 +183,34 @@ export default function TenantPaymentBridgePage() {
     return `paytmmp://pay?${upiQueryParams}`;
   }, [upiQueryParams, isAndroid]);
 
-  // Any UPI App: Native OS Chooser for BHIM, Cred, Amazon Pay, etc.
+  // CRED URL: Uses Android Intent package for CRED
+  const credUrl = useMemo(() => {
+    if (!upiQueryParams) return "";
+    if (isAndroid) {
+      return `intent://pay?${upiQueryParams}#Intent;scheme=upi;package=com.dreamplug.androidapp;S.browser_fallback_url=${encodeURIComponent(`upi://pay?${upiQueryParams}`)};end;`;
+    }
+    return `cred://pay?${upiQueryParams}`;
+  }, [upiQueryParams, isAndroid]);
+
+  // Kiwi URL: Uses Android Intent package for Kiwi UPI
+  const kiwiUrl = useMemo(() => {
+    if (!upiQueryParams) return "";
+    if (isAndroid) {
+      return `intent://pay?${upiQueryParams}#Intent;scheme=upi;package=in.gokiwi.kiwitpap;S.browser_fallback_url=${encodeURIComponent(`upi://pay?${upiQueryParams}`)};end;`;
+    }
+    return `kiwi://pay?${upiQueryParams}`;
+  }, [upiQueryParams, isAndroid]);
+
+  // BHIM URL: Uses Android Intent package for BHIM UPI
+  const bhimUrl = useMemo(() => {
+    if (!upiQueryParams) return "";
+    if (isAndroid) {
+      return `intent://pay?${upiQueryParams}#Intent;scheme=upi;package=in.org.npci.upiapp;S.browser_fallback_url=${encodeURIComponent(`upi://pay?${upiQueryParams}`)};end;`;
+    }
+    return `bhim://pay?${upiQueryParams}`;
+  }, [upiQueryParams, isAndroid]);
+
+  // Any Other UPI App: Native OS Chooser for any installed UPI app
   const anyUpiUrl = useMemo(() => {
     if (!upiQueryParams) return "";
     if (isAndroid) {
@@ -403,60 +430,121 @@ export default function TenantPaymentBridgePage() {
             </p>
 
             <div className="grid grid-cols-2 gap-2.5 pt-1">
-              {/* PhonePe */}
+              {/* 1. PhonePe */}
               <a
                 href={phonePeUrl}
-                className="flex items-center gap-2.5 p-3 rounded-2xl bg-purple-50 hover:bg-purple-100/80 border border-purple-200 text-purple-900 font-bold text-xs shadow-2xs active:scale-95 transition-all"
+                className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-purple-50/60 border border-slate-200/90 hover:border-purple-300 text-slate-800 font-bold text-xs shadow-2xs active:scale-95 transition-all"
               >
-                <div className="w-7 h-7 rounded-full bg-purple-600 text-white font-black text-xs flex items-center justify-center shadow-xs shrink-0">
-                  Pe
+                <div className="w-8 h-8 rounded-xl overflow-hidden bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-2xs p-0.5">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/images/upi/phonepe.png"
+                    alt="PhonePe"
+                    className="w-full h-full object-contain rounded-lg"
+                  />
                 </div>
-                <div className="min-w-0">
-                  <span className="block truncate">PhonePe</span>
-                  <span className="text-[9px] text-purple-600 font-medium">1-Tap Pay</span>
-                </div>
+                <span className="block truncate font-bold text-xs text-slate-900">PhonePe</span>
               </a>
 
-              {/* Google Pay */}
+              {/* 2. Google Pay */}
               <a
                 href={gPayUrl}
-                className="flex items-center gap-2.5 p-3 rounded-2xl bg-blue-50 hover:bg-blue-100/80 border border-blue-200 text-blue-900 font-bold text-xs shadow-2xs active:scale-95 transition-all"
+                className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-blue-50/60 border border-slate-200/90 hover:border-blue-300 text-slate-800 font-bold text-xs shadow-2xs active:scale-95 transition-all"
               >
-                <div className="w-7 h-7 rounded-full bg-blue-600 text-white font-black text-xs flex items-center justify-center shadow-xs shrink-0">
-                  G
+                <div className="w-8 h-8 rounded-xl overflow-hidden bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-2xs p-0.5">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/images/upi/googlepay.png"
+                    alt="Google Pay"
+                    className="w-full h-full object-contain rounded-lg"
+                  />
                 </div>
-                <div className="min-w-0">
-                  <span className="block truncate">Google Pay</span>
-                  <span className="text-[9px] text-blue-600 font-medium">1-Tap Pay</span>
-                </div>
+                <span className="block truncate font-bold text-xs text-slate-900">Google Pay</span>
               </a>
 
-              {/* Paytm */}
+              {/* 3. Paytm */}
               <a
                 href={paytmUrl}
-                className="flex items-center gap-2.5 p-3 rounded-2xl bg-sky-50 hover:bg-sky-100/80 border border-sky-200 text-sky-900 font-bold text-xs shadow-2xs active:scale-95 transition-all"
+                className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-sky-50/60 border border-slate-200/90 hover:border-sky-300 text-slate-800 font-bold text-xs shadow-2xs active:scale-95 transition-all"
               >
-                <div className="w-7 h-7 rounded-full bg-sky-600 text-white font-black text-[10px] flex items-center justify-center shadow-xs shrink-0">
-                  Pay
+                <div className="w-8 h-8 rounded-xl overflow-hidden bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-2xs p-0.5">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/images/upi/paytm.png"
+                    alt="Paytm"
+                    className="w-full h-full object-contain rounded-lg"
+                  />
                 </div>
-                <div className="min-w-0">
-                  <span className="block truncate">Paytm</span>
-                  <span className="text-[9px] text-sky-600 font-medium">1-Tap Pay</span>
-                </div>
+                <span className="block truncate font-bold text-xs text-slate-900">Paytm</span>
               </a>
 
-              {/* Any Other UPI App */}
+              {/* 4. CRED */}
+              <a
+                href={credUrl}
+                className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-stone-50 border border-slate-200/90 hover:border-stone-400 text-slate-800 font-bold text-xs shadow-2xs active:scale-95 transition-all"
+              >
+                <div className="w-8 h-8 rounded-xl overflow-hidden bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-2xs p-0.5">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/images/upi/cred.png"
+                    alt="CRED"
+                    className="w-full h-full object-contain rounded-lg"
+                  />
+                </div>
+                <span className="block truncate font-bold text-xs text-slate-900">CRED</span>
+              </a>
+
+              {/* 5. Kiwi */}
+              <a
+                href={kiwiUrl}
+                className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-lime-50/60 border border-slate-200/90 hover:border-lime-400 text-slate-800 font-bold text-xs shadow-2xs active:scale-95 transition-all"
+              >
+                <div className="w-8 h-8 rounded-xl overflow-hidden bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-2xs p-0.5">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/images/upi/kiwi.png"
+                    alt="Kiwi"
+                    className="w-full h-full object-contain rounded-lg"
+                  />
+                </div>
+                <span className="block truncate font-bold text-xs text-slate-900">Kiwi</span>
+              </a>
+
+              {/* 6. BHIM UPI */}
+              <a
+                href={bhimUrl}
+                className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-emerald-50/60 border border-slate-200/90 hover:border-emerald-300 text-slate-800 font-bold text-xs shadow-2xs active:scale-95 transition-all"
+              >
+                <div className="w-8 h-8 rounded-xl overflow-hidden bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-2xs p-0.5">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/images/upi/bhim.png"
+                    alt="BHIM UPI"
+                    className="w-full h-full object-contain rounded-lg"
+                  />
+                </div>
+                <span className="block truncate font-bold text-xs text-slate-900">BHIM UPI</span>
+              </a>
+
+              {/* 7. Other UPI Apps (Full width with official NPCI UPI logo) */}
               <a
                 href={anyUpiUrl}
-                className="flex items-center gap-2.5 p-3 rounded-2xl bg-orange-50 hover:bg-orange-100/80 border border-orange-200 text-orange-950 font-bold text-xs shadow-2xs active:scale-95 transition-all"
+                className="col-span-2 flex items-center justify-between p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-orange-50/60 border border-slate-200/90 hover:border-orange-300 text-slate-800 font-bold text-xs shadow-2xs active:scale-95 transition-all"
               >
-                <div className="w-7 h-7 rounded-full bg-[#c2652a] text-white font-black text-xs flex items-center justify-center shadow-xs shrink-0">
-                  ⚡
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl overflow-hidden bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-2xs p-1">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/images/upi/upi.svg"
+                      alt="UPI"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <span className="block truncate font-bold text-xs text-slate-900">Other UPI Apps</span>
                 </div>
-                <div className="min-w-0">
-                  <span className="block truncate">Any UPI App</span>
-                  <span className="text-[9px] text-[#c2652a] font-medium">BHIM / Cred</span>
-                </div>
+                <span className="text-[10px] text-gray-500 font-semibold px-2 py-0.5 rounded-md bg-gray-50 border border-gray-200/80 shrink-0">
+                  Choose App →
+                </span>
               </a>
             </div>
 
