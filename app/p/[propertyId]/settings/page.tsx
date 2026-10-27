@@ -128,6 +128,7 @@ export default function PropertySettingsPage({
   const [newQrPartnerId, setNewQrPartnerId] = useState<string>("");
   const [newQrBank, setNewQrBank] = useState("");
   const [newQrUpi, setNewQrUpi] = useState("");
+  const [newQrPhone, setNewQrPhone] = useState("");
 
   // Custom Delete Confirmation Modal State
   const [deleteQrTarget, setDeleteQrTarget] = useState<PaymentQRProfile | null>(null);
@@ -172,6 +173,7 @@ export default function PropertySettingsPage({
       accountType: resolvedAccountType,
       partnerId: newQrPartnerId,
       partnerName: resolvedPartnerName,
+      phone: newQrPhone.trim() || matchedPartner?.phone || "",
       isDefault: isFirstAccount,
     };
 
@@ -181,6 +183,7 @@ export default function PropertySettingsPage({
     await propertySettingsStore.updateSettings(newSettings, propertyId);
     setNewQrBank("");
     setNewQrUpi("");
+    setNewQrPhone("");
     triggerToast(`✓ Added Payment Account: ${newProf.name}`);
   };
 
@@ -625,14 +628,29 @@ export default function PropertySettingsPage({
                               className="font-bold text-xs sm:text-sm text-gray-900 px-3 py-2 rounded-xl border border-gray-300 focus:ring-1 focus:ring-[#c2652a] w-full"
                               placeholder="Partner Name"
                             />
-                            <div className="flex items-center gap-2 mt-1">
+                            <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                               <label
                                 htmlFor={`avatar-upload-${partner.id}`}
                                 className="text-[10px] text-gray-500 hover:text-[#c2652a] font-medium flex items-center gap-1 cursor-pointer"
                               >
                                 <Camera className="w-3 h-3 text-[#c2652a]" />
-                                {partner.avatarUrl ? "Change Photo / Logo" : "Upload Logo"}
+                                {partner.avatarUrl ? "Change Photo" : "Upload Logo"}
                               </label>
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] text-gray-500 font-bold">📲 WhatsApp:</span>
+                                <input
+                                  type="tel"
+                                  maxLength={10}
+                                  placeholder="10-digit mobile"
+                                  value={partner.phone || ""}
+                                  onChange={(e) => {
+                                    const clean = e.target.value.replace(/\D/g, "").slice(0, 10);
+                                    const updated = partners.map((p) => (p.id === partner.id ? { ...p, phone: clean } : p));
+                                    setPartners(updated);
+                                  }}
+                                  className="w-28 px-2 py-0.5 rounded-lg border border-gray-300 font-mono text-[11px] text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                                />
+                              </div>
                             </div>
                           </div>
 
@@ -823,6 +841,26 @@ export default function PropertySettingsPage({
                             }`}
                           />
                         </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                            WhatsApp Alert Mobile (10-Digit)
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-2 text-xs font-bold text-gray-500">+91</span>
+                            <input
+                              type="tel"
+                              maxLength={10}
+                              placeholder="e.g. 9876543210"
+                              value={newQrPhone}
+                              onChange={(e) => setNewQrPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                              className="w-full pl-11 pr-3 py-2 rounded-xl border border-gray-300 text-xs font-mono font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                            />
+                          </div>
+                          <p className="text-[10px] text-gray-500 mt-1">
+                            Receives 1-tap WhatsApp alert when tenant reports payment to this account.
+                          </p>
+                        </div>
                       </div>
 
                       <div className="flex justify-end pt-1">
@@ -908,6 +946,11 @@ export default function PropertySettingsPage({
                               ) : (
                                 <span className="text-[10px] text-gray-600 font-semibold block truncate">
                                   🏦 Direct Bank Transfer / NEFT / IMPS
+                                </span>
+                              )}
+                              {qr.phone && (
+                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 inline-block truncate">
+                                  📲 Alert Mobile: +91 {qr.phone}
                                 </span>
                               )}
                             </div>

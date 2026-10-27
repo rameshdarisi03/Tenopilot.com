@@ -7,7 +7,7 @@ export interface WhatsAppSendParams {
   propertyId: string;
   propertyName?: string;
   occupantId?: string;
-  type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "TENANT_WELCOME" | "COMPLAINT_UPDATE" | "CHECKOUT_THANK_YOU" | "OWNER_WELCOME" | "SUBSCRIPTION_INVOICE" | "KYC_CORRECTION_REQUEST" | "CUSTOM";
+  type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "TENANT_WELCOME" | "COMPLAINT_UPDATE" | "CHECKOUT_THANK_YOU" | "OWNER_WELCOME" | "SUBSCRIPTION_INVOICE" | "KYC_CORRECTION_REQUEST" | "PAYMENT_PROOF_ALERT" | "CUSTOM";
   params?: {
     roomNumber?: string;
     bedCode?: string;
@@ -42,6 +42,11 @@ export interface WhatsAppSendParams {
     billingCycle?: string;
     ownerName?: string;
     category?: string;
+    payUrl?: string;
+    proofId?: string;
+    utrNumber?: string;
+    partnerName?: string;
+    partnerPhone?: string;
   };
 }
 
@@ -112,6 +117,7 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
         `💰 Amount Due: INR ${Number(p.amount || 0).toLocaleString("en-IN")}${p.breakupNote ? `\n(${p.breakupNote})` : ""}\n` +
         `📅 Due Date: ${p.dueDate || "5th of this month"}\n` +
         `💳 ${payHeader}: ${payDest}\n\n` +
+        (p.payUrl ? `👉 *Tap to Pay (PhonePe / GPay / Paytm / UPI)*:\n${p.payUrl}\n\n` : "") +
         `Kindly clear your dues and share transaction proof for your digital receipt.\n\n` +
         `Thank you for being a valued resident!\n\n` +
         `- ${pName}`
@@ -304,6 +310,32 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
         `If you have questions, please contact reception desk.\n\n` +
         `Warm regards,\n` +
         `*${pName} Management Desk*`
+      );
+    }
+
+    case "PAYMENT_PROOF_ALERT": {
+      const partnerName = payload.recipientName || "Property Partner";
+      const amtStr = Number(p.amount || 0).toLocaleString("en-IN");
+      const reviewUrl = p.receiptUrl || (p.proofId ? `https://www.tenopilot.com/p/${payload.propertyId}/tenants?proof=${p.proofId}` : `https://www.tenopilot.com/p/${payload.propertyId}/tenants`);
+      const utrStr = p.utrNumber || "Screenshot Attached";
+      const upiStr = p.upiId || "Partner UPI Account";
+      const residentStay = p.roomNumber ? `Room ${p.roomNumber}` : "Resident Accommodation";
+
+      return (
+        `*${pName}* 🏢\n` +
+        `⚡ *New Direct Payment Reported!*\n\n` +
+        `Hello *${partnerName}*,\n\n` +
+        `A resident has reported a direct UPI payment to your bank account (*${upiStr}*):\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n` +
+        `💰 *Amount Reported*: ₹${amtStr}\n` +
+        `🏠 *Stay*: ${residentStay}\n` +
+        `🔢 *UTR / Ref*: ${utrStr}\n` +
+        `🏢 *Property*: ${pName}\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `👉 *Review & Record in TenoPilot*:\n` +
+        `${reviewUrl}\n\n` +
+        `_Please verify your bank statement. Once verified, click 'Collect Rent' to generate their official digital receipt._\n\n` +
+        `- *Team TenoPilot* 🏢`
       );
     }
 
@@ -684,6 +716,45 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
             ],
           },
         };
+      } else if (payload.type === "PAYMENT_PROOF_ALERT") {
+        const p = payload.params || {};
+        const pName = payload.propertyName || "TenoPilot PG & Living";
+        const partnerName = payload.recipientName || "Property Partner";
+        const amtStr = Number(p.amount || 0).toLocaleString("en-IN");
+        const roomStay = p.roomNumber ? `Room ${p.roomNumber}` : "Accommodation";
+        const utrStr = p.utrNumber || "Screenshot Attached";
+        const proofParam = p.proofId || "";
+
+        requestBody = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "template",
+          template: {
+            name: "partner_payment_alert_v1",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: partnerName },
+                  { type: "text", text: pName },
+                  { type: "text", text: roomStay },
+                  { type: "text", text: amtStr },
+                  { type: "text", text: utrStr },
+                ],
+              },
+              {
+                type: "button",
+                sub_type: "url",
+                index: "0",
+                parameters: [
+                  { type: "text", text: `${payload.propertyId}/tenants?proof=${proofParam}` },
+                ],
+              },
+            ],
+          },
+        };
       } else {
         requestBody = {
           messaging_product: "whatsapp",
@@ -830,6 +901,30 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
             "Content-Type": "application/json",
           },
           body: JSON.stringify(fallbackBody),
+        });
+        resData = await response.json();
+      }
+
+      // Graceful fallback for partner_payment_alert_v1 if template is pending review or not found
+      if (!response.ok && payload.type === "PAYMENT_PROOF_ALERT" && requestBody?.template?.name === "partner_payment_alert_v1") {
+        console.warn("partner_payment_alert_v1 pending approval or error, falling back to direct text:", resData?.error?.message);
+        const fallbackTextBody = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "text",
+          text: {
+            preview_url: true,
+            body: messageBody,
+          },
+        };
+        response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${metaToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(fallbackTextBody),
         });
         resData = await response.json();
       }

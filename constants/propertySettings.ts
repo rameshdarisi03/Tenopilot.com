@@ -12,6 +12,7 @@ export interface PaymentQRProfile {
   qrImageUrl?: string; // Optional custom uploaded image URL/base64
   partnerId?: string; // "BUSINESS" | "PETTY_CASH" | Partner ID
   partnerName?: string; // "Main Business Pool" | "Petty Cash Desk" | Partner Name
+  phone?: string; // WhatsApp mobile number for targeted payment alerts
 }
 
 export interface InvoiceConfig {

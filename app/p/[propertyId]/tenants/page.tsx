@@ -15,6 +15,10 @@ import { partnerStore, PaymentAccountConfig, PartnerConfig } from "@/constants/p
 import { subscribeOccupantsFromFirestore, saveOccupantToFirestore, updateOccupantInFirestore, deleteOccupantFromFirestore, purgeAllMockOccupantsFromFirestore, isGenuineOccupantId } from "@/lib/firestoreService";
 import { sanitizeSearchInput, normalizePhoneNumber, formatWhatsAppPhone, buildWhatsAppUrl, sanitizeVehicleNumber } from "@/utils/security";
 import { calculateOccupantFinancialStatement, calculateProRataRent, resolveOccupantLastPaidInfo, resolveOccupantPaymentDueDate, parseOccupantDate } from "@/utils/domainSSOT";
+import { db } from "@/lib/firebase";
+import { collection, query, where, onSnapshot, doc, setDoc, getDoc } from "firebase/firestore";
+import { PaymentProofReviewModal, PaymentProofRecord } from "@/components/dashboard/PaymentProofReviewModal";
+import { generatePayToken } from "@/lib/paymentToken";
 import { activityAuditStore } from "@/utils/activityAuditStore";
 import { useAuth } from "@/providers/AuthProvider";
 import {
@@ -208,6 +212,11 @@ export default function TenantsDirectoryPage({
       setIsMobileMultiSelectMode(false);
     }
   }, [selectedIds.length, isMobileMultiSelectMode]);
+
+  // ⚡ Direct UPI Proof Verification States
+  const [pendingProofs, setPendingProofs] = useState<PaymentProofRecord[]>([]);
+  const [selectedProofForReview, setSelectedProofForReview] = useState<PaymentProofRecord | null>(null);
+  const [activeProofBanner, setActiveProofBanner] = useState<PaymentProofRecord | null>(null);
 
   // Collect Rent Modal State (Defaults dynamically to today's running calendar date)
   const [collectRentOccupant, setCollectRentOccupant] = useState<Occupant | null>(null);
@@ -439,8 +448,55 @@ export default function TenantsDirectoryPage({
     }
   };
 
-  // Handle URL Deep-Link for Collect Rent Modal or Automated Reminders (e.g. from Overview / Financial Hub)
+  // 📡 Real-time Listener for Direct UPI Payment Proofs
+  useEffect(() => {
+    if (!propertyId) return;
+    try {
+      const q = query(
+        collection(db, "properties", propertyId, "payment_proofs"),
+        where("status", "==", "PENDING_VERIFICATION")
+      );
+      const unsub = onSnapshot(
+        q,
+        (snap) => {
+          const list: PaymentProofRecord[] = [];
+          snap.forEach((d) => {
+            list.push({ id: d.id, ...d.data() } as PaymentProofRecord);
+          });
+          setPendingProofs(list);
+        },
+        (err) => {
+          console.warn("Notice: payment_proofs listener:", err);
+        }
+      );
+      return unsub;
+    } catch (err) {
+      console.warn("Notice setting up payment_proofs listener:", err);
+    }
+  }, [propertyId]);
+
   const searchParams = useSearchParams();
+
+  // 🔗 Auto-open Payment Proof Modal when "?proof=[id]" is passed via WhatsApp Ping
+  useEffect(() => {
+    const proofParam = searchParams?.get("proof");
+    if (proofParam && propertyId) {
+      const existing = pendingProofs.find((p) => p.id === proofParam);
+      if (existing) {
+        setSelectedProofForReview(existing);
+      } else {
+        getDoc(doc(db, "properties", propertyId, "payment_proofs", proofParam))
+          .then((snap) => {
+            if (snap.exists()) {
+              setSelectedProofForReview({ id: snap.id, ...snap.data() } as PaymentProofRecord);
+            }
+          })
+          .catch((e) => console.warn("Notice loading proof from URL:", e));
+      }
+    }
+  }, [searchParams, propertyId, pendingProofs]);
+
+  // Handle URL Deep-Link for Collect Rent Modal or Automated Reminders (e.g. from Overview / Financial Hub)
   useEffect(() => {
     const targetOccId = searchParams?.get("collectRent");
     if (targetOccId && occupantsList.length > 0) {
@@ -1172,6 +1228,89 @@ export default function TenantsDirectoryPage({
   };
 
   // Handle Rent Collection Submission (Supports Rent, Deposit, and Combined Allocations)
+  // ⚡ Transition from Payment Proof Modal directly into Collect Rent Modal
+  const handleProceedToCollectFromProof = (proof: PaymentProofRecord) => {
+    if (proof.status === "APPROVED") {
+      triggerToast("ℹ️ This payment was already approved by " + (proof.verifiedBy || "another staff member") + ".");
+      setSelectedProofForReview(null);
+      return;
+    }
+
+    const matched = occupantsList.find(
+      (o) =>
+        o.id === proof.tenantId ||
+        (o.name && proof.tenantName && o.name.trim().toLowerCase() === proof.tenantName.trim().toLowerCase()) ||
+        o.roomNumber === proof.roomNumber
+    );
+
+    if (!matched) {
+      triggerToast("⚠️ Resident " + proof.tenantName + " (Room " + proof.roomNumber + ") not found in active list.");
+      return;
+    }
+
+    setSelectedProofForReview(null);
+    setActiveProofBanner(proof);
+
+    // Pre-fill values from tenant's reported payment
+    setPaymentAmount(proof.reportedAmount);
+    setRentPaymentPortion(proof.reportedAmount);
+    setDepositPaymentPortion(0);
+    setParkingPaymentPortion(0);
+    setPaymentPurpose("RENT");
+    setPaymentMode("UPI");
+    setTransactionRef(proof.utrNumber ? ("UTR: " + proof.utrNumber) : "Direct UPI Transfer");
+
+    if (proof.partnerName) {
+      const matchedAccount = paymentAccounts.find(
+        (a) => a.name.toLowerCase() === proof.partnerName?.toLowerCase()
+      );
+      if (matchedAccount) {
+        setPaidTo(matchedAccount.name);
+      } else {
+        setPaidTo(proof.partnerName);
+      }
+    }
+
+    setCollectRentOccupant(matched);
+  };
+
+  // ❌ Reject Payment Proof with Reason
+  const handleRejectProof = async (proofId: string, reason: string) => {
+    try {
+      const proofDoc = pendingProofs.find((p) => p.id === proofId) || selectedProofForReview;
+      const staffName = profile?.displayName || "Admin";
+
+      await setDoc(
+        doc(db, "properties", propertyId, "payment_proofs", proofId),
+        {
+          status: "REJECTED",
+          rejectionReason: reason,
+          rejectedBy: staffName,
+          rejectedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+
+      if (proofDoc?.tenantId) {
+        await setDoc(
+          doc(db, "properties", propertyId, "tenants", proofDoc.tenantId, "reported_proofs", proofId),
+          {
+            status: "REJECTED",
+            rejectionReason: reason,
+            rejectedBy: staffName,
+            rejectedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      }
+
+      triggerToast("❌ Payment proof marked as rejected.");
+      setSelectedProofForReview(null);
+    } catch (err: any) {
+      triggerToast("Error rejecting proof: " + err.message);
+    }
+  };
+
   const handleCollectRentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!collectRentOccupant) return;
@@ -1379,6 +1518,41 @@ export default function TenantsDirectoryPage({
         }
       })
       .catch((e) => console.warn("Notice sending WhatsApp receipt:", e));
+
+    // ⚡ If this payment was initiated from a tenant-reported payment proof, mark it APPROVED in Firestore
+    if (activeProofBanner) {
+      const pId = activeProofBanner.id;
+      const tId = activeProofBanner.tenantId;
+      const receiptNo = newReceipts[0]?.receiptNo || "";
+
+      setDoc(
+        doc(db, "properties", propertyId, "payment_proofs", pId),
+        {
+          status: "APPROVED",
+          verifiedBy: staffName,
+          verifiedAt: new Date().toISOString(),
+          approvedAmount: totalCollected,
+          receiptNumber: receiptNo,
+        },
+        { merge: true }
+      ).catch((err) => console.warn("Notice approving payment proof:", err));
+
+      if (tId) {
+        setDoc(
+          doc(db, "properties", propertyId, "tenants", tId, "reported_proofs", pId),
+          {
+            status: "APPROVED",
+            verifiedBy: staffName,
+            verifiedAt: new Date().toISOString(),
+            approvedAmount: totalCollected,
+            receiptNumber: receiptNo,
+          },
+          { merge: true }
+        ).catch((err) => console.warn("Notice approving tenant reported proof:", err));
+      }
+
+      setActiveProofBanner(null);
+    }
 
     setCollectRentOccupant(null);
     setTransactionRef("");
@@ -1753,6 +1927,37 @@ export default function TenantsDirectoryPage({
 
         {/* Directory Body */}
         <div className="p-4 md:p-8 space-y-6 flex-1 pb-28">
+          {/* ⚡ Pending Direct UPI Payment Proofs Alert Banner */}
+          {pendingProofs.length > 0 && (
+            <div className="p-4 bg-gradient-to-r from-emerald-950/70 via-slate-900 to-teal-950/70 border border-emerald-500/30 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-lg shadow-emerald-950/20 animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-5 h-5 text-emerald-400 animate-pulse" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>{pendingProofs.length} Direct UPI Payment{pendingProofs.length > 1 ? "s" : ""} Reported</span>
+                    <span className="px-2 py-0.5 text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full animate-pulse">
+                      Pending Verification
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-300">
+                    Tenants self-reported bank transfers with zero gateway cuts. Verify bank credit & issue instant receipts.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedProofForReview(pendingProofs[0])}
+                  className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-bold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <span>Review Proof{pendingProofs.length > 1 ? (" (1 of " + pendingProofs.length + ")") : ""}</span>
+                  <CheckCircle2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
           {/* Header Section */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
@@ -2276,6 +2481,23 @@ export default function TenantsDirectoryPage({
                                   📞 {occ.phone}
                                 </span>
                               )}
+                              {(() => {
+                                const proof = pendingProofs.find((p) => p.tenantId === occ.id || (p.roomNumber === occ.roomNumber && p.tenantName?.toLowerCase() === occ.name?.toLowerCase()));
+                                if (!proof) return null;
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedProofForReview(proof);
+                                    }}
+                                    className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition-all cursor-pointer shadow-2xs"
+                                  >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                                    <span>⚡ Paid ₹{proof.reportedAmount.toLocaleString("en-IN")} • Verify Proof</span>
+                                  </button>
+                                );
+                              })()}
                             </div>
                           </div>
                         </td>
@@ -2797,6 +3019,24 @@ Scroll vertically to browse all residents without pagination limits
                             </div>
                           </div>
 
+                          {(() => {
+                            const proof = pendingProofs.find((p) => p.tenantId === occ.id || (p.roomNumber === occ.roomNumber && p.tenantName?.toLowerCase() === occ.name?.toLowerCase()));
+                            if (!proof) return null;
+                            return (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedProofForReview(proof);
+                                }}
+                                className="w-full py-2 px-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-800 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer mb-1"
+                              >
+                                <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+                                <span>⚡ Direct UPI Paid: ₹{proof.reportedAmount.toLocaleString("en-IN")} • Verify</span>
+                              </button>
+                            );
+                          })()}
+
                           {/* Bottom Row: Profile and Collect Rent side-by-side */}
                           <div className="flex gap-2 pt-0.5">
                             <Link
@@ -2927,6 +3167,44 @@ Scroll vertically to browse all residents without pagination limits
                 onSubmit={handleCollectRentSubmit}
                 className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 text-xs overscroll-contain"
               >
+                {/* ⚡ Active Payment Proof Verification Banner */}
+                {activeProofBanner && (
+                  <div className="p-3 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-300 rounded-2xl flex items-center justify-between gap-2 shadow-xs mb-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-700 font-bold flex items-center justify-center shrink-0">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-emerald-900 flex items-center gap-1.5 truncate">
+                          <span>Linking Reported Payment</span>
+                          <span className="text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded">
+                            ₹{activeProofBanner.reportedAmount.toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-emerald-700 truncate">
+                          UTR: {activeProofBanner.utrNumber || "Screenshot attached"} {activeProofBanner.partnerName ? ("• Account: " + activeProofBanner.partnerName) : ""}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedProofForReview(activeProofBanner)}
+                        className="px-2 py-1 text-[11px] font-bold text-emerald-800 hover:text-emerald-950 bg-white border border-emerald-200 rounded-lg shadow-2xs hover:bg-emerald-50 transition-colors"
+                      >
+                        View Proof
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveProofBanner(null)}
+                        title="Unlink Proof"
+                        className="p-1 text-gray-400 hover:text-gray-600 rounded-lg"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {/* 🏷️ 1-Tap Payment Purpose / Allocation Category */}
                 <div>
                   {(() => {
@@ -4380,6 +4658,14 @@ Scroll vertically to browse all residents without pagination limits
             </div>
           </div>
         )}
+        {/* ⚡ Interactive Payment Proof Review Lightbox Modal */}
+        <PaymentProofReviewModal
+          proof={selectedProofForReview}
+          isOpen={Boolean(selectedProofForReview)}
+          onClose={() => setSelectedProofForReview(null)}
+          onProceedToCollect={handleProceedToCollectFromProof}
+          onRejectProof={handleRejectProof}
+        />
       </div>
     </div>
   );

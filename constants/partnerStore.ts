@@ -32,6 +32,7 @@ export interface PaymentAccountConfig {
   bankLabel?: string;
   upiId?: string;
   accountType?: "UPI_QR" | "BANK_TRANSFER" | "CASH_DESK";
+  phone?: string;
 }
 
 export function getOwnerDisplayName(): string {
