@@ -659,13 +659,40 @@ export default function TenantsDirectoryPage({
       ? (activeCard?.bankLabel ? `Cash at Desk (${activeCard.bankLabel})` : "Cash at Front Desk / Reception")
       : (activeCard?.upiId || "PG Reception / Manager UPI");
 
+    let paymentActionLinks = "";
+    if (!isCashReq && activeCard?.upiId) {
+      const token = generatePayToken({
+        propertyId,
+        propertyName: pName,
+        tenantId: occ.id,
+        tenantName: occ.name,
+        roomNumber: occ.roomNumber,
+        amount: effectiveAmount,
+        dueDate: dueDateStr,
+        upiId: activeCard.upiId,
+        partnerName: activeCard.bankLabel || activeCard.name,
+        partnerPhone: activeCard.phone || currentSettings.managerPhone || "",
+        propertyPhone: currentSettings.managerPhone || "",
+      });
+
+      paymentActionLinks =
+        `👉 *Pay through UPI:*\nhttps://www.tenopilot.com/pay/${token}?view=pay\n\n` +
+        `📸 *Upload payment screenshot:*\nhttps://www.tenopilot.com/pay/${token}?view=proof\n\n`;
+    }
+
+    const callUsText = currentSettings.managerPhone
+      ? `📞 *Call Us:* ${currentSettings.managerPhone}\n\n`
+      : "";
+
     const message =
-      `**${pName}**\n\n` +
+      `*${pName}*\n\n` +
       `Hello ${occ.name},\n\n` +
-      `This is a friendly reminder regarding your monthly accommodation rent for ${occ.roomNumber || "N/A"}${occ.bedCode ? ` - ${occ.bedCode}` : ""}:\n\n` +
-      `💰 Amount Due: INR ${Number(effectiveAmount || 0).toLocaleString("en-IN")}${breakupText}\n` +
-      `📅 Due Date: ${dueDateStr}\n` +
-      `💳 ${payHeader}: ${payDest}\n\n` +
+      `This is a friendly reminder regarding your monthly accommodation rent for *${occ.roomNumber || "N/A"}${occ.bedCode ? ` - ${occ.bedCode}` : ""}*:\n\n` +
+      `💰 *Amount Due:* ₹${Number(effectiveAmount || 0).toLocaleString("en-IN")}${breakupText}\n` +
+      `📅 *Due Date:* ${dueDateStr}\n` +
+      (!isCashReq ? `💳 *${payHeader}:* ${payDest}\n\n` : `\n`) +
+      paymentActionLinks +
+      callUsText +
       `Kindly clear your dues and share transaction proof for your digital receipt.\n\n` +
       `Thank you for being a valued resident!\n\n` +
       `- ${pName}`;
@@ -4161,13 +4188,40 @@ Scroll vertically to browse all residents without pagination limits
                         const dueDateStr = resolveOccupantPaymentDueDate(occ, currentSettings);
                         const breakupText = occStmt.parkingBreakupText ? ` (Breakup: ${occStmt.parkingBreakupText})` : "";
 
+                        let paymentActionLinks = "";
+                        if (!isCashReq && activeCard?.upiId) {
+                          const token = generatePayToken({
+                            propertyId,
+                            propertyName: pName,
+                            tenantId: occ.id,
+                            tenantName: occ.name,
+                            roomNumber: occ.roomNumber,
+                            amount: effectiveAmount,
+                            dueDate: dueDateStr,
+                            upiId: activeCard.upiId,
+                            partnerName: activeCard.bankLabel || activeCard.name,
+                            partnerPhone: activeCard.phone || currentSettings.managerPhone || "",
+                            propertyPhone: currentSettings.managerPhone || "",
+                          });
+
+                          paymentActionLinks =
+                            `👉 *Pay through UPI:*\nhttps://www.tenopilot.com/pay/${token}?view=pay\n\n` +
+                            `📸 *Upload payment screenshot:*\nhttps://www.tenopilot.com/pay/${token}?view=proof\n\n`;
+                        }
+
+                        const callUsText = currentSettings.managerPhone
+                          ? `📞 *Call Us:* ${currentSettings.managerPhone}\n\n`
+                          : "";
+
                         const message =
-                          `**${pName}**\n\n` +
+                          `*${pName}*\n\n` +
                           `Hello ${occ.name},\n\n` +
-                          `This is a friendly reminder regarding your monthly accommodation rent for ${occ.roomNumber || "N/A"}${occ.bedCode ? ` - ${occ.bedCode}` : ""}:\n\n` +
-                          `💰 Amount Due: INR ${Number(effectiveAmount || 0).toLocaleString("en-IN")}${breakupText}\n` +
-                          `📅 Due Date: ${dueDateStr}\n` +
-                          `💳 ${payHeader}: ${payDest}\n\n` +
+                          `This is a friendly reminder regarding your monthly accommodation rent for *${occ.roomNumber || "N/A"}${occ.bedCode ? ` - ${occ.bedCode}` : ""}*:\n\n` +
+                          `💰 *Amount Due:* ₹${Number(effectiveAmount || 0).toLocaleString("en-IN")}${breakupText}\n` +
+                          `📅 *Due Date:* ${dueDateStr}\n` +
+                          (!isCashReq ? `💳 *${payHeader}:* ${payDest}\n\n` : `\n`) +
+                          paymentActionLinks +
+                          callUsText +
                           `Kindly clear your dues and share transaction proof for your digital receipt.\n\n` +
                           `Thank you for being a valued resident!\n\n` +
                           `- ${pName}`;

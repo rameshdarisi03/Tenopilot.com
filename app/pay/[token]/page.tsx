@@ -20,6 +20,8 @@ import {
   ArrowRight,
   ExternalLink,
   ChevronDown,
+  Camera,
+  X,
 } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 import { compressImageToDataUrl } from "@/utils/imageCompression";
@@ -68,6 +70,16 @@ export default function TenantPaymentBridgePage() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showQrExpanded, setShowQrExpanded] = useState(false);
+  const [activeTab, setActiveTab] = useState<"pay" | "proof">("pay");
+
+  useEffect(() => {
+    const viewParam = searchParams.get("view");
+    if (viewParam === "proof") {
+      setActiveTab("proof");
+    } else if (viewParam === "pay") {
+      setActiveTab("pay");
+    }
+  }, [searchParams]);
 
   // Decode Token on Mount
   useEffect(() => {
@@ -374,249 +386,317 @@ export default function TenantPaymentBridgePage() {
       </header>
 
       <main className="max-w-lg mx-auto p-4 space-y-4 pt-4">
-        {/* 🏢 Accommodation & Bill Summary Card */}
-        <div className="bg-white p-5 rounded-3xl border border-[#d7c2b9]/60 shadow-sm space-y-4">
-          <div className="flex items-start justify-between gap-3 border-b border-gray-100 pb-3">
-            <div>
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#c2652a]">
-                Accommodation Rent Due
-              </span>
-              <h1 className="font-serif font-bold text-base text-gray-900 mt-0.5">{details.propertyName}</h1>
-              <p className="text-xs text-gray-500 font-medium">
-                {details.tenantName} • <span className="font-bold text-gray-700">{details.roomNumber}</span>
-              </p>
-            </div>
-            {details.dueDate && (
-              <div className="text-right shrink-0">
-                <span className="text-[10px] font-bold text-gray-400 block">Due Date</span>
-                <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 inline-block mt-0.5">
-                  {details.dueDate}
-                </span>
-              </div>
-            )}
-          </div>
-
-          <div className="bg-gradient-to-r from-orange-50/70 via-white to-amber-50/70 p-4 rounded-2xl border border-orange-200/80 flex items-center justify-between">
-            <div>
-              <span className="text-[11px] font-bold text-gray-500 block">Total Payable Amount</span>
-              <div className="font-mono font-black text-2xl text-gray-900 mt-0.5">
-                ₹{details.amount.toLocaleString("en-IN")}
-              </div>
-            </div>
-            <div className="text-right">
-              <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 inline-block">
-                Zero Surcharge ₹0
-              </span>
-              <p className="text-[10px] text-gray-500 mt-1">Direct Bank Settlement</p>
-            </div>
-          </div>
+        {/* 🎛️ Dedicated 2-View Segmented Switcher */}
+        <div className="grid grid-cols-2 p-1 bg-white/90 backdrop-blur-xs rounded-2xl border border-[#d7c2b9]/60 shadow-2xs">
+          <button
+            type="button"
+            onClick={() => setActiveTab("pay")}
+            className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === "pay"
+                ? "bg-[#c2652a] text-white shadow-xs"
+                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+            }`}
+          >
+            <Smartphone className="w-3.5 h-3.5" />
+            <span>Pay through UPI</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("proof")}
+            className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === "proof"
+                ? "bg-[#c2652a] text-white shadow-xs"
+                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+            }`}
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>Upload Screenshot</span>
+          </button>
         </div>
 
-        {/* 🚀 1-Tap UPI Apps Launcher (Mobile First UX) */}
-        {!isSubmitted && (
-          <div className="bg-white p-5 rounded-3xl border border-[#d7c2b9]/60 shadow-sm space-y-3.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-orange-100 text-[#c2652a]">
-                  <Smartphone className="w-4 h-4" />
+        {/* ========================================================= */}
+        {/* 📱 SCREEN 1: PAY THROUGH UPI                             */}
+        {/* ========================================================= */}
+        {activeTab === "pay" && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            {/* 🏢 Accommodation & Bill Summary Card */}
+            <div className="bg-white p-5 rounded-3xl border border-[#d7c2b9]/60 shadow-sm space-y-4">
+              <div className="flex items-start justify-between gap-3 border-b border-gray-100 pb-3">
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#c2652a]">
+                    Accommodation Rent Due
+                  </span>
+                  <h1 className="font-serif font-bold text-base text-gray-900 mt-0.5">{details.propertyName}</h1>
+                  <p className="text-xs text-gray-500 font-medium">
+                    {details.tenantName} • <span className="font-bold text-gray-700">{details.roomNumber}</span>
+                  </p>
                 </div>
-                <h3 className="font-serif font-bold text-sm text-gray-900">1-Tap Direct UPI Apps</h3>
+                {details.dueDate && (
+                  <div className="text-right shrink-0">
+                    <span className="text-[10px] font-bold text-gray-400 block">Due Date</span>
+                    <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 inline-block mt-0.5">
+                      {details.dueDate}
+                    </span>
+                  </div>
+                )}
               </div>
-              <span className="text-[10px] text-gray-400 font-medium">Pre-filled Amount</span>
+
+              <div className="bg-gradient-to-r from-orange-50/70 via-white to-amber-50/70 p-4 rounded-2xl border border-orange-200/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] font-bold text-gray-500 block">Total Payable Amount</span>
+                  <div className="font-mono font-black text-2xl text-gray-900 mt-0.5">
+                    ₹{details.amount.toLocaleString("en-IN")}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 inline-block">
+                    Zero Surcharge ₹0
+                  </span>
+                  <p className="text-[10px] text-gray-500 mt-1">Direct Bank Settlement</p>
+                </div>
+              </div>
             </div>
 
-            <p className="text-[11px] text-gray-500 leading-relaxed">
-              Tap any app below to open directly with <strong>₹{details.amount.toLocaleString("en-IN")}</strong> and owner UPI ID pre-filled:
-            </p>
-
-            <div className="grid grid-cols-2 gap-2.5 pt-1">
-              {/* 1. PhonePe */}
-              <a
-                href={phonePeUrl}
-                className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-purple-50/60 border border-slate-200/90 hover:border-purple-300 text-slate-800 font-bold text-xs shadow-2xs active:scale-95 transition-all"
-              >
-                <div className="w-8 h-8 rounded-xl overflow-hidden bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-2xs p-0.5">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="/images/upi/phonepe.png"
-                    alt="PhonePe"
-                    className="w-full h-full object-contain rounded-lg"
-                  />
+            {/* 🚀 Direct UPI Apps Launcher Card */}
+            <div className="bg-white p-5 rounded-3xl border border-[#d7c2b9]/60 shadow-sm space-y-3.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-orange-100 text-[#c2652a]">
+                    <Smartphone className="w-4 h-4" />
+                  </div>
+                  <h3 className="font-serif font-bold text-sm text-gray-900">Direct UPI Apps</h3>
                 </div>
-                <span className="block truncate font-bold text-xs text-slate-900">PhonePe</span>
-              </a>
+                <span className="text-[10px] text-gray-400 font-medium">Pre-filled Amount</span>
+              </div>
 
-              {/* 2. Google Pay */}
-              <a
-                href={gPayUrl}
-                className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-blue-50/60 border border-slate-200/90 hover:border-blue-300 text-slate-800 font-bold text-xs shadow-2xs active:scale-95 transition-all"
-              >
-                <div className="w-8 h-8 rounded-xl overflow-hidden bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-2xs p-0.5">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="/images/upi/googlepay.png"
-                    alt="Google Pay"
-                    className="w-full h-full object-contain rounded-lg"
-                  />
-                </div>
-                <span className="block truncate font-bold text-xs text-slate-900">Google Pay</span>
-              </a>
+              <p className="text-[11px] text-gray-500 leading-relaxed">
+                Tap any app below to open directly with <strong>₹{details.amount.toLocaleString("en-IN")}</strong> and owner UPI ID pre-filled:
+              </p>
 
-              {/* 3. Paytm */}
-              <a
-                href={paytmUrl}
-                className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-sky-50/60 border border-slate-200/90 hover:border-sky-300 text-slate-800 font-bold text-xs shadow-2xs active:scale-95 transition-all"
-              >
-                <div className="w-8 h-8 rounded-xl overflow-hidden bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-2xs p-0.5">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="/images/upi/paytm.png"
-                    alt="Paytm"
-                    className="w-full h-full object-contain rounded-lg"
-                  />
-                </div>
-                <span className="block truncate font-bold text-xs text-slate-900">Paytm</span>
-              </a>
-
-              {/* 4. CRED */}
-              <a
-                href={credUrl}
-                className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-stone-50 border border-slate-200/90 hover:border-stone-400 text-slate-800 font-bold text-xs shadow-2xs active:scale-95 transition-all"
-              >
-                <div className="w-8 h-8 rounded-xl overflow-hidden bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-2xs p-0.5">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="/images/upi/cred.png"
-                    alt="CRED"
-                    className="w-full h-full object-contain rounded-lg"
-                  />
-                </div>
-                <span className="block truncate font-bold text-xs text-slate-900">CRED</span>
-              </a>
-
-              {/* 5. Kiwi */}
-              <a
-                href={kiwiUrl}
-                className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-lime-50/60 border border-slate-200/90 hover:border-lime-400 text-slate-800 font-bold text-xs shadow-2xs active:scale-95 transition-all"
-              >
-                <div className="w-8 h-8 rounded-xl overflow-hidden bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-2xs p-0.5">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="/images/upi/kiwi.png"
-                    alt="Kiwi"
-                    className="w-full h-full object-contain rounded-lg"
-                  />
-                </div>
-                <span className="block truncate font-bold text-xs text-slate-900">Kiwi</span>
-              </a>
-
-              {/* 6. BHIM UPI */}
-              <a
-                href={bhimUrl}
-                className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-emerald-50/60 border border-slate-200/90 hover:border-emerald-300 text-slate-800 font-bold text-xs shadow-2xs active:scale-95 transition-all"
-              >
-                <div className="w-8 h-8 rounded-xl overflow-hidden bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-2xs p-0.5">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="/images/upi/bhim.png"
-                    alt="BHIM UPI"
-                    className="w-full h-full object-contain rounded-lg"
-                  />
-                </div>
-                <span className="block truncate font-bold text-xs text-slate-900">BHIM UPI</span>
-              </a>
-
-              {/* 7. Other UPI Apps (Full width with official NPCI UPI logo) */}
-              <a
-                href={anyUpiUrl}
-                className="col-span-2 flex items-center justify-between p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-orange-50/60 border border-slate-200/90 hover:border-orange-300 text-slate-800 font-bold text-xs shadow-2xs active:scale-95 transition-all"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-xl overflow-hidden bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-2xs p-1">
+              <div className="grid grid-cols-2 gap-2.5 pt-1">
+                {/* 1. PhonePe */}
+                <a
+                  href={phonePeUrl}
+                  className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-purple-50/60 border border-slate-200/90 hover:border-purple-300 text-slate-800 font-bold text-xs shadow-2xs active:scale-95 transition-all"
+                >
+                  <div className="w-8 h-8 rounded-xl overflow-hidden bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-2xs p-0.5">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src="/images/upi/upi.svg"
-                      alt="UPI"
-                      className="w-full h-full object-contain"
+                      src="/images/upi/phonepe.png"
+                      alt="PhonePe"
+                      className="w-full h-full object-contain rounded-lg"
                     />
                   </div>
-                  <span className="block truncate font-bold text-xs text-slate-900">Other UPI Apps</span>
-                </div>
-                <span className="text-[10px] text-gray-500 font-semibold px-2 py-0.5 rounded-md bg-gray-50 border border-gray-200/80 shrink-0">
-                  Choose App →
-                </span>
-              </a>
-            </div>
+                  <span className="block truncate font-bold text-xs text-slate-900">PhonePe</span>
+                </a>
 
-            {/* UPI ID Details + Copy Action */}
-            <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-xs">
-              <div className="min-w-0">
-                <span className="text-[10px] font-bold text-gray-400 block">Receiving UPI ID</span>
-                <span className="font-mono font-bold text-gray-800 text-[11px] block truncate">{details.upiId}</span>
-              </div>
-              <button
-                type="button"
-                onClick={handleCopyUpi}
-                className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-[11px] flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all shrink-0"
-              >
-                {copiedUpi ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedUpi ? "Copied!" : "Copy UPI"}</span>
-              </button>
-            </div>
-
-            {/* Expandable Desktop QR Code */}
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={() => setShowQrExpanded(!showQrExpanded)}
-                className="w-full text-center text-[11px] font-bold text-[#c2652a] hover:underline flex items-center justify-center gap-1 cursor-pointer py-1"
-              >
-                <QrCode className="w-3.5 h-3.5" />
-                <span>{showQrExpanded ? "Hide Dynamic QR Code" : "Show Dynamic QR Code (Scan to Pay)"}</span>
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showQrExpanded ? "rotate-180" : ""}`} />
-              </button>
-
-              {showQrExpanded && (
-                <div className="pt-3 pb-2 text-center space-y-2 animate-in fade-in zoom-in-95">
-                  <div className="p-3 bg-white rounded-2xl border-2 border-gray-900 inline-block shadow-md">
-                    <QRCodeCanvas value={upiIntentString} size={180} level="M" />
+                {/* 2. Google Pay */}
+                <a
+                  href={gPayUrl}
+                  className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-blue-50/60 border border-slate-200/90 hover:border-blue-300 text-slate-800 font-bold text-xs shadow-2xs active:scale-95 transition-all"
+                >
+                  <div className="w-8 h-8 rounded-xl overflow-hidden bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-2xs p-0.5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/images/upi/googlepay.png"
+                      alt="Google Pay"
+                      className="w-full h-full object-contain rounded-lg"
+                    />
                   </div>
-                  <p className="text-[10px] text-gray-500">Scan using any UPI app on your phone</p>
+                  <span className="block truncate font-bold text-xs text-slate-900">Google Pay</span>
+                </a>
+
+                {/* 3. Paytm */}
+                <a
+                  href={paytmUrl}
+                  className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-sky-50/60 border border-slate-200/90 hover:border-sky-300 text-slate-800 font-bold text-xs shadow-2xs active:scale-95 transition-all"
+                >
+                  <div className="w-8 h-8 rounded-xl overflow-hidden bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-2xs p-0.5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/images/upi/paytm.png"
+                      alt="Paytm"
+                      className="w-full h-full object-contain rounded-lg"
+                    />
+                  </div>
+                  <span className="block truncate font-bold text-xs text-slate-900">Paytm</span>
+                </a>
+
+                {/* 4. CRED */}
+                <a
+                  href={credUrl}
+                  className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-stone-50 border border-slate-200/90 hover:border-stone-400 text-slate-800 font-bold text-xs shadow-2xs active:scale-95 transition-all"
+                >
+                  <div className="w-8 h-8 rounded-xl overflow-hidden bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-2xs p-0.5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/images/upi/cred.png"
+                      alt="CRED"
+                      className="w-full h-full object-contain rounded-lg"
+                    />
+                  </div>
+                  <span className="block truncate font-bold text-xs text-slate-900">CRED</span>
+                </a>
+
+                {/* 5. Kiwi */}
+                <a
+                  href={kiwiUrl}
+                  className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-lime-50/60 border border-slate-200/90 hover:border-lime-400 text-slate-800 font-bold text-xs shadow-2xs active:scale-95 transition-all"
+                >
+                  <div className="w-8 h-8 rounded-xl overflow-hidden bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-2xs p-0.5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/images/upi/kiwi.png"
+                      alt="Kiwi"
+                      className="w-full h-full object-contain rounded-lg"
+                    />
+                  </div>
+                  <span className="block truncate font-bold text-xs text-slate-900">Kiwi</span>
+                </a>
+
+                {/* 6. BHIM UPI */}
+                <a
+                  href={bhimUrl}
+                  className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-emerald-50/60 border border-slate-200/90 hover:border-emerald-300 text-slate-800 font-bold text-xs shadow-2xs active:scale-95 transition-all"
+                >
+                  <div className="w-8 h-8 rounded-xl overflow-hidden bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-2xs p-0.5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/images/upi/bhim.png"
+                      alt="BHIM UPI"
+                      className="w-full h-full object-contain rounded-lg"
+                    />
+                  </div>
+                  <span className="block truncate font-bold text-xs text-slate-900">BHIM UPI</span>
+                </a>
+
+                {/* 7. Other UPI Apps (Full width with official NPCI UPI logo) */}
+                <a
+                  href={anyUpiUrl}
+                  className="col-span-2 flex items-center justify-between p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-orange-50/60 border border-slate-200/90 hover:border-orange-300 text-slate-800 font-bold text-xs shadow-2xs active:scale-95 transition-all"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-xl overflow-hidden bg-white border border-slate-100 flex items-center justify-center shrink-0 shadow-2xs p-1">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src="/images/upi/upi.svg"
+                        alt="UPI"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                    <span className="block truncate font-bold text-xs text-slate-900">Other UPI Apps</span>
+                  </div>
+                  <span className="text-[10px] text-gray-500 font-semibold px-2 py-0.5 rounded-md bg-gray-50 border border-gray-200/80 shrink-0">
+                    Choose App →
+                  </span>
+                </a>
+              </div>
+
+              {/* UPI ID Details + Copy Action */}
+              <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-xs">
+                <div className="min-w-0">
+                  <span className="text-[10px] font-bold text-gray-400 block">Receiving UPI ID</span>
+                  <span className="font-mono font-bold text-gray-800 text-[11px] block truncate">{details.upiId}</span>
                 </div>
-              )}
+                <button
+                  type="button"
+                  onClick={handleCopyUpi}
+                  className="px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0"
+                >
+                  {copiedUpi ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedUpi ? "Copied!" : "Copy UPI"}</span>
+                </button>
+              </div>
+
+              {/* Expandable Desktop QR Code */}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowQrExpanded(!showQrExpanded)}
+                  className="w-full text-center text-[11px] font-bold text-[#c2652a] hover:underline flex items-center justify-center gap-1 cursor-pointer py-1"
+                >
+                  <QrCode className="w-3.5 h-3.5" />
+                  <span>{showQrExpanded ? "Hide Dynamic QR Code" : "Show Dynamic QR Code (Scan to Pay)"}</span>
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showQrExpanded ? "rotate-180" : ""}`} />
+                </button>
+
+                {showQrExpanded && (
+                  <div className="pt-3 pb-2 text-center space-y-2 animate-in fade-in zoom-in-95">
+                    <div className="p-3 bg-white rounded-2xl border-2 border-gray-900 inline-block shadow-md">
+                      <QRCodeCanvas value={upiIntentString} size={180} level="M" />
+                    </div>
+                    <p className="text-[10px] text-gray-500">Scan using any UPI app on your phone</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Seamless Switcher Prompt for Users who Already Paid */}
+            <div className="p-3.5 rounded-2xl bg-white border border-[#d7c2b9]/60 shadow-2xs flex items-center justify-between gap-3 text-xs">
+              <span className="text-gray-600 font-medium text-[11px]">
+                Already completed your payment?
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveTab("proof")}
+                className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs shrink-0"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>Upload Screenshot →</span>
+              </button>
             </div>
           </div>
         )}
 
-        {/* 📝 Self-Report Payment Proof Form */}
-        {!isSubmitted ? (
-          <form onSubmit={handleSubmitProof} className="bg-white p-5 rounded-3xl border border-[#d7c2b9]/60 shadow-sm space-y-4">
-            <div className="border-b border-gray-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-emerald-100 text-emerald-800">
-                  <CheckCircle2 className="w-4 h-4" />
+        {/* ========================================================= */}
+        {/* 📸 SCREEN 2: MINIMAL & PREMIUM UPLOAD PAYMENT SCREENSHOT */}
+        {/* ========================================================= */}
+        {activeTab === "proof" && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            {/* 🏢 Premium Accommodation Header Card (Prominently displaying PG Name) */}
+            <div className="bg-white p-5 rounded-3xl border border-[#d7c2b9]/60 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#c2652a]">
+                    Payment Verification
+                  </span>
+                  <h1 className="font-serif font-bold text-base sm:text-lg text-gray-900 mt-0.5">
+                    {details.propertyName}
+                  </h1>
+                  <p className="text-xs text-gray-500 font-medium mt-0.5">
+                    {details.tenantName} • <span className="font-bold text-gray-700">{details.roomNumber}</span>
+                  </p>
                 </div>
-                <h3 className="font-serif font-bold text-sm text-gray-900">Payment Completed? Submit Proof</h3>
+                <div className="text-right shrink-0">
+                  <span className="text-[10px] font-bold text-gray-400 block">Payable Rent</span>
+                  <div className="font-mono font-black text-xl text-gray-900 mt-0.5">
+                    ₹{details.amount.toLocaleString("en-IN")}
+                  </div>
+                </div>
               </div>
-              <p className="text-[11px] text-gray-500 mt-1">
-                Attach your payment screenshot to verify your payment and generate your official digital receipt.
-              </p>
             </div>
 
-            {submitError && (
-              <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                <span>{submitError}</span>
-              </div>
-            )}
+            {/* 📸 Hyper-Minimal, Laser-Focused Upload Form (Zero Crap) */}
+            {!isSubmitted ? (
+              <form onSubmit={handleSubmitProof} className="bg-white p-5 sm:p-6 rounded-3xl border border-[#d7c2b9]/60 shadow-sm space-y-4">
+                <div>
+                  <h2 className="font-serif font-bold text-sm sm:text-base text-gray-900">
+                    Upload Payment Screenshot
+                  </h2>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    Attach your payment confirmation to verify your rent payment and generate your digital receipt.
+                  </p>
+                </div>
 
-            <div className="space-y-3">
-              {/* Screenshot Uploader */}
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                  Payment Screenshot *
-                </label>
-                <div className="relative">
+                {submitError && (
+                  <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <span>{submitError}</span>
+                  </div>
+                )}
+
+                {/* Screenshot Dropzone */}
+                <div>
                   <input
                     type="file"
                     accept="image/*"
@@ -624,116 +704,168 @@ export default function TenantPaymentBridgePage() {
                     className="hidden"
                     onChange={handleScreenshotChange}
                   />
-                  <label
-                    htmlFor="screenshot-input"
-                    className={`w-full p-4 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-colors ${
-                      screenshotDataUrl
-                        ? "border-emerald-400 bg-emerald-50/50"
-                        : "border-gray-300 hover:border-[#c2652a] bg-gray-50/50"
-                    }`}
-                  >
-                    {isCompressing ? (
-                      <div className="flex items-center gap-2 text-xs font-bold text-gray-600">
-                        <div className="w-4 h-4 border-2 border-[#c2652a] border-t-transparent rounded-full animate-spin" />
-                        <span>Compressing image...</span>
+                  {screenshotDataUrl ? (
+                    <div className="relative rounded-2xl border border-emerald-300 bg-emerald-50/50 p-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-14 h-14 rounded-xl overflow-hidden border border-emerald-300 bg-gray-950 shrink-0 shadow-xs">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={screenshotDataUrl}
+                            alt="Uploaded proof"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span className="font-bold text-xs text-emerald-950 truncate block">
+                              {screenshotFileName || "Screenshot Attached"}
+                            </span>
+                          </div>
+                          {compressedSizeKb && (
+                            <span className="text-[10px] text-emerald-700 font-mono block mt-0.5">
+                              ✓ Optimized ({compressedSizeKb} KB)
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    ) : screenshotDataUrl ? (
-                      <div className="flex items-center gap-2 text-emerald-800 text-xs font-bold">
-                        <Check className="w-4 h-4 text-emerald-600" />
-                        <span className="truncate max-w-[200px]">{screenshotFileName || "Screenshot Attached"}</span>
-                        <span className="text-[10px] text-emerald-600 font-mono">({compressedSizeKb} KB)</span>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <label
+                          htmlFor="screenshot-input"
+                          className="px-2.5 py-1 text-xs font-bold text-emerald-800 bg-white border border-emerald-200 rounded-lg hover:bg-emerald-50 cursor-pointer shadow-2xs"
+                        >
+                          Change
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setScreenshotDataUrl(null);
+                            setScreenshotFileName(null);
+                            setCompressedSizeKb(null);
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-rose-600 rounded-lg cursor-pointer"
+                          title="Remove screenshot"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
                       </div>
-                    ) : (
-                      <>
-                        <Upload className="w-5 h-5 text-gray-400" />
-                        <span className="text-xs font-bold text-gray-700">Tap to upload GPay / PhonePe / Paytm screenshot</span>
-                        <span className="text-[10px] text-gray-400">JPG, PNG, WebP automatically optimized</span>
-                      </>
-                    )}
-                  </label>
+                    </div>
+                  ) : (
+                    <label
+                      htmlFor="screenshot-input"
+                      className={`w-full py-8 px-4 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2.5 cursor-pointer transition-all ${
+                        isCompressing
+                          ? "border-[#c2652a] bg-orange-50/30"
+                          : "border-gray-300 hover:border-[#c2652a] bg-gray-50/50 hover:bg-orange-50/20"
+                      }`}
+                    >
+                      {isCompressing ? (
+                        <div className="flex items-center gap-2 text-xs font-bold text-gray-600">
+                          <div className="w-4 h-4 border-2 border-[#c2652a] border-t-transparent rounded-full animate-spin" />
+                          <span>Optimizing screenshot...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="w-12 h-12 rounded-2xl bg-orange-100/80 text-[#c2652a] flex items-center justify-center shadow-xs">
+                            <Camera className="w-5 h-5" />
+                          </div>
+                          <div className="text-center">
+                            <span className="text-xs font-bold text-gray-800 block">
+                              Tap to select screenshot or take photo
+                            </span>
+                            <span className="text-[10px] text-gray-400 block mt-0.5">
+                              Google Pay • PhonePe • Paytm • CRED • Kiwi • Net Banking
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    </label>
+                  )}
                 </div>
-              </div>
 
-              {/* Optional Note */}
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                  Remark / Note (Optional)
-                </label>
-                <input
-                  type="text"
-                  maxLength={100}
-                  value={tenantNote}
-                  onChange={(e) => setTenantNote(e.target.value)}
-                  placeholder="e.g. Paid from brother's account Rahul"
-                  className="w-full px-3.5 py-2 rounded-xl border border-gray-300 text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a] bg-white"
-                />
-              </div>
-            </div>
+                {/* Optional Remark Input */}
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                    Remark / Note (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={100}
+                    value={tenantNote}
+                    onChange={(e) => setTenantNote(e.target.value)}
+                    placeholder="e.g. Paid from brother's account Rahul"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a] bg-white"
+                  />
+                </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting || isCompressing}
-              className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-[#c2652a] to-amber-600 hover:from-[#964407] hover:to-amber-700 text-white font-bold text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all disabled:opacity-50"
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Notifying Management...</span>
-                </>
-              ) : (
-                <>
-                  <span>Submit Payment Proof</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
-        ) : (
-          /* ✅ Submission Success Confirmation View */
-          <div className="bg-white p-6 rounded-3xl border border-emerald-300 shadow-md text-center space-y-4 animate-in zoom-in-95">
-            <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-xs">
-              <CheckCircle2 className="w-8 h-8" />
-            </div>
+                {/* Primary Submit Button */}
+                <button
+                  type="submit"
+                  disabled={isSubmitting || isCompressing || !screenshotDataUrl}
+                  className="w-full py-3.5 px-4 rounded-2xl bg-[#c2652a] hover:bg-[#964407] disabled:opacity-50 text-white font-bold text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Submitting to Management...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Submit Payment Proof</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </form>
+            ) : (
+              /* ✅ Submission Success Confirmation View */
+              <div className="bg-white p-6 rounded-3xl border border-emerald-300 shadow-md text-center space-y-4 animate-in zoom-in-95">
+                <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-xs">
+                  <CheckCircle2 className="w-8 h-8" />
+                </div>
 
-            <div>
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700">
-                Proof Acknowledged
-              </span>
-              <h2 className="font-serif font-bold text-lg text-gray-900 mt-0.5">Payment Proof Submitted!</h2>
-              <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
-                Thank you, <strong>{details.tenantName}</strong>. Your payment proof for <strong>₹{details.amount.toLocaleString("en-IN")}</strong> has been submitted to management for instant verification.
-              </p>
-            </div>
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700">
+                    Proof Acknowledged
+                  </span>
+                  <h2 className="font-serif font-bold text-lg text-gray-900 mt-0.5">Payment Proof Submitted!</h2>
+                  <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
+                    Thank you, <strong>{details.tenantName}</strong>. Your payment screenshot for <strong>{details.propertyName}</strong> has been received by management.
+                  </p>
+                </div>
 
-            <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-left text-xs space-y-1.5">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Accommodation:</span>
-                <span className="font-bold text-gray-800">{details.propertyName} ({details.roomNumber})</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Amount:</span>
-                <span className="font-mono font-bold text-emerald-800">₹{details.amount.toLocaleString("en-IN")}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Verification Status:</span>
-                <span className="font-bold text-amber-700">⏳ Awaiting Admin Review</span>
-              </div>
-            </div>
+                <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-left text-xs space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Accommodation:</span>
+                    <span className="font-bold text-gray-800">{details.propertyName} ({details.roomNumber})</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Amount:</span>
+                    <span className="font-mono font-bold text-emerald-800">₹{details.amount.toLocaleString("en-IN")}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Verification Status:</span>
+                    <span className="font-bold text-amber-700">⏳ Awaiting Verification</span>
+                  </div>
+                </div>
 
-            <p className="text-[11px] text-gray-400">
-              Your official PDF rent receipt will be automatically delivered to your WhatsApp once verified by the PG management.
-            </p>
+                <p className="text-[11px] text-gray-400">
+                  Your official verified receipt will be delivered directly to your WhatsApp once reviewed.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
-        {/* 📞 Contact PG Reception Call Button */}
+        {/* 📞 Universal Bottom Action Bar: Contact PG Reception */}
         {details.propertyPhone && (
           <div className="text-center pt-2">
             <a
               href={`tel:${details.propertyPhone}`}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#c2652a] hover:underline"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white border border-[#d7c2b9]/60 hover:border-[#c2652a] text-xs font-bold text-gray-700 hover:text-[#c2652a] shadow-2xs transition-all"
             >
-              <Phone className="w-3.5 h-3.5" />
+              <Phone className="w-3.5 h-3.5 text-[#c2652a]" />
               <span>Need help? Call PG Reception ({details.propertyPhone})</span>
             </a>
           </div>
