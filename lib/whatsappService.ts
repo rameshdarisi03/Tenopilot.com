@@ -47,6 +47,11 @@ export interface WhatsAppSendParams {
     utrNumber?: string;
     partnerName?: string;
     partnerPhone?: string;
+    propertyPhone?: string;
+    replacesReceiptNo?: string;
+    isVoided?: boolean;
+    isReplacement?: boolean;
+    isCorrected?: boolean;
   };
 }
 
@@ -508,15 +513,18 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         const agreementUrl = `${baseUrl}/api/agreement/pdf?${agreementParams.toString()}`;
         const fileName = `Rental_Agreement_${payload.recipientName.replace(/\s+/g, "_")}.pdf`;
         const tariffFormatted = Number(p.rentAmount || p.amount || 0).toLocaleString("en-IN");
+        const rawManagerPhone = p.managerPhone || p.propertyPhone || p.ownerPhone || "9206651295";
+        const cleanManagerPhone = rawManagerPhone.replace(/\D/g, "").slice(-10) || "9206651295";
+        const agreementBtnParam = `agreement?view=agreement&${agreementParams.toString()}`;
 
-        // 🚀 Primary: Approved Meta WhatsApp Template "pg_welcome_agreement_doc" with Official Rental Agreement Document Header
+        // 🚀 Primary: New Meta WhatsApp Template "pg_welcome_agreement_actions_v1" with PDF Header + Download & Call buttons
         requestBody = {
           messaging_product: "whatsapp",
           recipient_type: "individual",
           to: formattedPhone,
           type: "template",
           template: {
-            name: "pg_welcome_agreement_doc",
+            name: "pg_welcome_agreement_actions_v1",
             language: { code: "en_US" },
             components: [
               {
@@ -541,6 +549,22 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
                   { type: "text", text: tariffFormatted },
                 ],
               },
+              {
+                type: "button",
+                sub_type: "url",
+                index: "0",
+                parameters: [
+                  { type: "text", text: agreementBtnParam },
+                ],
+              },
+              {
+                type: "button",
+                sub_type: "url",
+                index: "1",
+                parameters: [
+                  { type: "text", text: cleanManagerPhone },
+                ],
+              },
             ],
           },
         };
@@ -550,8 +574,50 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` - ${p.bedCode}` : ""}`;
         const checkinDate = p.paidDate || p.dueDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
         const tariffStr = String(p.amount || "12000");
+        const rawManagerPhone = p.managerPhone || p.propertyPhone || p.ownerPhone || "9206651295";
+        const cleanManagerPhone = rawManagerPhone.replace(/\D/g, "").slice(-10) || "9206651295";
+        const onboardTokenParam = p.onboardUrl ? (p.onboardUrl.split("/self-onboard/")[1] || "") : "";
 
-        if (!p.onboardUrl) {
+        if (onboardTokenParam) {
+          // 🚀 Primary: New Meta WhatsApp Template "pg_self_kyc_invite_actions_v1" with Complete KYC & Call Desk buttons
+          requestBody = {
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: formattedPhone,
+            type: "template",
+            template: {
+              name: "pg_self_kyc_invite_actions_v1",
+              language: { code: "en_US" },
+              components: [
+                {
+                  type: "body",
+                  parameters: [
+                    { type: "text", text: pName },
+                    { type: "text", text: payload.recipientName },
+                    { type: "text", text: roomStay },
+                    { type: "text", text: tariffStr },
+                  ],
+                },
+                {
+                  type: "button",
+                  sub_type: "url",
+                  index: "0",
+                  parameters: [
+                    { type: "text", text: onboardTokenParam },
+                  ],
+                },
+                {
+                  type: "button",
+                  sub_type: "url",
+                  index: "1",
+                  parameters: [
+                    { type: "text", text: cleanManagerPhone },
+                  ],
+                },
+              ],
+            },
+          };
+        } else if (!p.onboardUrl) {
           requestBody = {
             messaging_product: "whatsapp",
             recipient_type: "individual",
@@ -641,14 +707,23 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         const pdfUrl = `${baseUrl}/api/receipt/pdf?${pdfParams.toString()}`;
         const fileName = `${receiptNoStr}_${payload.recipientName.replace(/\s+/g, "_")}.pdf`;
 
-        // 📎 First priority: Send pre-approved Meta Document-Header Template outside 24h window
+        const isCorrectedReceipt = Boolean(p.replacesReceiptNo || p.isReplacement || p.isCorrected);
+        const activeTemplateName = isCorrectedReceipt
+          ? "pg_rent_receipt_corrected_v1"
+          : "pg_rent_payment_receipt_actions_v1";
+
+        const rawManagerPhone = p.managerPhone || p.propertyPhone || p.ownerPhone || "9206651295";
+        const cleanManagerPhone = rawManagerPhone.replace(/\D/g, "").slice(-10) || "9206651295";
+        const receiptBtnParam = `receipt?view=receipt&${pdfParams.toString()}`;
+
+        // 📎 Primary: Send Action Template with Document Header + Download & Call Buttons
         requestBody = {
           messaging_product: "whatsapp",
           recipient_type: "individual",
           to: formattedPhone,
           type: "template",
           template: {
-            name: "pg_rent_payment_receipt_doc",
+            name: activeTemplateName,
             language: { code: "en_US" },
             components: [
               {
@@ -668,11 +743,27 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
                 parameters: [
                   { type: "text", text: pName },
                   { type: "text", text: payload.recipientName },
+                  { type: "text", text: roomStay },
                   { type: "text", text: receiptNoStr },
                   { type: "text", text: amountStr },
                   { type: "text", text: paidDateStr },
                   { type: "text", text: modeStr },
-                  { type: "text", text: roomStay },
+                ],
+              },
+              {
+                type: "button",
+                sub_type: "url",
+                index: "0",
+                parameters: [
+                  { type: "text", text: receiptBtnParam },
+                ],
+              },
+              {
+                type: "button",
+                sub_type: "url",
+                index: "1",
+                parameters: [
+                  { type: "text", text: cleanManagerPhone },
                 ],
               },
             ],
@@ -850,8 +941,162 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
 
       let resData = await response.json();
 
+      // Graceful fallback: If action-based receipt templates are pending approval or error, fallback to approved pg_rent_payment_receipt_doc
+      if (!response.ok && payload.type === "PAYMENT_RECEIPT" && (requestBody?.template?.name === "pg_rent_receipt_corrected_v1" || requestBody?.template?.name === "pg_rent_payment_receipt_actions_v1")) {
+        console.warn("Notice: Action receipt template pending approval, falling back to pg_rent_payment_receipt_doc:", resData?.error?.message);
+        const p = payload.params || {};
+        const pName = payload.propertyName || "TenoPilot PG & Living";
+        const receiptNoStr = p.receiptId || `RCP-${Date.now().toString().slice(-6)}`;
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.tenopilot.com";
+        const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` (${p.bedCode})` : ""}`;
+        const amountStr = Number(p.amount || 0).toLocaleString("en-IN");
+        const paidDateStr = p.paidDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+        const modeStr = p.paymentMode || "UPI";
+
+        const pdfParams = new URLSearchParams({
+          receiptNo: receiptNoStr,
+          propertyName: pName,
+          residentName: payload.recipientName,
+          roomNumber: p.roomNumber || "N/A",
+          bedCode: p.bedCode || "Bed 1",
+          amount: String(p.amount || 0),
+          paidDate: paidDateStr,
+          paymentMode: modeStr,
+          paidTo: p.bankLabel || "Main Business Pool",
+          isDeposit: receiptNoStr.startsWith("DEP") ? "true" : "false",
+        });
+
+        const pdfUrl = `${baseUrl}/api/receipt/pdf?${pdfParams.toString()}`;
+        const fileName = `${receiptNoStr}_${payload.recipientName.replace(/\s+/g, "_")}.pdf`;
+
+        const fallbackBody = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "template",
+          template: {
+            name: "pg_rent_payment_receipt_doc",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "header",
+                parameters: [
+                  {
+                    type: "document",
+                    document: {
+                      link: pdfUrl,
+                      filename: fileName,
+                    },
+                  },
+                ],
+              },
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: pName },
+                  { type: "text", text: payload.recipientName },
+                  { type: "text", text: receiptNoStr },
+                  { type: "text", text: amountStr },
+                  { type: "text", text: paidDateStr },
+                  { type: "text", text: modeStr },
+                  { type: "text", text: roomStay },
+                ],
+              },
+            ],
+          },
+        };
+
+        response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${metaToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(fallbackBody),
+        });
+        resData = await response.json();
+      }
+
+      // Graceful fallback: If pg_welcome_agreement_actions_v1 is pending, fallback to pg_welcome_agreement_doc
+      if (!response.ok && payload.type === "TENANT_WELCOME" && requestBody?.template?.name === "pg_welcome_agreement_actions_v1") {
+        console.warn("Notice: pg_welcome_agreement_actions_v1 pending approval, falling back to pg_welcome_agreement_doc:", resData?.error?.message);
+        const p = payload.params || {};
+        const pName = payload.propertyName || "TenoPilot PG & Living";
+        const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` (${p.bedCode})` : ""}`;
+        const rawDate = p.joiningDate || p.paidDate || p.dueDate;
+        let checkinDate = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+        if (rawDate) {
+          const parsed = new Date(rawDate);
+          if (!isNaN(parsed.getTime())) {
+            checkinDate = parsed.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+          } else {
+            checkinDate = rawDate;
+          }
+        }
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.tenopilot.com";
+        const agreementParams = new URLSearchParams({
+          propertyId: payload.propertyId,
+          tenantName: payload.recipientName,
+          phone: formattedPhone,
+          roomNumber: p.roomNumber || "N/A",
+          bedCode: p.bedCode || "Standard Bed",
+          joiningDate: checkinDate,
+          monthlyRent: String(p.rentAmount || p.amount || 0),
+          securityDeposit: String(p.depositAmount || 0),
+          propertyName: pName,
+        });
+        const agreementUrl = `${baseUrl}/api/agreement/pdf?${agreementParams.toString()}`;
+        const fileName = `Rental_Agreement_${payload.recipientName.replace(/\s+/g, "_")}.pdf`;
+        const tariffFormatted = Number(p.rentAmount || p.amount || 0).toLocaleString("en-IN");
+
+        const fallbackBody = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "template",
+          template: {
+            name: "pg_welcome_agreement_doc",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "header",
+                parameters: [
+                  {
+                    type: "document",
+                    document: {
+                      link: agreementUrl,
+                      filename: fileName,
+                    },
+                  },
+                ],
+              },
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: pName },
+                  { type: "text", text: payload.recipientName },
+                  { type: "text", text: roomStay },
+                  { type: "text", text: checkinDate },
+                  { type: "text", text: tariffFormatted },
+                ],
+              },
+            ],
+          },
+        };
+
+        response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${metaToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(fallbackBody),
+        });
+        resData = await response.json();
+      }
+
       // Graceful fallback: If dedicated invite template is pending review, fallback to approved pg_welcome_onboarding
-      if (!response.ok && requestBody?.template?.name === "pg_self_kyc_invite_link") {
+      if (!response.ok && (requestBody?.template?.name === "pg_self_kyc_invite_link" || requestBody?.template?.name === "pg_self_kyc_invite_actions_v1")) {
         console.warn("Notice: pg_self_kyc_invite_link is pending or returned error, falling back to pg_welcome_onboarding:", resData?.error?.message);
         const p = payload.params || {};
         const pName = payload.propertyName || "TenoPilot PG & Living";

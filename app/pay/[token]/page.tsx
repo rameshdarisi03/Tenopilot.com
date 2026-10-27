@@ -74,12 +74,24 @@ export default function TenantPaymentBridgePage() {
 
   useEffect(() => {
     const viewParam = searchParams.get("view");
+    if (viewParam === "receipt" || rawToken === "receipt") {
+      const q = new URLSearchParams(searchParams);
+      q.set("download", "true");
+      window.location.href = `/api/receipt/pdf?${q.toString()}`;
+      return;
+    }
+    if (viewParam === "agreement" || rawToken === "agreement") {
+      const q = new URLSearchParams(searchParams);
+      q.set("download", "true");
+      window.location.href = `/api/agreement/pdf?${q.toString()}`;
+      return;
+    }
     if (viewParam === "proof") {
       setActiveTab("proof");
     } else if (viewParam === "pay") {
       setActiveTab("pay");
     }
-  }, [searchParams]);
+  }, [searchParams, rawToken]);
 
   // Decode Token on Mount
   useEffect(() => {

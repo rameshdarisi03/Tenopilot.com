@@ -81,11 +81,14 @@ export async function GET(req: NextRequest) {
 
     const safeFilename = `Rental_Agreement_${tenantName.replace(/[^a-zA-Z0-9_-]/g, "_")}_${roomNumber}.pdf`;
 
+    const isDownload = searchParams.get("download") === "true";
+    const dispositionType = isDownload ? "attachment" : "inline";
+
     return new NextResponse(Buffer.from(pdfBuffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="${safeFilename}"`,
+        "Content-Disposition": `${dispositionType}; filename="${safeFilename}"`,
         "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400",
       },
     });
