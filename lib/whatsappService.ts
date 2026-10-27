@@ -385,7 +385,7 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
             to: formattedPhone,
             type: "template",
             template: {
-              name: "pg_rent_due_upi_v1",
+              name: "pg_rent_due_actions_v1",
               language: { code: "en_US" },
               components: [
                 {
@@ -404,7 +404,15 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
                   sub_type: "url",
                   index: "0",
                   parameters: [
-                    { type: "text", text: tokenParam },
+                    { type: "text", text: `${tokenParam}?view=pay` },
+                  ],
+                },
+                {
+                  type: "button",
+                  sub_type: "url",
+                  index: "1",
+                  parameters: [
+                    { type: "text", text: `${tokenParam}?view=proof` },
                   ],
                 },
               ],
@@ -894,6 +902,64 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
             "Content-Type": "application/json",
           },
           body: JSON.stringify(fallbackBody),
+        });
+        resData = await response.json();
+      }
+
+      // Automatic Graceful Fallback: If pg_rent_due_actions_v1 is pending Meta review, fallback to approved pg_rent_due_upi_v1
+      if (!response.ok && payload.type === "RENT_REMINDER" && requestBody?.template?.name === "pg_rent_due_actions_v1") {
+        console.warn("Notice: pg_rent_due_actions_v1 pending approval, falling back to pg_rent_due_upi_v1:", resData?.error?.message);
+        const p = payload.params || {};
+        const pName = payload.propertyName || "TenoPilot PG & Living";
+        const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` - ${p.bedCode}` : ""}`;
+        const baseAmountStr = Number(p.amount || 0).toLocaleString("en-IN");
+        const amountStr = p.breakupNote ? `${baseAmountStr} (${p.breakupNote})` : baseAmountStr;
+        const dueDateStr = p.dueDate || "5th of this month";
+        const isCash = p.upiId === "CASH_PAYMENT" || p.upiId === "CASH" || p.upiId?.toLowerCase().includes("cash") || p.accountType === "CASH_DESK";
+        const payDest = isCash
+          ? (p.bankLabel ? `Cash at Desk (${p.bankLabel})` : "Cash at Front Desk / Reception")
+          : (p.upiId || "PG Reception / Manager UPI");
+        const tokenParam = p.payUrl ? (p.payUrl.split("/pay/")[1] || "") : "";
+
+        const upiFallback = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "template",
+          template: {
+            name: "pg_rent_due_upi_v1",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: pName },
+                  { type: "text", text: payload.recipientName },
+                  { type: "text", text: roomStay },
+                  { type: "text", text: amountStr },
+                  { type: "text", text: dueDateStr },
+                  { type: "text", text: payDest },
+                ],
+              },
+              {
+                type: "button",
+                sub_type: "url",
+                index: "0",
+                parameters: [
+                  { type: "text", text: tokenParam },
+                ],
+              },
+            ],
+          },
+        };
+
+        response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${metaToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(upiFallback),
         });
         resData = await response.json();
       }
