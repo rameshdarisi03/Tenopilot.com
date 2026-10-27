@@ -511,20 +511,19 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
           ownerName: p.ownerName || "",
         });
         const agreementUrl = `${baseUrl}/api/agreement/pdf?${agreementParams.toString()}`;
-        const fileName = `📄_RENTAL_AGREEMENT_${payload.recipientName.toUpperCase().replace(/[^A-Z0-9]/g, "_")}.pdf`;
+        const fileName = `RENTAL_AGREEMENT_${payload.recipientName.toUpperCase().replace(/[^A-Z0-9]/g, "_")}.pdf`;
         const tariffFormatted = Number(p.rentAmount || p.amount || 0).toLocaleString("en-IN");
         const rawManagerPhone = p.managerPhone || p.propertyPhone || p.ownerPhone || "9206651295";
         const cleanManagerPhone = rawManagerPhone.replace(/\D/g, "").slice(-10) || "9206651295";
-        const agreementBtnParam = `agreement?view=agreement&${agreementParams.toString()}`;
 
-        // 🚀 Primary: New Meta WhatsApp Template "pg_welcome_agreement_actions_v1" with PDF Header + Download & Call buttons
+        // 🚀 Primary: Meta WhatsApp Template "pg_welcome_agreement_v2" with PDF Header + Call PG Desk button
         requestBody = {
           messaging_product: "whatsapp",
           recipient_type: "individual",
           to: formattedPhone,
           type: "template",
           template: {
-            name: "pg_welcome_agreement_actions_v1",
+            name: "pg_welcome_agreement_v2",
             language: { code: "en_US" },
             components: [
               {
@@ -553,14 +552,6 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
                 type: "button",
                 sub_type: "url",
                 index: "0",
-                parameters: [
-                  { type: "text", text: agreementBtnParam },
-                ],
-              },
-              {
-                type: "button",
-                sub_type: "url",
-                index: "1",
                 parameters: [
                   { type: "text", text: cleanManagerPhone },
                 ],
@@ -708,18 +699,17 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         const isCorrectedReceipt = Boolean(p.replacesReceiptNo || p.isReplacement || p.isCorrected);
         const cleanReceiptNo = receiptNoStr.replace(/^#+/, "");
         const fileName = isCorrectedReceipt
-          ? `🔴_REVISED_RECEIPT_${cleanReceiptNo}.pdf`
-          : `🧾_OFFICIAL_RECEIPT_${cleanReceiptNo}.pdf`;
+          ? `REVISED_RECEIPT_${cleanReceiptNo}.pdf`
+          : `OFFICIAL_RECEIPT_${cleanReceiptNo}.pdf`;
 
         const activeTemplateName = isCorrectedReceipt
-          ? "pg_rent_receipt_corrected_v1"
-          : "pg_rent_payment_receipt_actions_v1";
+          ? "pg_rent_receipt_corrected_v2"
+          : "pg_rent_payment_receipt_v2";
 
         const rawManagerPhone = p.managerPhone || p.propertyPhone || p.ownerPhone || "9206651295";
         const cleanManagerPhone = rawManagerPhone.replace(/\D/g, "").slice(-10) || "9206651295";
-        const receiptBtnParam = `receipt?view=receipt&${pdfParams.toString()}`;
 
-        // 📎 Primary: Send Action Template with Document Header + Download & Call Buttons
+        // 📎 Primary: Send Action Template with Document Header + Call PG Desk Button
         requestBody = {
           messaging_product: "whatsapp",
           recipient_type: "individual",
@@ -758,14 +748,6 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
                 sub_type: "url",
                 index: "0",
                 parameters: [
-                  { type: "text", text: receiptBtnParam },
-                ],
-              },
-              {
-                type: "button",
-                sub_type: "url",
-                index: "1",
-                parameters: [
                   { type: "text", text: cleanManagerPhone },
                 ],
               },
@@ -803,7 +785,7 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         const p = payload.params || {};
         const invoiceNo = p.receiptId || `INV-${Date.now().toString().slice(-6)}`;
         const pName = payload.propertyName || "Your Property";
-        const fileName = `💳_TAX_INVOICE_${invoiceNo.replace(/^#+/, "")}.pdf`;
+        const fileName = `TAX_INVOICE_${invoiceNo.replace(/^#+/, "")}.pdf`;
         const origin = process.env.NEXT_PUBLIC_APP_URL || "https://www.tenopilot.com";
         const pdfUrl = p.receiptUrl || `${origin}/api/subscription/invoice/pdf?invoiceNo=${encodeURIComponent(invoiceNo)}`;
 
@@ -945,7 +927,7 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
       let resData = await response.json();
 
       // Graceful fallback: If action-based receipt templates are pending approval or error, fallback to approved pg_rent_payment_receipt_doc
-      if (!response.ok && payload.type === "PAYMENT_RECEIPT" && (requestBody?.template?.name === "pg_rent_receipt_corrected_v1" || requestBody?.template?.name === "pg_rent_payment_receipt_actions_v1")) {
+      if (!response.ok && payload.type === "PAYMENT_RECEIPT" && (requestBody?.template?.name?.startsWith("pg_rent_receipt_corrected") || requestBody?.template?.name?.startsWith("pg_rent_payment_receipt"))) {
         console.warn("Notice: Action receipt template pending approval, falling back to pg_rent_payment_receipt_doc:", resData?.error?.message);
         const p = payload.params || {};
         const pName = payload.propertyName || "TenoPilot PG & Living";
@@ -973,8 +955,8 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         const isCorrectedReceipt = Boolean(p.replacesReceiptNo || p.isReplacement || p.isCorrected);
         const cleanReceiptNo = receiptNoStr.replace(/^#+/, "");
         const fileName = isCorrectedReceipt
-          ? `🔴_REVISED_RECEIPT_${cleanReceiptNo}.pdf`
-          : `🧾_OFFICIAL_RECEIPT_${cleanReceiptNo}.pdf`;
+          ? `REVISED_RECEIPT_${cleanReceiptNo}.pdf`
+          : `OFFICIAL_RECEIPT_${cleanReceiptNo}.pdf`;
 
         const fallbackBody = {
           messaging_product: "whatsapp",
@@ -1024,8 +1006,8 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         resData = await response.json();
       }
 
-      // Graceful fallback: If pg_welcome_agreement_actions_v1 is pending, fallback to pg_welcome_agreement_doc
-      if (!response.ok && payload.type === "TENANT_WELCOME" && requestBody?.template?.name === "pg_welcome_agreement_actions_v1") {
+      // Graceful fallback: If pg_welcome_agreement_v2 or v1 is pending, fallback to pg_welcome_agreement_doc
+      if (!response.ok && payload.type === "TENANT_WELCOME" && (requestBody?.template?.name === "pg_welcome_agreement_v2" || requestBody?.template?.name === "pg_welcome_agreement_actions_v1")) {
         console.warn("Notice: pg_welcome_agreement_actions_v1 pending approval, falling back to pg_welcome_agreement_doc:", resData?.error?.message);
         const p = payload.params || {};
         const pName = payload.propertyName || "TenoPilot PG & Living";
