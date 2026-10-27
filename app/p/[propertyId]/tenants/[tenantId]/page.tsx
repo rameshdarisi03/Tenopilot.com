@@ -8,6 +8,8 @@ import { GuestProfileView } from "@/components/dashboard/GuestProfileView";
 import { MOCK_OCCUPANTS_200, occupantStore, Occupant, PaymentHistoryItem } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { subscribeOccupantsFromFirestore, saveOccupantToFirestore, updateOccupantInFirestore } from "@/lib/firestoreService";
+import { db } from "@/lib/firebase";
+import { collection, query, where, getDocs, doc, setDoc } from "firebase/firestore";
 import { useAuth } from "@/providers/AuthProvider";
 import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
 import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
@@ -74,6 +76,7 @@ import {
   Car,
   Plus,
   PhoneCall,
+  ZoomIn,
 } from "lucide-react";
 import {
   downloadRentalAgreementPdf,
@@ -498,6 +501,9 @@ export default function IndividualTenantProfilePage({
     partnerStore.getPartners(propertyId)
   );
   const [transactionRef, setTransactionRef] = useState<string>("");
+  const [collectScreenshotUrl, setCollectScreenshotUrl] = useState<string | null>(null);
+  const [zoomedCollectScreenshot, setZoomedCollectScreenshot] = useState<string | null>(null);
+  const [matchedProofId, setMatchedProofId] = useState<string | null>(null);
 
   useEffect(() => {
     partnerStore.initFirebaseListener(propertyId);
@@ -538,6 +544,38 @@ export default function IndividualTenantProfilePage({
         setRentPaymentPortion(rentDue);
         setDepositPaymentPortion(0);
       }
+
+      // ⚡ Auto-detect if tenant submitted a payment proof with screenshot
+      (async () => {
+        try {
+          const proofsRef = collection(db, "properties", propertyId, "payment_proofs");
+          const q = query(
+            proofsRef,
+            where("tenantId", "==", occupantState.id),
+            where("status", "==", "PENDING_VERIFICATION")
+          );
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            const proofDoc = snap.docs[0];
+            const data = proofDoc.data();
+            setMatchedProofId(proofDoc.id);
+            if (data.screenshotUrl) {
+              setCollectScreenshotUrl(data.screenshotUrl);
+            }
+            if (data.utrNumber) {
+              setTransactionRef(data.utrNumber);
+            }
+            if (data.reportedAmount && data.reportedAmount > 0) {
+              setPaymentAmount(data.reportedAmount);
+            }
+          }
+        } catch (err) {
+          console.warn("Could not check pending payment proof:", err);
+        }
+      })();
+    } else {
+      setCollectScreenshotUrl(null);
+      setMatchedProofId(null);
     }
   }, [showCollectRentModal, occupantState]);
 
@@ -1029,6 +1067,8 @@ export default function IndividualTenantProfilePage({
         paidTo: paidTo || (paymentAccounts[0]?.name || "Partner Account"),
         receiptNo: generateReceiptNumber(propertySettings, { date: formattedPaidDate }),
         status: "PAID",
+        screenshotUrl: collectScreenshotUrl || undefined,
+        proofId: matchedProofId || undefined,
       });
     } else {
       // 🏠 Rent Receipt (with optional Parking Charges)
@@ -1045,6 +1085,8 @@ export default function IndividualTenantProfilePage({
           paidTo: paidTo || (paymentAccounts[0]?.name || "Partner Account"),
           receiptNo: generateReceiptNumber(propertySettings, { date: formattedPaidDate }),
           status: "PAID",
+          screenshotUrl: collectScreenshotUrl || undefined,
+          proofId: matchedProofId || undefined,
         });
       }
 
@@ -1061,6 +1103,8 @@ export default function IndividualTenantProfilePage({
           paidTo: paidTo || (paymentAccounts[0]?.name || "Partner Account"),
           receiptNo: generateReceiptNumber(propertySettings, { date: formattedPaidDate }),
           status: "PAID",
+          screenshotUrl: collectScreenshotUrl || undefined,
+          proofId: matchedProofId || undefined,
         });
       }
     }
@@ -1127,7 +1171,22 @@ export default function IndividualTenantProfilePage({
       dispatchElectronicReceipt(newReceipts[0], receiptDispatchChannel);
     }
 
+    // Auto-approve pending proof if one was matched
+    if (matchedProofId) {
+      setDoc(
+        doc(db, "properties", propertyId, "payment_proofs", matchedProofId),
+        {
+          status: "APPROVED",
+          verifiedBy: profile?.displayName || "Admin",
+          verifiedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      ).catch((err) => console.warn("Notice approving tenant proof:", err));
+    }
+
     setShowCollectRentModal(false);
+    setCollectScreenshotUrl(null);
+    setMatchedProofId(null);
     setTransactionRef("");
   };
 
@@ -3283,7 +3342,11 @@ export default function IndividualTenantProfilePage({
                   </div>
                   <button
                     type="button"
-                    onClick={() => setShowCollectRentModal(false)}
+                    onClick={() => {
+                      setShowCollectRentModal(false);
+                      setCollectScreenshotUrl(null);
+                      setMatchedProofId(null);
+                    }}
                     className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
                   >
                     <X className="w-5 h-5" />
@@ -3608,6 +3671,87 @@ export default function IndividualTenantProfilePage({
                     </div>
                   )}
 
+                  {/* 📸 Attached Payment Proof (Screenshot) */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block font-bold text-gray-700">
+                        Payment Proof / Screenshot
+                      </label>
+                      {collectScreenshotUrl && (
+                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          ✓ Auto-Attached to Receipt
+                        </span>
+                      )}
+                    </div>
+
+                    {collectScreenshotUrl ? (
+                      <div className="p-2.5 rounded-2xl bg-emerald-50/70 border border-emerald-200 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div
+                            onClick={() => setZoomedCollectScreenshot(collectScreenshotUrl)}
+                            className="relative w-12 h-12 rounded-xl overflow-hidden border border-emerald-300 bg-gray-900 shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
+                            title="Tap to enlarge"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={collectScreenshotUrl}
+                              alt="Attached Proof"
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                              <ZoomIn className="w-3.5 h-3.5 text-white drop-shadow" />
+                            </div>
+                          </div>
+                          <div className="min-w-0 text-[11px]">
+                            <span className="font-bold text-emerald-950 block truncate">
+                              Screenshot attached
+                            </span>
+                            <span className="text-gray-500 text-[10px] block">
+                              Permanently preserved with digital receipt
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setZoomedCollectScreenshot(collectScreenshotUrl)}
+                            className="px-2.5 py-1 text-xs font-bold text-emerald-800 bg-white border border-emerald-200 rounded-lg hover:bg-emerald-50 cursor-pointer shadow-2xs"
+                          >
+                            View
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCollectScreenshotUrl(null)}
+                            className="p-1.5 text-gray-400 hover:text-rose-600 rounded-lg cursor-pointer"
+                            title="Remove attachment"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <label className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-dashed border-gray-300 hover:border-gray-400 bg-gray-50/60 hover:bg-gray-100/60 text-gray-600 text-xs font-bold cursor-pointer transition-colors">
+                        <Camera className="w-4 h-4 text-gray-400" />
+                        <span>Attach Screenshot / Bank Receipt Photo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = () => {
+                                setCollectScreenshotUrl(reader.result as string);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+
                   {/* 💰 COMPACT RECEIVABLE SUMMARY & AUTO-FILL BUTTONS */}
                   {(() => {
                     const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
@@ -3759,7 +3903,11 @@ export default function IndividualTenantProfilePage({
                 <div className="p-3 sm:p-4 border-t border-gray-100 flex items-center justify-end gap-2.5 bg-gray-50/90 shrink-0">
                   <button
                     type="button"
-                    onClick={() => setShowCollectRentModal(false)}
+                    onClick={() => {
+                      setShowCollectRentModal(false);
+                      setCollectScreenshotUrl(null);
+                      setMatchedProofId(null);
+                    }}
                     className="px-3.5 py-2 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-100 text-xs cursor-pointer"
                   >
                     Cancel
@@ -6686,6 +6834,45 @@ export default function IndividualTenantProfilePage({
             occupant={occupantState}
             propertySettings={propertySettings}
           />
+        )}
+
+        {/* 🔍 Fullscreen Attached Payment Proof Lightbox Modal */}
+        {zoomedCollectScreenshot && (
+          <div
+            className="fixed inset-0 z-[120] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in select-none"
+            onClick={() => setZoomedCollectScreenshot(null)}
+          >
+            <div className="relative max-w-3xl max-h-[90vh] flex flex-col items-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={zoomedCollectScreenshot}
+                alt="Enlarged Payment Proof"
+                className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl border border-white/10"
+                onClick={(e) => e.stopPropagation()}
+              />
+              <div className="mt-3 flex items-center gap-3">
+                <a
+                  href={zoomedCollectScreenshot}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download="payment-proof.jpg"
+                  onClick={(e) => e.stopPropagation()}
+                  className="px-4 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold flex items-center gap-1.5 backdrop-blur-xs transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Open Full Size</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setZoomedCollectScreenshot(null)}
+                  className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1.5 backdrop-blur-xs transition-colors cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Close</span>
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* 🔔 Viewport-Floating Confirmation Banner (Guaranteed Cross-Device Visibility & Zero Cropping) */}

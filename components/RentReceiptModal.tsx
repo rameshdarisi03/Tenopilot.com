@@ -3,7 +3,7 @@
 import React, { useRef, useState } from "react";
 import { Occupant, PaymentHistoryItem } from "@/constants/mockOccupants";
 import { PropertySettingsData } from "@/constants/propertySettings";
-import { Printer, Download, CheckCircle2, ShieldCheck, Building2, Calendar, CreditCard, User, Sparkles, X, FileText } from "lucide-react";
+import { Printer, Download, CheckCircle2, ShieldCheck, Building2, Calendar, CreditCard, User, Sparkles, X, FileText, Eye, ZoomIn } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -24,6 +24,7 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
 }) => {
   const receiptRef = useRef<HTMLDivElement>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [showProofModal, setShowProofModal] = useState(false);
 
   if (!isOpen) return null;
 
@@ -337,6 +338,46 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
               </div>
             </div>
 
+            {/* Attached Payment Proof Banner (If screenshot available) */}
+            {receiptItem.screenshotUrl && (
+              <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200/80 mb-6 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    onClick={() => setShowProofModal(true)}
+                    className="relative w-12 h-12 rounded-lg overflow-hidden border border-emerald-300 bg-gray-900 shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
+                    title="Tap to enlarge"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={receiptItem.screenshotUrl}
+                      alt="Verified Payment Proof"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
+                      <ZoomIn className="w-3.5 h-3.5 text-white drop-shadow" />
+                    </div>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span className="font-bold text-xs text-emerald-950">Payment Proof Attached</span>
+                    </div>
+                    <p className="text-[10px] text-emerald-700/80 mt-0.5">
+                      Transaction screenshot preserved for verification & tax compliance
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowProofModal(true)}
+                  className="px-3 py-1.5 text-xs font-bold text-emerald-800 bg-white border border-emerald-200 rounded-lg hover:bg-emerald-50 cursor-pointer shadow-2xs shrink-0 flex items-center gap-1"
+                >
+                  <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>View Proof</span>
+                </button>
+              </div>
+            )}
+
             {/* Income Tax HRA Exemption Declaration Banner */}
             <div className="p-3.5 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50/40 border border-blue-100 text-[11px] text-blue-900 mb-6 flex items-start gap-2.5">
               <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
@@ -387,6 +428,45 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* 🔍 Fullscreen Attached Payment Proof Lightbox Modal */}
+      {showProofModal && receiptItem.screenshotUrl && (
+        <div
+          className="fixed inset-0 z-[120] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in select-none"
+          onClick={() => setShowProofModal(false)}
+        >
+          <div className="relative max-w-3xl max-h-[90vh] flex flex-col items-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={receiptItem.screenshotUrl}
+              alt="Enlarged Payment Proof"
+              className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl border border-white/10"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <div className="mt-3 flex items-center gap-3">
+              <a
+                href={receiptItem.screenshotUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                download={`Proof_${receiptItem.receiptNo}.jpg`}
+                onClick={(e) => e.stopPropagation()}
+                className="px-4 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold flex items-center gap-1.5 backdrop-blur-xs transition-colors cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Open Full Size</span>
+              </a>
+              <button
+                type="button"
+                onClick={() => setShowProofModal(false)}
+                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1.5 backdrop-blur-xs transition-colors cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Close</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

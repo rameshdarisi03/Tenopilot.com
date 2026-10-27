@@ -13,6 +13,8 @@ export interface PaymentHistoryItem {
   depositAmount?: number;   // Itemized Security Deposit Portion
   maintenanceAmount?: number;
   parkingAmount?: number;   // Itemized Parking Charges Portion
+  screenshotUrl?: string;   // Attached Payment Proof / Screenshot
+  proofId?: string;
   collectedBy?: {
     id?: string;
     name: string;

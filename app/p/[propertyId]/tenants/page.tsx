@@ -79,6 +79,8 @@ import {
   Check,
   Send,
   Car,
+  Camera,
+  ZoomIn,
 } from "lucide-react";
 
 export default function TenantsDirectoryPage({
@@ -217,6 +219,8 @@ export default function TenantsDirectoryPage({
   const [pendingProofs, setPendingProofs] = useState<PaymentProofRecord[]>([]);
   const [selectedProofForReview, setSelectedProofForReview] = useState<PaymentProofRecord | null>(null);
   const [activeProofBanner, setActiveProofBanner] = useState<PaymentProofRecord | null>(null);
+  const [collectScreenshotUrl, setCollectScreenshotUrl] = useState<string | null>(null);
+  const [zoomedCollectScreenshot, setZoomedCollectScreenshot] = useState<string | null>(null);
 
   // Collect Rent Modal State (Defaults dynamically to today's running calendar date)
   const [collectRentOccupant, setCollectRentOccupant] = useState<Occupant | null>(null);
@@ -502,7 +506,7 @@ export default function TenantsDirectoryPage({
     if (targetOccId && occupantsList.length > 0) {
       const occ = occupantsList.find((o) => o.id === targetOccId);
       if (occ) {
-        setCollectRentOccupant(occ);
+        handleOpenCollectRentModal(occ);
       }
     }
 
@@ -1284,6 +1288,7 @@ export default function TenantsDirectoryPage({
 
     setSelectedProofForReview(null);
     setActiveProofBanner(proof);
+    setCollectScreenshotUrl(proof.screenshotUrl || null);
 
     // Determine suggested collection amount:
     // If tenant left a note stating an amount (e.g. "Paid 6000" or "6000"), prioritize that;
@@ -1320,6 +1325,36 @@ export default function TenantsDirectoryPage({
     }
 
     setCollectRentOccupant(matched);
+  };
+
+  // ⚡ Open Collect Rent Modal with Automatic Payment Proof / Screenshot Attachment
+  const handleOpenCollectRentModal = (occ: Occupant) => {
+    setActiveActionDropdownId(null);
+    setCollectRentOccupant(occ);
+    setPaymentAmount(occ.rentAmount);
+    setPaidTo(partners.length === 1 ? (paymentAccounts[0]?.name || partners[0]?.name || "") : "");
+
+    // Auto-detect if tenant submitted a payment proof with screenshot
+    const matchingProof = pendingProofs.find(
+      (p) =>
+        (p.tenantId === occ.id || p.tenantName?.trim().toLowerCase() === occ.name?.trim().toLowerCase()) &&
+        p.status === "PENDING_VERIFICATION"
+    );
+    if (matchingProof) {
+      setActiveProofBanner(matchingProof);
+      if (matchingProof.screenshotUrl) {
+        setCollectScreenshotUrl(matchingProof.screenshotUrl);
+      }
+      if (matchingProof.reportedAmount && matchingProof.reportedAmount > 0) {
+        setPaymentAmount(matchingProof.reportedAmount);
+      }
+      if (matchingProof.utrNumber) {
+        setTransactionRef(matchingProof.utrNumber);
+      }
+    } else {
+      setActiveProofBanner(null);
+      setCollectScreenshotUrl(null);
+    }
   };
 
   // ❌ Reject Payment Proof with Reason
@@ -1411,6 +1446,8 @@ export default function TenantsDirectoryPage({
         mode: modeLabel,
         paidTo: paidTo || (paymentAccounts[0]?.name || "Partner Account"),
         status: "PAID",
+        screenshotUrl: collectScreenshotUrl || activeProofBanner?.screenshotUrl || undefined,
+        proofId: activeProofBanner?.id || undefined,
         collectedBy: {
           id: profile?.uid,
           name: staffName,
@@ -1433,6 +1470,8 @@ export default function TenantsDirectoryPage({
           mode: modeLabel,
           paidTo: paidTo || (paymentAccounts[0]?.name || "Partner Account"),
           status: "PAID",
+          screenshotUrl: collectScreenshotUrl || activeProofBanner?.screenshotUrl || undefined,
+          proofId: activeProofBanner?.id || undefined,
           collectedBy: {
             id: profile?.uid,
             name: staffName,
@@ -1455,6 +1494,8 @@ export default function TenantsDirectoryPage({
           mode: modeLabel,
           paidTo: paidTo || (paymentAccounts[0]?.name || "Partner Account"),
           status: "PAID",
+          screenshotUrl: collectScreenshotUrl || activeProofBanner?.screenshotUrl || undefined,
+          proofId: activeProofBanner?.id || undefined,
           collectedBy: {
             id: profile?.uid,
             name: staffName,
@@ -1598,10 +1639,10 @@ export default function TenantsDirectoryPage({
           { merge: true }
         ).catch((err) => console.warn("Notice approving tenant reported proof:", err));
       }
-
-      setActiveProofBanner(null);
     }
 
+    setActiveProofBanner(null);
+    setCollectScreenshotUrl(null);
     setCollectRentOccupant(null);
     setTransactionRef("");
   };
@@ -2689,10 +2730,7 @@ export default function TenantsDirectoryPage({
                                   </Link>
                                   <button
                                     onClick={() => {
-                                      setActiveActionDropdownId(null);
-                                      setCollectRentOccupant(occ);
-                                      setPaymentAmount(occ.rentAmount);
-                                      setPaidTo(partners.length === 1 ? (paymentAccounts[0]?.name || partners[0]?.name || "") : "");
+                                      handleOpenCollectRentModal(occ);
                                     }}
                                     className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-orange-50 text-gray-700"
                                   >
@@ -3098,7 +3136,7 @@ Scroll vertically to browse all residents without pagination limits
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setCollectRentOccupant(occ);
+                                handleOpenCollectRentModal(occ);
                               }}
                               className="flex-1 py-2 px-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all active:scale-95 cursor-pointer whitespace-nowrap"
                             >
@@ -3202,7 +3240,11 @@ Scroll vertically to browse all residents without pagination limits
                 </div>
                 <button
                   type="button"
-                  onClick={() => setCollectRentOccupant(null)}
+                  onClick={() => {
+                    setCollectRentOccupant(null);
+                    setActiveProofBanner(null);
+                    setCollectScreenshotUrl(null);
+                  }}
                   className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
                 >
                   <X className="w-5 h-5" />
@@ -3217,20 +3259,40 @@ Scroll vertically to browse all residents without pagination limits
               >
                 {/* ⚡ Active Payment Proof Verification Banner */}
                 {activeProofBanner && (
-                  <div className="p-3 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-300 rounded-2xl flex items-center justify-between gap-2 shadow-xs mb-1">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-700 font-bold flex items-center justify-center shrink-0">
-                        <Sparkles className="w-4 h-4" />
-                      </div>
+                  <div className="p-2.5 sm:p-3 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-300 rounded-2xl flex items-center justify-between gap-2.5 shadow-xs mb-1">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {activeProofBanner.screenshotUrl ? (
+                        <div
+                          onClick={() => setZoomedCollectScreenshot(activeProofBanner.screenshotUrl || null)}
+                          className="relative w-11 h-11 rounded-xl overflow-hidden border border-emerald-300 bg-gray-950 shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
+                          title="Tap to enlarge screenshot"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={activeProofBanner.screenshotUrl}
+                            alt="Proof"
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
+                            <ZoomIn className="w-3.5 h-3.5 text-white drop-shadow" />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-700 font-bold flex items-center justify-center shrink-0">
+                          <Sparkles className="w-4 h-4" />
+                        </div>
+                      )}
                       <div className="min-w-0">
                         <div className="text-xs font-bold text-emerald-900 flex items-center gap-1.5 truncate">
-                          <span>Linking Reported Payment</span>
-                          <span className="text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded">
-                            ₹{activeProofBanner.reportedAmount.toLocaleString("en-IN")}
-                          </span>
+                          <span>Proof Screenshot Attached</span>
+                          {activeProofBanner.tenantNote && (
+                            <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded">
+                              &ldquo;{activeProofBanner.tenantNote}&rdquo;
+                            </span>
+                          )}
                         </div>
                         <div className="text-[10px] text-emerald-700 truncate">
-                          UTR: {activeProofBanner.utrNumber || "Screenshot attached"} {activeProofBanner.partnerName ? ("• Account: " + activeProofBanner.partnerName) : ""}
+                          Auto-attaches to digital receipt • {activeProofBanner.partnerName ? `Paid to ${activeProofBanner.partnerName}` : "Direct UPI Transfer"}
                         </div>
                       </div>
                     </div>
@@ -3238,15 +3300,18 @@ Scroll vertically to browse all residents without pagination limits
                       <button
                         type="button"
                         onClick={() => setSelectedProofForReview(activeProofBanner)}
-                        className="px-2 py-1 text-[11px] font-bold text-emerald-800 hover:text-emerald-950 bg-white border border-emerald-200 rounded-lg shadow-2xs hover:bg-emerald-50 transition-colors"
+                        className="px-2 py-1 text-[11px] font-bold text-emerald-800 hover:text-emerald-950 bg-white border border-emerald-200 rounded-lg shadow-2xs hover:bg-emerald-50 transition-colors cursor-pointer"
                       >
-                        View Proof
+                        Review
                       </button>
                       <button
                         type="button"
-                        onClick={() => setActiveProofBanner(null)}
+                        onClick={() => {
+                          setActiveProofBanner(null);
+                          setCollectScreenshotUrl(null);
+                        }}
                         title="Unlink Proof"
-                        className="p-1 text-gray-400 hover:text-gray-600 rounded-lg"
+                        className="p-1 text-gray-400 hover:text-gray-600 rounded-lg cursor-pointer"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -3565,6 +3630,87 @@ Scroll vertically to browse all residents without pagination limits
                   </div>
                 )}
 
+                {/* 📸 Attached Payment Proof (Screenshot) */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-bold text-gray-700">
+                      Payment Proof / Screenshot
+                    </label>
+                    {collectScreenshotUrl && (
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        ✓ Auto-Attached to Receipt
+                      </span>
+                    )}
+                  </div>
+
+                  {collectScreenshotUrl ? (
+                    <div className="p-2.5 rounded-2xl bg-emerald-50/70 border border-emerald-200 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div
+                          onClick={() => setZoomedCollectScreenshot(collectScreenshotUrl)}
+                          className="relative w-12 h-12 rounded-xl overflow-hidden border border-emerald-300 bg-gray-900 shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
+                          title="Tap to enlarge"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={collectScreenshotUrl}
+                            alt="Attached Proof"
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                            <ZoomIn className="w-3.5 h-3.5 text-white drop-shadow" />
+                          </div>
+                        </div>
+                        <div className="min-w-0 text-[11px]">
+                          <span className="font-bold text-emerald-950 block truncate">
+                            Screenshot attached
+                          </span>
+                          <span className="text-gray-500 text-[10px] block">
+                            Permanently preserved with digital receipt
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setZoomedCollectScreenshot(collectScreenshotUrl)}
+                          className="px-2.5 py-1 text-xs font-bold text-emerald-800 bg-white border border-emerald-200 rounded-lg hover:bg-emerald-50 cursor-pointer shadow-2xs"
+                        >
+                          View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCollectScreenshotUrl(null)}
+                          className="p-1.5 text-gray-400 hover:text-rose-600 rounded-lg cursor-pointer"
+                          title="Remove attachment"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-dashed border-gray-300 hover:border-gray-400 bg-gray-50/60 hover:bg-gray-100/60 text-gray-600 text-xs font-bold cursor-pointer transition-colors">
+                      <Camera className="w-4 h-4 text-gray-400" />
+                      <span>Attach Screenshot / Bank Receipt Photo</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              setCollectScreenshotUrl(reader.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+
                 {/* 💰 COMPACT RECEIVABLE SUMMARY & AUTO-FILL BUTTONS */}
                 {(() => {
                   const stmt = calculateOccupantFinancialStatement(collectRentOccupant, currentSettings);
@@ -3658,7 +3804,11 @@ Scroll vertically to browse all residents without pagination limits
               <div className="p-3 sm:p-4 border-t border-gray-100 flex items-center justify-end gap-2.5 bg-gray-50/90 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setCollectRentOccupant(null)}
+                  onClick={() => {
+                    setCollectRentOccupant(null);
+                    setActiveProofBanner(null);
+                    setCollectScreenshotUrl(null);
+                  }}
                   className="px-3.5 py-2 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-100 text-xs cursor-pointer"
                 >
                   Cancel
@@ -4714,6 +4864,45 @@ Scroll vertically to browse all residents without pagination limits
           onProceedToCollect={handleProceedToCollectFromProof}
           onRejectProof={handleRejectProof}
         />
+
+        {/* 🔍 Fullscreen Attached Payment Proof Lightbox Modal */}
+        {zoomedCollectScreenshot && (
+          <div
+            className="fixed inset-0 z-[120] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in select-none"
+            onClick={() => setZoomedCollectScreenshot(null)}
+          >
+            <div className="relative max-w-3xl max-h-[90vh] flex flex-col items-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={zoomedCollectScreenshot}
+                alt="Enlarged Payment Proof"
+                className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl border border-white/10"
+                onClick={(e) => e.stopPropagation()}
+              />
+              <div className="mt-3 flex items-center gap-3">
+                <a
+                  href={zoomedCollectScreenshot}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download="payment-proof.jpg"
+                  onClick={(e) => e.stopPropagation()}
+                  className="px-4 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold flex items-center gap-1.5 backdrop-blur-xs transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Open Full Size</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setZoomedCollectScreenshot(null)}
+                  className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1.5 backdrop-blur-xs transition-colors cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Close</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
