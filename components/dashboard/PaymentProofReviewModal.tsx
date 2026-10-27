@@ -89,8 +89,6 @@ export function PaymentProofReviewModal({
     }
   };
 
-  const isPartial = proof.reportedAmount < proof.originalDueAmount;
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
       <div className="bg-white w-full max-w-lg rounded-3xl border border-gray-200 shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95">
@@ -132,60 +130,74 @@ export function PaymentProofReviewModal({
 
         {/* Scrollable Body */}
         <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs">
-          {/* Amount & Status Card */}
-          <div className={`p-4 rounded-2xl border flex items-center justify-between ${
-            isPartial
-              ? "bg-amber-50/70 border-amber-200"
-              : "bg-emerald-50/70 border-emerald-200"
-          }`}>
+          {/* Due & Submission Summary Card */}
+          <div className="p-4 rounded-2xl border border-gray-200 bg-gradient-to-r from-orange-50/40 via-white to-amber-50/40 flex items-center justify-between">
             <div>
-              <span className="text-[10px] font-bold text-gray-500 block uppercase tracking-wider">
-                {isPartial ? "🟡 Partial Payment Reported" : "🟢 Full Payment Reported"}
+              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">
+                Total Rent Due
               </span>
               <div className="font-mono font-black text-2xl text-gray-900 mt-0.5">
-                ₹{proof.reportedAmount.toLocaleString("en-IN")}
+                ₹{proof.originalDueAmount.toLocaleString("en-IN")}
               </div>
-              {isPartial && (
-                <p className="text-[11px] font-bold text-amber-800 mt-1">
-                  Remaining Balance: ₹{Math.max(0, proof.originalDueAmount - proof.reportedAmount).toLocaleString("en-IN")}
-                </p>
-              )}
             </div>
 
             <div className="text-right">
-              <span className="text-[10px] font-bold text-gray-400 block">Total Due</span>
-              <span className="font-mono font-bold text-gray-700 text-sm">
-                ₹{proof.originalDueAmount.toLocaleString("en-IN")}
+              <span className="text-[10px] font-bold text-gray-400 block">Submitted At</span>
+              <span className="font-mono font-bold text-gray-700 text-xs block">
+                {proof.submittedAtFormatted ? `🕒 ${proof.submittedAtFormatted}` : new Date(proof.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
               </span>
-              {proof.submittedAtFormatted && (
-                <span className="text-[10px] text-gray-400 block mt-1">
-                  🕒 {proof.submittedAtFormatted}
-                </span>
-              )}
+              <span className="text-[10px] text-gray-400 block mt-0.5">
+                {new Date(proof.createdAt).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })}
+              </span>
             </div>
           </div>
+
+          {/* Tenant Remarks Card - Highlighted prominently */}
+          {proof.tenantNote ? (
+            <div className="p-3.5 rounded-2xl bg-amber-50/90 border border-amber-300 flex items-start gap-2.5 shadow-2xs">
+              <span className="text-base leading-none mt-0.5">💬</span>
+              <div className="flex-1 min-w-0">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-900 block">
+                  Resident Note / Remarks
+                </span>
+                <p className="text-xs font-bold text-gray-900 mt-0.5 break-words">
+                  &ldquo;{proof.tenantNote}&rdquo;
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="px-3.5 py-2 rounded-xl bg-gray-50 border border-gray-200 text-gray-500 text-[11px] flex items-center gap-2">
+              <span className="text-sm">ℹ️</span>
+              <span>Resident submitted screenshot without additional remarks.</span>
+            </div>
+          )}
 
           {/* Screenshot Preview */}
           {proof.screenshotUrl ? (
             <div className="space-y-1.5">
-              <span className="text-[11px] font-bold text-gray-700 block">
-                Payment Screenshot
-              </span>
-              <div className="relative group rounded-2xl overflow-hidden border border-gray-200 bg-gray-900 shadow-inner">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-gray-700">
+                  Payment Screenshot
+                </span>
+                <span className="text-[10px] text-gray-400 font-medium">
+                  Tap image to enlarge
+                </span>
+              </div>
+              <div className="relative group rounded-2xl overflow-hidden border border-gray-200 bg-gray-950 shadow-inner">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={proof.screenshotUrl}
                   alt="Payment Proof"
-                  className="w-full max-h-56 object-contain cursor-pointer"
+                  className="w-full max-h-56 object-contain cursor-pointer transition-transform hover:scale-[1.01]"
                   onClick={() => setIsZoomed(true)}
                 />
                 <button
                   type="button"
                   onClick={() => setIsZoomed(true)}
-                  className="absolute bottom-2 right-2 px-2.5 py-1 rounded-lg bg-black/70 hover:bg-black text-white text-[10px] font-bold flex items-center gap-1 shadow-md cursor-pointer transition-colors"
+                  className="absolute bottom-2 right-2 px-2.5 py-1 rounded-lg bg-black/75 hover:bg-black text-white text-[10px] font-bold flex items-center gap-1 shadow-md cursor-pointer transition-colors"
                 >
                   <ZoomIn className="w-3 h-3" />
-                  <span>Tap to Enlarge</span>
+                  <span>Enlarge</span>
                 </button>
               </div>
             </div>
@@ -196,8 +208,8 @@ export function PaymentProofReviewModal({
           )}
 
           {/* Payment Metadata Grid */}
-          <div className="p-3.5 rounded-2xl bg-gray-50/80 border border-gray-200 space-y-2">
-            {/* UTR Number / Verification Source */}
+          <div className="p-3.5 rounded-2xl bg-gray-50/90 border border-gray-200 space-y-2">
+            {/* Verification Source */}
             <div className="flex items-center justify-between pb-2 border-b border-gray-200/70">
               <span className="font-bold text-gray-600">Verification Source:</span>
               <div className="flex items-center gap-1.5">
@@ -220,22 +232,12 @@ export function PaymentProofReviewModal({
             </div>
 
             {/* Receiving Account */}
-            <div className="flex items-center justify-between pb-2 border-b border-gray-200/70">
+            <div className="flex items-center justify-between">
               <span className="font-bold text-gray-600">Paid To Account:</span>
               <span className="font-bold text-gray-800 text-right">
                 {proof.partnerName ? `${proof.partnerName} (${proof.upiId || "UPI"})` : (proof.upiId || "PG UPI")}
               </span>
             </div>
-
-            {/* Tenant Note */}
-            {proof.tenantNote && (
-              <div className="flex items-start justify-between pt-0.5">
-                <span className="font-bold text-gray-600 shrink-0">Tenant Note:</span>
-                <span className="text-gray-700 italic text-right max-w-[240px]">
-                  &ldquo;{proof.tenantNote}&rdquo;
-                </span>
-              </div>
-            )}
           </div>
 
           {/* ⚠️ Rejection Reason Form */}
@@ -273,10 +275,12 @@ export function PaymentProofReviewModal({
           )}
 
           {/* Bank Verification Notice */}
-          <div className="p-3 rounded-xl bg-amber-50/60 border border-amber-200/70 text-amber-900 text-[11px] space-y-0.5">
-            <p className="font-bold">👉 Bank Verification Step:</p>
+          <div className="p-3 rounded-xl bg-orange-50/70 border border-orange-200/80 text-orange-950 text-[11px] space-y-0.5">
+            <p className="font-bold flex items-center gap-1.5">
+              <span>👉 Bank Verification:</span>
+            </p>
             <p className="text-gray-600">
-              Please check your Bank SMS, GPay, or Soundbox to confirm <strong>₹{proof.reportedAmount.toLocaleString("en-IN")}</strong> was credited before clicking Proceed.
+              Please check your Bank SMS, GPay, or Soundbox to confirm the exact credited amount, then click <strong>Proceed to Collect Rent</strong> to record it.
             </p>
           </div>
         </div>

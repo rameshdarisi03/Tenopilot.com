@@ -606,6 +606,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (isProtectedPage) {
       // 🔒 If session is locked on app re-open OR user is not authenticated -> route immediately to /login PIN lock
       if ((!user && !hasLocalSession) || !isSessionUnlocked) {
+        if (typeof window !== "undefined") {
+          const currentPath = window.location.pathname + window.location.search;
+          if (
+            currentPath &&
+            currentPath !== "/login" &&
+            currentPath !== "/signup" &&
+            currentPath !== "/"
+          ) {
+            sessionStorage.setItem("tenopilot_post_login_redirect", currentPath);
+            router.replace(`/login?redirect=${encodeURIComponent(currentPath)}`);
+            return;
+          }
+        }
         router.replace("/login");
       } else if (!loading && profile && !hasCompletedSetup) {
         router.replace("/welcome");
@@ -645,10 +658,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             resolvedProp = parsed.assignedPropertyId;
           } catch {}
         }
-        const dest = (resolvedRole === "admin" || resolvedRole === "receptionist")
+        const defaultDest = (resolvedRole === "admin" || resolvedRole === "receptionist")
           ? (resolvedProp ? `/p/${resolvedProp}/overview` : "/home")
           : "/home";
-        router.replace(dest);
+
+        // 🔗 Check for preserved post-login redirect (e.g. /p/[propertyId]/tenants?proof=[proofId])
+        let targetDest = defaultDest;
+        if (typeof window !== "undefined") {
+          try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const redirectParam = urlParams.get("redirect");
+            const sessionRedirect = sessionStorage.getItem("tenopilot_post_login_redirect");
+            const candidate = redirectParam || sessionRedirect;
+            if (
+              candidate &&
+              candidate.startsWith("/") &&
+              !candidate.startsWith("//") &&
+              !candidate.startsWith("/login") &&
+              !candidate.startsWith("/signup")
+            ) {
+              sessionStorage.removeItem("tenopilot_post_login_redirect");
+              targetDest = candidate;
+            }
+          } catch {}
+        }
+
+        router.replace(targetDest);
       }
     }
   }, [user, profile, loading, pathname, router]);

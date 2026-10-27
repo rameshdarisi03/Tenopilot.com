@@ -1285,9 +1285,23 @@ export default function TenantsDirectoryPage({
     setSelectedProofForReview(null);
     setActiveProofBanner(proof);
 
+    // Determine suggested collection amount:
+    // If tenant left a note stating an amount (e.g. "Paid 6000" or "6000"), prioritize that;
+    // otherwise default to proof.reportedAmount or originalDueAmount.
+    let initialCollectAmount = proof.reportedAmount || proof.originalDueAmount;
+    if (proof.tenantNote) {
+      const match = proof.tenantNote.match(/(?:paid|rs\.?|inr|₹)?\s*(\d{3,6})\b/i);
+      if (match && match[1]) {
+        const parsed = parseInt(match[1], 10);
+        if (parsed > 0 && parsed <= (proof.originalDueAmount || 100000)) {
+          initialCollectAmount = parsed;
+        }
+      }
+    }
+
     // Pre-fill values from tenant's reported payment
-    setPaymentAmount(proof.reportedAmount);
-    setRentPaymentPortion(proof.reportedAmount);
+    setPaymentAmount(initialCollectAmount);
+    setRentPaymentPortion(initialCollectAmount);
     setDepositPaymentPortion(0);
     setParkingPaymentPortion(0);
     setPaymentPurpose("RENT");
@@ -2528,7 +2542,7 @@ export default function TenantsDirectoryPage({
                                     className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition-all cursor-pointer shadow-2xs"
                                   >
                                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-                                    <span>⚡ Paid ₹{proof.reportedAmount.toLocaleString("en-IN")} • Verify Proof</span>
+                                    <span>⚡ Payment Proof Uploaded • Review</span>
                                   </button>
                                 );
                               })()}
@@ -3066,7 +3080,7 @@ Scroll vertically to browse all residents without pagination limits
                                 className="w-full py-2 px-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-800 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer mb-1"
                               >
                                 <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
-                                <span>⚡ Direct UPI Paid: ₹{proof.reportedAmount.toLocaleString("en-IN")} • Verify</span>
+                                <span>⚡ Payment Proof Uploaded • Review</span>
                               </button>
                             );
                           })()}

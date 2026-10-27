@@ -43,6 +43,27 @@ import { PwaBootSplashScreen } from "@/components/auth/PwaBootSplashScreen";
 import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { signOut, onAuthStateChanged } from "firebase/auth";
+
+function getCleanRedirectUrl(fallback: string): string {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const redirectParam = urlParams.get("redirect");
+    const sessionRedirect = sessionStorage.getItem("tenopilot_post_login_redirect");
+    const candidate = redirectParam || sessionRedirect;
+    if (
+      candidate &&
+      candidate.startsWith("/") &&
+      !candidate.startsWith("//") &&
+      !candidate.startsWith("/login") &&
+      !candidate.startsWith("/signup")
+    ) {
+      sessionStorage.removeItem("tenopilot_post_login_redirect");
+      return candidate;
+    }
+  } catch {}
+  return fallback;
+}
 import { PhoneAuthCard } from "@/components/auth/PhoneAuthCard";
 import { EmailAuthCard } from "@/components/auth/EmailAuthCard";
 
@@ -720,9 +741,11 @@ export default function LoginPage() {
       }
 
       const targetProp = updated.assignedPropertyId;
-      const targetPath = !hasCompletedOnboarding
+      const defaultPath = !hasCompletedOnboarding
         ? "/welcome"
         : (role === "master_admin" ? "/home" : (targetProp ? `/p/${targetProp}/overview` : "/home"));
+
+      const targetPath = hasCompletedOnboarding ? getCleanRedirectUrl(defaultPath) : defaultPath;
 
       router.push(targetPath);
       if (typeof window !== "undefined") {
@@ -949,9 +972,11 @@ export default function LoginPage() {
       }
 
       const targetProperty = updatedSession.assignedPropertyId;
-      const targetPath = !hasCompletedOnboarding
+      const defaultPath = !hasCompletedOnboarding
         ? "/welcome"
         : (role === "master_admin" ? "/home" : (targetProperty ? `/p/${targetProperty}/overview` : "/home"));
+
+      const targetPath = hasCompletedOnboarding ? getCleanRedirectUrl(defaultPath) : defaultPath;
 
       router.push(targetPath);
       if (typeof window !== "undefined") {
@@ -1281,7 +1306,7 @@ export default function LoginPage() {
                     setAuthStep("PIN_PROMPT");
                     setPinValue("");
                   } else {
-                    router.push(authResult.destination);
+                    router.push(getCleanRedirectUrl(authResult.destination));
                   }
                 }}
               />
@@ -1303,7 +1328,7 @@ export default function LoginPage() {
                     setAuthStep("PIN_PROMPT");
                     setPinValue("");
                   } else {
-                    router.push(authResult.destination);
+                    router.push(getCleanRedirectUrl(authResult.destination));
                   }
                 }}
               />
