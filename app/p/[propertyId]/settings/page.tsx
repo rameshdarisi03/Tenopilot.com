@@ -150,13 +150,13 @@ export default function PropertySettingsPage({
     }
 
     if (!newQrBank.trim()) {
-      alert("Please enter a Bank / Account Label (e.g. HDFC Bank, ICICI Bank).");
+      alert("Please enter an Account Nickname (e.g. Ramesh Personal UPI, Main Rent Account).");
       return;
     }
 
     const matchedPartner = partners.find((p) => p.id === newQrPartnerId);
     const resolvedPartnerName = matchedPartner ? matchedPartner.name : "Partner Account";
-    const autoProfileName = newQrBank.trim() ? `${resolvedPartnerName} — ${newQrBank.trim()}` : `${resolvedPartnerName} Account`;
+    const autoProfileName = newQrBank.trim() ? `${resolvedPartnerName} (${newQrBank.trim()})` : `${resolvedPartnerName} Account`;
 
     const currentProfiles = settings.qrProfiles && settings.qrProfiles.length > 0 ? settings.qrProfiles : DEFAULT_QR_PROFILES;
     const isFirstAccount = currentProfiles.length === 0;
@@ -815,15 +815,18 @@ export default function PropertySettingsPage({
 
                         <div>
                           <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                            Bank / Account Label *
+                            Account Nickname *
                           </label>
                           <input
                             type="text"
-                            placeholder={newQrPartnerId === "PETTY_CASH" ? "Reception Cash Drawer" : "e.g. HDFC Bank, ICICI Bank"}
+                            placeholder={newQrPartnerId === "PETTY_CASH" ? "Reception Cash Drawer" : "e.g. Ramesh Personal UPI, Main Rent Account"}
                             value={newQrBank}
                             onChange={(e) => setNewQrBank(e.target.value)}
                             className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                           />
+                          <p className="text-[10px] text-gray-500 mt-1">
+                            A friendly nickname to easily remember what this account or UPI is for.
+                          </p>
                         </div>
 
                         <div>
@@ -934,7 +937,7 @@ export default function PropertySettingsPage({
                               </div>
 
                               <span className="font-bold text-xs text-gray-900 block truncate">{qr.name}</span>
-                              <span className="text-[11px] text-gray-500 block truncate">🏦 {qr.bankLabel}</span>
+                              <span className="text-[11px] text-gray-500 block truncate">🏷️ Nickname: {qr.bankLabel}</span>
                               {qr.accountType === "CASH_DESK" ? (
                                 <span className="text-[10px] text-emerald-700 font-bold block truncate">
                                   💵 Cash Counter (Reception Desk)
