@@ -2582,273 +2582,292 @@ Scroll vertically to browse all residents without pagination limits
                       activeWhatsAppMenuId === occ.id || isActionMenuOpen ? "z-40" : "z-0"
                     }`}
                   >
-                    {/* Top Row: Avatar + Name/Plate + Status Badge (Plan C Spacious Layout) */}
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className="relative shrink-0">
-                          <div className="w-11 h-11 rounded-full border border-gray-200 bg-gray-100 flex items-center justify-center overflow-hidden">
-                            {occ.avatar && occ.avatar.length > 0 && !occ.avatar.includes("dicebear") ? (
-                              <img
-                                src={occ.avatar}
-                                alt={occ.name}
-                                className="w-full h-full object-cover pointer-events-none"
+                    {/* Dynamic Font Sizing for Tenant Name based on Length & Overdue Tag */}
+                    {(() => {
+                      const isOverdue = occ.paymentStatus === "Overdue";
+                      const nameLen = (occ.name || "").trim().length;
+                      let nameFontClass = "text-sm";
+                      if (isOverdue) {
+                        if (nameLen > 22) nameFontClass = "text-[11px] leading-tight";
+                        else if (nameLen > 14) nameFontClass = "text-xs leading-snug";
+                        else nameFontClass = "text-[13px] leading-snug";
+                      } else {
+                        if (nameLen > 24) nameFontClass = "text-[11px] leading-tight";
+                        else if (nameLen > 16) nameFontClass = "text-xs leading-snug";
+                        else nameFontClass = "text-sm leading-normal";
+                      }
+
+                      return (
+                        <>
+                          {/* Top Row: Avatar + Dynamic Name/Plate + Status Badge + Action Cluster */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <div className="relative shrink-0">
+                                <div className="w-10 h-10 rounded-full border border-gray-200 bg-gray-100 flex items-center justify-center overflow-hidden">
+                                  {occ.avatar && occ.avatar.length > 0 && !occ.avatar.includes("dicebear") ? (
+                                    <img
+                                      src={occ.avatar}
+                                      alt={occ.name}
+                                      className="w-full h-full object-cover pointer-events-none"
+                                      draggable={false}
+                                    />
+                                  ) : (
+                                    <User className="w-5 h-5 text-gray-400" />
+                                  )}
+                                </div>
+                                {isSelected && (
+                                  <div className="absolute inset-0 bg-[#c2652a] rounded-full flex items-center justify-center text-white font-bold text-xs shadow-md animate-in zoom-in-50">
+                                    ✓
+                                  </div>
+                                )}
+                              </div>
+
+                              <Link
+                                href={isMobileMultiSelectMode ? "#" : `/p/${propertyId}/tenants/${occ.id}`}
+                                onContextMenu={(e) => e.preventDefault()}
                                 draggable={false}
-                              />
-                            ) : (
-                              <User className="w-6 h-6 text-gray-400" />
-                            )}
-                          </div>
-                          {isSelected && (
-                            <div className="absolute inset-0 bg-[#c2652a] rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md animate-in zoom-in-50">
-                              ✓
-                            </div>
-                          )}
-                        </div>
+                                style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none", userSelect: "none" }}
+                                onClick={(e) => {
+                                  if (isMobileMultiSelectMode) {
+                                    e.preventDefault();
+                                    handleSelectOne(occ.id);
+                                  }
+                                }}
+                                className="flex-1 min-w-0 select-none"
+                              >
+                                <h3 className={`font-bold text-gray-900 hover:text-[#c2652a] transition-colors flex items-center gap-1.5 select-none break-words line-clamp-2 ${nameFontClass}`}>
+                                  <span>{occ.name}</span>
+                                  {occ.stayType === "Guest" && (
+                                    <span className="bg-purple-100 text-purple-700 px-1.5 py-0.2 rounded text-[9px] font-bold shrink-0">
+                                      🟣 GUEST
+                                    </span>
+                                  )}
+                                </h3>
+                                {(() => {
+                                  const vehicles = (
+                                    occ.vehicleNumbers && occ.vehicleNumbers.length > 0
+                                      ? occ.vehicleNumbers
+                                      : (occ.vehicleNumber ? [occ.vehicleNumber] : [])
+                                  ).filter(Boolean);
 
-                        <Link
-                          href={isMobileMultiSelectMode ? "#" : `/p/${propertyId}/tenants/${occ.id}`}
-                          onContextMenu={(e) => e.preventDefault()}
-                          draggable={false}
-                          style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none", userSelect: "none" }}
-                          onClick={(e) => {
-                            if (isMobileMultiSelectMode) {
-                              e.preventDefault();
-                              handleSelectOne(occ.id);
-                            }
-                          }}
-                          className="flex-1 min-w-0 select-none"
-                        >
-                          <h3 className="font-bold text-sm text-gray-900 hover:text-[#c2652a] transition-colors flex items-center gap-2 truncate select-none">
-                            {occ.name}
-                            {occ.stayType === "Guest" && (
-                              <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-bold shrink-0">
-                                🟣 GUEST
-                              </span>
-                            )}
-                          </h3>
-                          {(() => {
-                            const vehicles = (
-                              occ.vehicleNumbers && occ.vehicleNumbers.length > 0
-                                ? occ.vehicleNumbers
-                                : (occ.vehicleNumber ? [occ.vehicleNumber] : [])
-                            ).filter(Boolean);
+                                  if (vehicles.length === 0) return null;
 
-                            if (vehicles.length === 0) return null;
-
-                            return (
-                              <div className="flex flex-wrap items-center gap-1 mt-1 select-none">
-                                {vehicles.map((vNum, vIdx) => {
-                                  const plateFormatted = sanitizeVehicleNumber(vNum);
                                   return (
-                                    <div
-                                      key={vIdx}
-                                      className="inline-flex items-center rounded border border-gray-700/80 bg-white shadow-2xs px-1.5 py-0.5"
-                                      title={`Vehicle Plate: ${plateFormatted}`}
-                                    >
-                                      <span className="font-mono font-black text-[10px] tracking-wider text-gray-900 uppercase leading-none whitespace-nowrap">
-                                        {plateFormatted}
-                                      </span>
+                                    <div className="flex flex-wrap items-center gap-1 mt-0.5 select-none">
+                                      {vehicles.map((vNum, vIdx) => {
+                                        const plateFormatted = sanitizeVehicleNumber(vNum);
+                                        return (
+                                          <div
+                                            key={vIdx}
+                                            className="inline-flex items-center rounded border border-gray-700/80 bg-white shadow-2xs px-1.5 py-0.5"
+                                            title={`Vehicle Plate: ${plateFormatted}`}
+                                          >
+                                            <span className="font-mono font-black text-[9px] tracking-wider text-gray-900 uppercase leading-none whitespace-nowrap">
+                                              {plateFormatted}
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   );
-                                })}
-                              </div>
-                            );
-                          })()}
-                        </Link>
-                      </div>
-
-                      {/* Payment Status Badge cleanly positioned on Top Right */}
-                      <div className="shrink-0 pt-0.5">
-                        <span
-                          className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase select-none ${
-                            occ.paymentStatus === "Paid"
-                              ? "bg-green-100 text-green-700"
-                              : occ.paymentStatus === "Overdue"
-                              ? "bg-red-100 text-red-600"
-                              : "bg-orange-100 text-orange-600"
-                          }`}
-                        >
-                          {occ.paymentStatus}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Middle Row: Room and Payment Due Date */}
-                    <div className="grid grid-cols-2 gap-2 text-xs border-t border-b border-gray-100 py-2.5 my-1">
-                      <div>
-                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">
-                          Room
-                        </span>
-                        <span className="font-bold text-gray-900">
-                          Room {occ.roomNumber} ({occ.bedCode})
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">
-                          Payment Due
-                        </span>
-                        <span className={`font-bold ${occ.paymentStatus === "Paid" ? "text-emerald-700" : "text-[#c2652a]"}`}>
-                          {resolveOccupantPaymentDueDate(occ, currentSettings)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Bottom Row: Action Grid (Profile, WhatsApp, More Options, Collect Rent) */}
-                    <div className="flex items-center gap-2 pt-0.5">
-                      <Link
-                        href={`/p/${propertyId}/tenants/${occ.id}`}
-                        className="flex-1 py-2 px-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 whitespace-nowrap"
-                      >
-                        <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                        <span>View Profile</span>
-                      </Link>
-
-                      {/* Mobile WhatsApp Chat Action Button */}
-                      <div className={`relative ${activeWhatsAppMenuId === occ.id ? "z-50" : ""}`}>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveWhatsAppMenuId(activeWhatsAppMenuId === occ.id ? null : occ.id);
-                          }}
-                          className="p-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:scale-95 transition-all cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center shrink-0"
-                          title="WhatsApp Actions"
-                        >
-                          <MessageSquare className="w-4 h-4" />
-                        </button>
-
-                        {activeWhatsAppMenuId === occ.id && (
-                          <>
-                            <div
-                              className="fixed inset-0 z-40"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveWhatsAppMenuId(null);
-                              }}
-                            />
-                            <div
-                              onClick={(e) => e.stopPropagation()}
-                              className="absolute right-0 bottom-full mb-2 w-56 max-w-[calc(100vw-32px)] bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-50 animate-in fade-in zoom-in-95 text-xs space-y-0.5 font-semibold text-left whitespace-nowrap"
-                            >
-                              <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
-                                WhatsApp for {occ.name}
-                              </div>
-                              <a
-                                href={getIndividualRentReminderUrl(occ)}
-                                target="_blank"
-                                rel="noreferrer"
-                                onClick={() => setActiveWhatsAppMenuId(null)}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-emerald-900 hover:bg-emerald-50 transition-all text-left cursor-pointer"
-                              >
-                                <CreditCard className="w-4 h-4 text-emerald-600 shrink-0" />
-                                <span>Send Rent Reminder</span>
-                              </a>
-                              <a
-                                href={buildWhatsAppUrl(occ.phone, `Hi ${occ.name}! `)}
-                                target="_blank"
-                                rel="noreferrer"
-                                onClick={() => setActiveWhatsAppMenuId(null)}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-700 hover:bg-emerald-50 transition-all text-left cursor-pointer"
-                              >
-                                <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
-                                <span>Send Custom Message</span>
-                              </a>
+                                })()}
+                              </Link>
                             </div>
-                          </>
-                        )}
-                      </div>
 
-                      {/* Mobile Three-Dots Action Button */}
-                      <div className={`relative ${isActionMenuOpen ? "z-50" : ""}`}>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveActionDropdownId(isActionMenuOpen ? null : occ.id);
-                          }}
-                          className="p-2 rounded-xl border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 active:scale-95 transition-all cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center shrink-0"
-                          title="More Actions"
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
+                            {/* Status Badge & Fast Action Cluster Pinned to Right */}
+                            <div className="flex items-center gap-1 shrink-0 ml-1">
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase select-none shrink-0 ${
+                                  occ.paymentStatus === "Paid"
+                                    ? "bg-green-100 text-green-700"
+                                    : occ.paymentStatus === "Overdue"
+                                    ? "bg-red-100 text-red-600"
+                                    : "bg-orange-100 text-orange-600"
+                                }`}
+                              >
+                                {occ.paymentStatus}
+                              </span>
 
-                        {/* Mobile Action Dropdown Popup */}
-                        {isActionMenuOpen && (
-                          <>
-                            <div
-                              className="fixed inset-0 z-40"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveActionDropdownId(null);
-                              }}
-                            />
-                            <div
-                              onClick={(e) => e.stopPropagation()}
-                              className="absolute right-0 bottom-full mb-2 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-50 animate-in fade-in zoom-in-95 text-xs space-y-1 font-semibold"
-                            >
-                              <Link
-                                href={`/p/${propertyId}/tenants/${occ.id}`}
-                                className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-700 hover:bg-orange-50 hover:text-[#c2652a] transition-all"
-                              >
-                                <Eye className="w-4 h-4 text-gray-400" /> View Details & KYC
-                              </Link>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setActiveActionDropdownId(null);
-                                  setCollectRentOccupant(occ);
-                                }}
-                                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-emerald-700 hover:bg-emerald-50 transition-all text-left cursor-pointer"
-                              >
-                                <CreditCard className="w-4 h-4 text-emerald-600" /> Collect / Record Rent
-                              </button>
-                              <Link
-                                href={`/p/${propertyId}/property-map`}
-                                className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-700 hover:bg-orange-50 hover:text-[#c2652a] transition-all"
-                              >
-                                <ArrowRightLeft className="w-4 h-4 text-gray-400" /> Swap / Transfer Room
-                              </Link>
-                              {occ.lifecycleStatus === "Active" && (
+                              {/* Mobile WhatsApp Chat Action Button */}
+                              <div className={`relative ${activeWhatsAppMenuId === occ.id ? "z-50" : ""}`}>
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    setActiveActionDropdownId(null);
-                                    setCheckOutModalOccupant(occ);
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveWhatsAppMenuId(activeWhatsAppMenuId === occ.id ? null : occ.id);
                                   }}
-                                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-rose-700 hover:bg-rose-50 transition-all text-left cursor-pointer font-bold border-t border-gray-100"
+                                  className="p-1 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:scale-95 transition-all cursor-pointer min-h-[28px] min-w-[28px] flex items-center justify-center shrink-0"
+                                  title="WhatsApp Actions"
                                 >
-                                  <FileText className="w-4 h-4 text-rose-600" /> Check-Out & Settle
+                                  <MessageSquare className="w-3.5 h-3.5" />
                                 </button>
-                              )}
-                              {isPastTenant && (
+
+                                {activeWhatsAppMenuId === occ.id && (
+                                  <>
+                                    <div
+                                      className="fixed inset-0 z-40"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveWhatsAppMenuId(null);
+                                      }}
+                                    />
+                                    <div
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="absolute right-0 top-full mt-1.5 w-56 max-w-[calc(100vw-32px)] bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-50 animate-in fade-in zoom-in-95 text-xs space-y-0.5 font-semibold text-left whitespace-nowrap"
+                                    >
+                                      <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
+                                        WhatsApp for {occ.name}
+                                      </div>
+                                      <a
+                                        href={getIndividualRentReminderUrl(occ)}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        onClick={() => setActiveWhatsAppMenuId(null)}
+                                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-emerald-900 hover:bg-emerald-50 transition-all text-left cursor-pointer"
+                                      >
+                                        <CreditCard className="w-4 h-4 text-emerald-600 shrink-0" />
+                                        <span>Send Rent Reminder</span>
+                                      </a>
+                                      <a
+                                        href={buildWhatsAppUrl(occ.phone, `Hi ${occ.name}! `)}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        onClick={() => setActiveWhatsAppMenuId(null)}
+                                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-700 hover:bg-emerald-50 transition-all text-left cursor-pointer"
+                                      >
+                                        <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                                        <span>Send Custom Message</span>
+                                      </a>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+
+                              {/* Mobile Three-Dots Action Button */}
+                              <div className={`relative ${isActionMenuOpen ? "z-50" : ""}`}>
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    setActiveActionDropdownId(null);
-                                    setDeletePastTenantTarget(occ);
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveActionDropdownId(isActionMenuOpen ? null : occ.id);
                                   }}
-                                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-red-600 hover:bg-red-50 transition-all text-left cursor-pointer font-bold border-t border-gray-100"
+                                  className="p-1 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 active:scale-95 transition-all cursor-pointer min-h-[28px] min-w-[28px] flex items-center justify-center shrink-0"
+                                  title="More Actions"
                                 >
-                                  <Trash2 className="w-4 h-4 text-red-600" /> Delete Past Tenant 🗑️
+                                  <MoreVertical className="w-3.5 h-3.5" />
                                 </button>
-                              )}
-                            </div>
-                          </>
-                        )}
-                      </div>
 
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCollectRentOccupant(occ);
-                        }}
-                        className="flex-1 py-2 px-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all active:scale-95 cursor-pointer whitespace-nowrap"
-                      >
-                        <CreditCard className="w-3.5 h-3.5 shrink-0" />
-                        <span>Collect Rent</span>
-                      </button>
-                    </div>
+                                {/* Mobile Action Dropdown Popup */}
+                                {isActionMenuOpen && (
+                                  <>
+                                    <div
+                                      className="fixed inset-0 z-40"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveActionDropdownId(null);
+                                      }}
+                                    />
+                                    <div
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-50 animate-in fade-in zoom-in-95 text-xs space-y-1 font-semibold"
+                                    >
+                                      <Link
+                                        href={`/p/${propertyId}/tenants/${occ.id}`}
+                                        className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-700 hover:bg-orange-50 hover:text-[#c2652a] transition-all"
+                                      >
+                                        <Eye className="w-4 h-4 text-gray-400" /> View Details & KYC
+                                      </Link>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActiveActionDropdownId(null);
+                                          setCollectRentOccupant(occ);
+                                        }}
+                                        className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-emerald-700 hover:bg-emerald-50 transition-all text-left cursor-pointer"
+                                      >
+                                        <CreditCard className="w-4 h-4 text-emerald-600" /> Collect / Record Rent
+                                      </button>
+                                      <Link
+                                        href={`/p/${propertyId}/property-map`}
+                                        className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-700 hover:bg-orange-50 hover:text-[#c2652a] transition-all"
+                                      >
+                                        <ArrowRightLeft className="w-4 h-4 text-gray-400" /> Swap / Transfer Room
+                                      </Link>
+                                      {occ.lifecycleStatus === "Active" && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setActiveActionDropdownId(null);
+                                            setCheckOutModalOccupant(occ);
+                                          }}
+                                          className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-rose-700 hover:bg-rose-50 transition-all text-left cursor-pointer font-bold border-t border-gray-100"
+                                        >
+                                          <FileText className="w-4 h-4 text-rose-600" /> Check-Out & Settle
+                                        </button>
+                                      )}
+                                      {isPastTenant && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setActiveActionDropdownId(null);
+                                            setDeletePastTenantTarget(occ);
+                                          }}
+                                          className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-red-600 hover:bg-red-50 transition-all text-left cursor-pointer font-bold border-t border-gray-100"
+                                        >
+                                          <Trash2 className="w-4 h-4 text-red-600" /> Delete Past Tenant 🗑️
+                                        </button>
+                                      )}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Middle Row: Room and Payment Due Date */}
+                          <div className="grid grid-cols-2 gap-2 text-xs border-t border-b border-gray-100 py-2.5 my-1">
+                            <div>
+                              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">
+                                Room
+                              </span>
+                              <span className="font-bold text-gray-900">
+                                Room {occ.roomNumber} ({occ.bedCode})
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">
+                                Payment Due
+                              </span>
+                              <span className={`font-bold ${occ.paymentStatus === "Paid" ? "text-emerald-700" : "text-[#c2652a]"}`}>
+                                {resolveOccupantPaymentDueDate(occ, currentSettings)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Bottom Row: Profile and Collect Rent side-by-side */}
+                          <div className="flex gap-2 pt-0.5">
+                            <Link
+                              href={`/p/${propertyId}/tenants/${occ.id}`}
+                              className="flex-1 py-2 px-3 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 whitespace-nowrap"
+                            >
+                              <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                              <span>Profile</span>
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCollectRentOccupant(occ);
+                              }}
+                              className="flex-1 py-2 px-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+                            >
+                              <CreditCard className="w-3.5 h-3.5 shrink-0" />
+                              <span>Collect Rent</span>
+                            </button>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 );
               })
