@@ -2582,12 +2582,39 @@ Scroll vertically to browse all residents without pagination limits
                       activeWhatsAppMenuId === occ.id ? "z-40" : "z-0"
                     }`}
                   >
-                    {/* Dynamic Font Sizing for Tenant Name based on Length & Overdue Tag */}
+                    {/* Dynamic Font & Space Sizing for Tenant Name + Status Badge (with Parentheses / Amounts) */}
                     {(() => {
+                      const stmt = calculateOccupantFinancialStatement(occ, currentSettings);
+                      const isPaid = stmt.isFullyPaid;
+                      const isPartial = stmt.isPartialPaid;
                       const isOverdue = occ.paymentStatus === "Overdue";
+
+                      // Format partial amounts compactly if brackets exist e.g. ₹14,500 -> ₹14.5k
+                      const partialAmountCompact = stmt.netOutstandingBalance > 9999
+                        ? `₹${(stmt.netOutstandingBalance / 1000).toFixed(stmt.netOutstandingBalance % 1000 === 0 ? 0 : 1)}k`
+                        : `₹${stmt.netOutstandingBalance.toLocaleString("en-IN")}`;
+
+                      const statusMain = isPaid ? "Paid" : isPartial ? "Partial" : occ.paymentStatus;
+                      const statusExtra = isPartial ? `(${partialAmountCompact})` : "";
+                      const fullStatusString = statusExtra ? `${statusMain} ${statusExtra}` : statusMain;
+                      const statusLen = fullStatusString.length;
+
+                      // Dynamically size status badge
+                      let statusSizeClass = "text-[10px] px-2 py-0.5";
+                      if (statusLen > 8) {
+                        statusSizeClass = "text-[9px] px-1.5 py-0.5 tracking-tight";
+                      } else if (statusLen > 5) {
+                        statusSizeClass = "text-[9.5px] px-1.5 py-0.5 tracking-normal";
+                      }
+
+                      // Dynamically size tenant name based on both name length & status space demands
                       const nameLen = (occ.name || "").trim().length;
                       let nameFontClass = "text-sm";
-                      if (isOverdue) {
+                      if (statusLen > 8) {
+                        if (nameLen > 20) nameFontClass = "text-[11px] leading-tight";
+                        else if (nameLen > 13) nameFontClass = "text-xs leading-snug";
+                        else nameFontClass = "text-[13px] leading-snug";
+                      } else if (isOverdue) {
                         if (nameLen > 22) nameFontClass = "text-[11px] leading-tight";
                         else if (nameLen > 14) nameFontClass = "text-xs leading-snug";
                         else nameFontClass = "text-[13px] leading-snug";
@@ -2599,7 +2626,7 @@ Scroll vertically to browse all residents without pagination limits
 
                       return (
                         <>
-                          {/* Top Row: Avatar + Dynamic Name/Plate + Status Badge + Action Cluster */}
+                          {/* Top Row: Avatar + Dynamic Name/Plate + Dynamic Status Badge + Action Cluster */}
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex items-center gap-2.5 min-w-0 flex-1">
                               <div className="relative shrink-0">
@@ -2674,18 +2701,25 @@ Scroll vertically to browse all residents without pagination limits
                               </Link>
                             </div>
 
-                            {/* Status Badge & Fast Action Cluster Pinned to Right */}
+                            {/* Status Badge & Fast WhatsApp Button Pinned to Right */}
                             <div className="flex items-center gap-1 shrink-0 ml-1">
                               <span
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase select-none shrink-0 ${
-                                  occ.paymentStatus === "Paid"
+                                className={`inline-flex items-center gap-1 rounded font-bold uppercase select-none shrink-0 ${statusSizeClass} ${
+                                  isPaid
                                     ? "bg-green-100 text-green-700"
-                                    : occ.paymentStatus === "Overdue"
+                                    : isPartial
+                                    ? "bg-orange-100 text-orange-800 border border-orange-200"
+                                    : isOverdue
                                     ? "bg-red-100 text-red-600"
                                     : "bg-orange-100 text-orange-600"
                                 }`}
                               >
-                                {occ.paymentStatus}
+                                <span>{statusMain}</span>
+                                {statusExtra && (
+                                  <span className="font-mono font-bold lowercase tracking-normal">
+                                    {statusExtra}
+                                  </span>
+                                )}
                               </span>
 
                               {/* Mobile WhatsApp Chat Action Button */}
