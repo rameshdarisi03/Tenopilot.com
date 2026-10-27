@@ -197,14 +197,16 @@ export function PaymentProofReviewModal({
 
           {/* Payment Metadata Grid */}
           <div className="p-3.5 rounded-2xl bg-gray-50/80 border border-gray-200 space-y-2">
-            {/* UTR Number */}
+            {/* UTR Number / Verification Source */}
             <div className="flex items-center justify-between pb-2 border-b border-gray-200/70">
-              <span className="font-bold text-gray-600">UPI Ref / UTR Number:</span>
+              <span className="font-bold text-gray-600">Verification Source:</span>
               <div className="flex items-center gap-1.5">
-                <span className="font-mono font-black text-gray-900 text-xs">
-                  {proof.utrNumber || "N/A"}
+                <span className="font-mono font-bold text-gray-900 text-xs">
+                  {proof.utrNumber && proof.utrNumber !== "Screenshot Attached"
+                    ? proof.utrNumber
+                    : "📸 Screenshot Attached"}
                 </span>
-                {proof.utrNumber && (
+                {proof.utrNumber && proof.utrNumber !== "Screenshot Attached" && (
                   <button
                     type="button"
                     onClick={handleCopyUtr}

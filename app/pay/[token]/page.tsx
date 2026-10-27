@@ -59,8 +59,6 @@ export default function TenantPaymentBridgePage() {
   }, []);
 
   // Proof Submission Form State
-  const [reportedAmount, setReportedAmount] = useState<number>(0);
-  const [utrNumber, setUtrNumber] = useState("");
   const [tenantNote, setTenantNote] = useState("");
   const [screenshotDataUrl, setScreenshotDataUrl] = useState<string | null>(null);
   const [screenshotFileName, setScreenshotFileName] = useState<string | null>(null);
@@ -136,7 +134,6 @@ export default function TenantPaymentBridgePage() {
 
     if (resolved) {
       setDetails(resolved);
-      setReportedAmount(resolved.amount);
     }
     setLoading(false);
   }, [rawToken, searchParams]);
@@ -230,13 +227,8 @@ export default function TenantPaymentBridgePage() {
     e.preventDefault();
     if (!details) return;
 
-    if (!screenshotDataUrl && !utrNumber.trim()) {
-      setSubmitError("⚠️ Please enter your 12-digit UPI UTR number or attach a payment screenshot.");
-      return;
-    }
-
-    if (reportedAmount <= 0) {
-      setSubmitError("⚠️ Please enter a valid amount paid.");
+    if (!screenshotDataUrl) {
+      setSubmitError("⚠️ Please attach your payment screenshot to submit proof.");
       return;
     }
 
@@ -246,6 +238,7 @@ export default function TenantPaymentBridgePage() {
     try {
       const proofId = `proof_${Date.now()}`;
       const nowIso = new Date().toISOString();
+      const effectiveAmount = details.amount;
 
       const proofDoc = {
         id: proofId,
@@ -255,10 +248,10 @@ export default function TenantPaymentBridgePage() {
         tenantName: details.tenantName,
         roomNumber: details.roomNumber,
         originalDueAmount: details.amount,
-        reportedAmount: Number(reportedAmount),
-        isPartial: Number(reportedAmount) < details.amount,
-        remainingBalance: Math.max(0, details.amount - Number(reportedAmount)),
-        utrNumber: utrNumber.trim(),
+        reportedAmount: effectiveAmount,
+        isPartial: false,
+        remainingBalance: 0,
+        utrNumber: "Screenshot Attached",
         screenshotUrl: screenshotDataUrl || null,
         tenantNote: tenantNote.trim() || null,
         partnerId: details.partnerId || "",
@@ -295,8 +288,8 @@ export default function TenantPaymentBridgePage() {
             partnerName: details.partnerName,
             tenantName: details.tenantName,
             roomNumber: details.roomNumber,
-            amount: Number(reportedAmount),
-            utrNumber: utrNumber.trim() || "Screenshot Attached",
+            amount: effectiveAmount,
+            utrNumber: "Screenshot Attached",
             upiId: details.upiId,
           }),
         }).catch(() => {});
@@ -518,7 +511,7 @@ export default function TenantPaymentBridgePage() {
                 <h3 className="font-serif font-bold text-sm text-gray-900">Payment Completed? Submit Proof</h3>
               </div>
               <p className="text-[11px] text-gray-500 mt-1">
-                Enter your 12-digit UTR or attach your payment screenshot for immediate official PDF receipt generation.
+                Attach your payment screenshot to verify your payment and generate your official digital receipt.
               </p>
             </div>
 
@@ -530,47 +523,10 @@ export default function TenantPaymentBridgePage() {
             )}
 
             <div className="space-y-3">
-              {/* Actual Amount Paid (Allows Partial Payment Reporting) */}
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                  Amount Paid (₹) *
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  value={reportedAmount || ""}
-                  onChange={(e) => setReportedAmount(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-sm text-gray-900 focus:ring-1 focus:ring-[#c2652a] bg-white"
-                  placeholder="e.g. 12500"
-                />
-                {reportedAmount > 0 && reportedAmount < details.amount && (
-                  <p className="text-[10px] text-amber-700 font-bold mt-1">
-                    🟡 Partial Payment: ₹{(details.amount - reportedAmount).toLocaleString("en-IN")} will remain as pending balance.
-                  </p>
-                )}
-              </div>
-
-              {/* 12-Digit UPI Transaction / UTR Number */}
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                  12-Digit UPI Reference / UTR Number
-                </label>
-                <input
-                  type="text"
-                  maxLength={20}
-                  value={utrNumber}
-                  onChange={(e) => setUtrNumber(e.target.value.replace(/[^0-9a-zA-Z]/g, ""))}
-                  placeholder="e.g. 412894102931"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a] bg-white tracking-wider"
-                />
-                <p className="text-[10px] text-gray-400 mt-1">Found in your GPay / PhonePe payment success details</p>
-              </div>
-
               {/* Screenshot Uploader */}
               <div>
                 <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                  Payment Screenshot (Optional if UTR provided)
+                  Payment Screenshot *
                 </label>
                 <div className="relative">
                   <input
@@ -602,7 +558,7 @@ export default function TenantPaymentBridgePage() {
                     ) : (
                       <>
                         <Upload className="w-5 h-5 text-gray-400" />
-                        <span className="text-xs font-bold text-gray-700">Tap to upload GPay / PhonePe screenshot</span>
+                        <span className="text-xs font-bold text-gray-700">Tap to upload GPay / PhonePe / Paytm screenshot</span>
                         <span className="text-[10px] text-gray-400">JPG, PNG, WebP automatically optimized</span>
                       </>
                     )}
@@ -657,7 +613,7 @@ export default function TenantPaymentBridgePage() {
               </span>
               <h2 className="font-serif font-bold text-lg text-gray-900 mt-0.5">Payment Proof Submitted!</h2>
               <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
-                Thank you, <strong>{details.tenantName}</strong>. Your payment of <strong>₹{reportedAmount.toLocaleString("en-IN")}</strong> has been submitted to management for instant verification.
+                Thank you, <strong>{details.tenantName}</strong>. Your payment proof for <strong>₹{details.amount.toLocaleString("en-IN")}</strong> has been submitted to management for instant verification.
               </p>
             </div>
 
@@ -667,15 +623,13 @@ export default function TenantPaymentBridgePage() {
                 <span className="font-bold text-gray-800">{details.propertyName} ({details.roomNumber})</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Amount Reported:</span>
-                <span className="font-mono font-bold text-emerald-800">₹{reportedAmount.toLocaleString("en-IN")}</span>
+                <span className="text-gray-500">Amount:</span>
+                <span className="font-mono font-bold text-emerald-800">₹{details.amount.toLocaleString("en-IN")}</span>
               </div>
-              {utrNumber && (
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Reference / UTR:</span>
-                  <span className="font-mono font-bold text-gray-800">{utrNumber}</span>
-                </div>
-              )}
+              <div className="flex justify-between">
+                <span className="text-gray-500">Verification Status:</span>
+                <span className="font-bold text-amber-700">⏳ Awaiting Admin Review</span>
+              </div>
             </div>
 
             <p className="text-[11px] text-gray-400">
