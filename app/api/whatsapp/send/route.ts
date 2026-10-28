@@ -3,6 +3,7 @@ import { sendWhatsAppMessage, WhatsAppSendParams, WhatsAppSendResult } from "@/l
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { deductFromBatchesFIFO } from "@/lib/creditRolloverEngine";
 
 export async function POST(req: NextRequest) {
   try {
@@ -120,7 +121,15 @@ export async function POST(req: NextRequest) {
         const freshData = freshSnap.data();
         const baseCredits = typeof freshData?.credits === "number" ? freshData.credits : currentCredits;
         const existingTxs = Array.isArray(freshData?.transactions) ? freshData.transactions : [];
-        finalCredits = Math.max(0, baseCredits - successfulCount);
+        const existingBatches = Array.isArray(freshData?.batches) ? freshData.batches : [];
+
+        // FIFO Deduction from batches behind the scenes (oldest expiring first)
+        const { updatedBatches, newGrossBalance } = deductFromBatchesFIFO(
+          existingBatches,
+          successfulCount,
+          baseCredits
+        );
+        finalCredits = newGrossBalance;
 
         const newUsageTxs = messages
           .filter((_, idx) => results[idx]?.success)
@@ -141,6 +150,7 @@ export async function POST(req: NextRequest) {
           walletRef,
           {
             credits: finalCredits,
+            batches: updatedBatches,
             transactions: [...newUsageTxs, ...existingTxs].slice(0, 100),
             updatedAt: new Date().toISOString(),
           },

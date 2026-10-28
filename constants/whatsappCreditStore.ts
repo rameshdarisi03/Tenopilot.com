@@ -3,8 +3,8 @@ import { db } from "@/lib/firebase";
 
 export interface WhatsAppCreditTransaction {
   id: string;
-  type: "PURCHASE" | "USAGE" | "STARTER_BONUS";
-  amount: number; // Positive for purchase/bonus, negative for usage
+  type: "PURCHASE" | "USAGE" | "STARTER_BONUS" | "ROLLOVER";
+  amount: number; // Positive for purchase/bonus/rollover, negative for usage
   balanceAfter: number;
   description: string;
   recipientPhone?: string;

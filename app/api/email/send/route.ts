@@ -3,6 +3,7 @@ import { sendSESEmail, SESSendParams, SESSendResult, isSESQuotaError } from "@/l
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
 import { doc, getDoc, collection, query, where, getDocs, updateDoc, setDoc, increment } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { deductFromBatchesFIFO } from "@/lib/creditRolloverEngine";
 
 export async function POST(req: NextRequest) {
   try {
@@ -224,7 +225,15 @@ export async function POST(req: NextRequest) {
         const freshData = freshSnap.data();
         const baseCredits = typeof freshData?.credits === "number" ? freshData.credits : currentEmailCredits;
         const existingTxs = Array.isArray(freshData?.transactions) ? freshData.transactions : [];
-        finalEmailCredits = Math.max(0, baseCredits - centralDispatchesCount);
+        const existingBatches = Array.isArray(freshData?.batches) ? freshData.batches : [];
+
+        // FIFO Deduction from batches behind the scenes (oldest expiring first)
+        const { updatedBatches, newGrossBalance } = deductFromBatchesFIFO(
+          existingBatches,
+          centralDispatchesCount,
+          baseCredits
+        );
+        finalEmailCredits = newGrossBalance;
 
         const newUsageTxs = messages
           .filter((_, idx) => results[idx]?.success && (!customGatewayConfig || results[idx]?.fallbackUsed))
@@ -245,6 +254,7 @@ export async function POST(req: NextRequest) {
           emailWalletRef,
           {
             credits: finalEmailCredits,
+            batches: updatedBatches,
             transactions: [...newUsageTxs, ...existingTxs].slice(0, 100),
             updatedAt: new Date().toISOString(),
           },

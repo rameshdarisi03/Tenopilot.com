@@ -734,6 +734,77 @@ export default function MasterControlsPage() {
                   </p>
                 </div>
 
+                {/* Unused Credit Rollover Window */}
+                <div className="p-4 rounded-xl bg-[#16191f] border border-white/6 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+                      🔄 Credit Balance Rollover Window (Max Months)
+                    </span>
+                    <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
+                      {config.creditRolloverMonths || 4} Months Carry-Forward
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setConfig({
+                          ...config,
+                          creditRolloverMonths: Math.max(1, (config.creditRolloverMonths || 4) - 1),
+                        })
+                      }
+                      className="w-10 h-10 rounded-lg bg-[#0d0f12] border border-white/10 text-white font-bold hover:bg-white/5 cursor-pointer text-base"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      min={1}
+                      max={24}
+                      value={config.creditRolloverMonths ?? 4}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          creditRolloverMonths: Math.min(24, Math.max(1, Number(e.target.value) || 1)),
+                        })
+                      }
+                      className="flex-1 bg-[#0d0f12] border border-white/10 rounded-lg px-3 py-2 text-center text-emerald-300 font-mono font-bold text-base focus:outline-none focus:border-emerald-500"
+                    >
+                    </input>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setConfig({
+                          ...config,
+                          creditRolloverMonths: Math.min(24, (config.creditRolloverMonths || 4) + 1),
+                        })
+                      }
+                      className="w-10 h-10 rounded-lg bg-[#0d0f12] border border-white/10 text-white font-bold hover:bg-white/5 cursor-pointer text-base"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1.5 pt-1 flex-wrap">
+                    {[1, 2, 3, 4, 6, 12].map((months) => (
+                      <button
+                        key={months}
+                        type="button"
+                        onClick={() => setConfig({ ...config, creditRolloverMonths: months })}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                          (config.creditRolloverMonths ?? 4) === months
+                            ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50"
+                            : "bg-[#0d0f12] text-slate-400 border-white/6 hover:text-white"
+                        }`}
+                      >
+                        {months} {months === 1 ? "Month" : "Months"}{months === 4 ? " (Default)" : ""}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    Unused WhatsApp and Email credits will automatically carry forward into upcoming subscription months for up to <strong className="text-white">{config.creditRolloverMonths || 4} months</strong>. Applies automatically to each property based on its own independent billing timeline.
+                  </p>
+                </div>
+
                 {/* Free Trial WhatsApp Credits */}
                 <div className="p-4 rounded-xl bg-[#16191f] border border-white/6 space-y-2">
                   <div className="flex items-center justify-between">

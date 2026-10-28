@@ -17,6 +17,7 @@ export interface PlatformConfig {
   trialWhatsAppCredits: number;
   emailMultiplier: number; // e.g. 3 (range 1 to 10)
   trialEmailCredits?: number;
+  creditRolloverMonths: number; // e.g. 4 months duration for carrying forward unused balances
 
   // Founder Support & Billing
   founderWhatsapp: string;
@@ -47,6 +48,7 @@ export const DEFAULT_PLATFORM_CONFIG: PlatformConfig = {
   trialWhatsAppCredits: 10,
   emailMultiplier: 3, // Default 3X
   trialEmailCredits: 30,
+  creditRolloverMonths: 4, // Default 4 months carry forward window
 
   // Founder Support & Billing
   founderWhatsapp: "9206651295",

@@ -28,6 +28,7 @@ export async function GET() {
         trialWhatsAppCredits: Number(data.trialWhatsAppCredits) || DEFAULT_PLATFORM_CONFIG.trialWhatsAppCredits,
         emailMultiplier: Number(data.emailMultiplier) || DEFAULT_PLATFORM_CONFIG.emailMultiplier,
         trialEmailCredits: Number(data.trialEmailCredits) || DEFAULT_PLATFORM_CONFIG.trialEmailCredits,
+        creditRolloverMonths: Number(data.creditRolloverMonths) || DEFAULT_PLATFORM_CONFIG.creditRolloverMonths,
         founderWhatsapp: String(data.founderWhatsapp || DEFAULT_PLATFORM_CONFIG.founderWhatsapp),
         founderUpiVpa: String(data.founderUpiVpa || DEFAULT_PLATFORM_CONFIG.founderUpiVpa),
         founderUpiName: String(data.founderUpiName || DEFAULT_PLATFORM_CONFIG.founderUpiName),

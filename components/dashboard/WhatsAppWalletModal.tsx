@@ -32,6 +32,7 @@ import {
 } from "@/constants/whatsappCreditStore";
 import { RazorpayModalMockup } from "@/components/dashboard/RazorpayModalMockup";
 import { useAuth } from "@/providers/AuthProvider";
+import { usePlatformConfig } from "@/lib/usePlatformConfig";
 import { compressImageToDataUrl } from "@/utils/imageCompression";
 
 interface WhatsAppWalletModalProps {
@@ -48,6 +49,8 @@ export function WhatsAppWalletModal({
   onRechargeSuccess,
 }: WhatsAppWalletModalProps) {
   const { profile } = useAuth();
+  const { config: platformConfig } = usePlatformConfig();
+  const rolloverMonths = platformConfig.creditRolloverMonths || 4;
   const [credits, setCredits] = useState<number>(() => whatsappCreditStore.getCredits(propertyId));
   const [transactions, setTransactions] = useState<WhatsAppCreditTransaction[]>(() =>
     whatsappCreditStore.getTransactions(propertyId)
@@ -254,6 +257,9 @@ export function WhatsAppWalletModal({
                   <span className="text-2xl font-black text-gray-900 font-mono tabular-nums">{credits}</span>
                   <span className="text-xs font-bold text-emerald-700">Messages Available</span>
                 </div>
+                <p className="text-[10px] text-gray-500 font-medium mt-1">
+                  Unused balance carries forward up to next {rolloverMonths} months
+                </p>
               </div>
             </div>
 
@@ -690,7 +696,8 @@ export function WhatsAppWalletModal({
                 ) : (
                   <div className="space-y-2">
                     {transactions.map((tx) => {
-                      const isCredit = tx.type === "PURCHASE" || tx.type === "STARTER_BONUS" || tx.amount > 0;
+                      const isRollover = tx.type === "ROLLOVER";
+                      const isCredit = tx.type === "PURCHASE" || tx.type === "STARTER_BONUS" || isRollover || tx.amount > 0;
                       return (
                         <div
                           key={tx.id}
@@ -699,12 +706,20 @@ export function WhatsAppWalletModal({
                           <div className="flex items-center gap-3 min-w-0">
                             <div
                               className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                                isCredit
+                                isRollover
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-300"
+                                  : isCredit
                                   ? "bg-emerald-100 text-emerald-700"
                                   : "bg-gray-100 text-gray-600"
                               }`}
                             >
-                              {isCredit ? <Plus className="w-4 h-4" /> : <MessageSquare className="w-4 h-4" />}
+                              {isRollover ? (
+                                <RefreshCw className="w-4 h-4 text-emerald-600" />
+                              ) : isCredit ? (
+                                <Plus className="w-4 h-4" />
+                              ) : (
+                                <MessageSquare className="w-4 h-4" />
+                              )}
                             </div>
                             <div className="min-w-0">
                               <span className="font-bold text-gray-900 block truncate">

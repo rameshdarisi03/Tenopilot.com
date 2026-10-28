@@ -869,37 +869,42 @@ export default function SubscriptionBillingPage() {
               </div>
 
               {/* Dual-Channel Live Balance Cards */}
-              <div className="flex flex-wrap items-center gap-3">
-                {/* WhatsApp Wallet Pill */}
-                <div className="flex items-center gap-2.5 bg-[#fcf9f8] p-2 px-3.5 rounded-2xl border border-emerald-200 shadow-2xs">
-                  <div className="text-right">
-                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">💬 WhatsApp Balance</span>
-                    <span className={`font-mono font-black text-lg tabular-nums ${whatsappCredits <= 0 ? "text-rose-600" : "text-emerald-800"}`}>
-                      {whatsappCredits} <span className="text-[11px] font-semibold text-gray-600">Credits</span>
-                    </span>
-                    {whatsappCredits <= 0 && (
-                      <span className="block text-[9px] font-black text-rose-600 tracking-wide uppercase">Gateway Locked 🔒</span>
-                    )}
-                  </div>
-                  <div className={`w-2.5 h-2.5 rounded-full ${whatsappCredits > 50 ? "bg-emerald-500" : whatsappCredits > 10 ? "bg-amber-500 animate-pulse" : "bg-rose-500 animate-ping"}`} />
-                </div>
-
-                {/* Email Wallet Pill */}
-                <div className="flex items-center gap-2.5 bg-[#fcf9f8] p-2 px-3.5 rounded-2xl border border-cyan-200 shadow-2xs">
-                  <div className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">✉️ Email Balance</span>
-                      <span className="text-[9px] font-bold text-cyan-700 bg-cyan-100 px-1.5 py-0.2 rounded font-mono">{profile?.emailMultiplier || platformConfig.emailMultiplier || 3}X</span>
+              <div className="flex flex-col sm:items-end gap-1.5">
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* WhatsApp Wallet Pill */}
+                  <div className="flex items-center gap-2.5 bg-[#fcf9f8] p-2 px-3.5 rounded-2xl border border-emerald-200 shadow-2xs">
+                    <div className="text-right">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">💬 WhatsApp Balance</span>
+                      <span className={`font-mono font-black text-lg tabular-nums ${whatsappCredits <= 0 ? "text-rose-600" : "text-emerald-800"}`}>
+                        {whatsappCredits} <span className="text-[11px] font-semibold text-gray-600">Credits</span>
+                      </span>
+                      {whatsappCredits <= 0 && (
+                        <span className="block text-[9px] font-black text-rose-600 tracking-wide uppercase">Gateway Locked 🔒</span>
+                      )}
                     </div>
-                    <span className={`font-mono font-black text-lg tabular-nums ${emailCredits <= 0 ? "text-rose-600" : "text-cyan-800"}`}>
-                      {emailCredits} <span className="text-[11px] font-semibold text-gray-600">Credits</span>
-                    </span>
-                    {emailCredits <= 0 && (
-                      <span className="block text-[9px] font-black text-rose-600 tracking-wide uppercase">Gateway Locked 🔒</span>
-                    )}
+                    <div className={`w-2.5 h-2.5 rounded-full ${whatsappCredits > 50 ? "bg-emerald-500" : whatsappCredits > 10 ? "bg-amber-500 animate-pulse" : "bg-rose-500 animate-ping"}`} />
                   </div>
-                  <div className={`w-2.5 h-2.5 rounded-full ${emailCredits > 50 ? "bg-cyan-500" : emailCredits > 10 ? "bg-amber-500 animate-pulse" : "bg-rose-500 animate-ping"}`} />
+
+                  {/* Email Wallet Pill */}
+                  <div className="flex items-center gap-2.5 bg-[#fcf9f8] p-2 px-3.5 rounded-2xl border border-cyan-200 shadow-2xs">
+                    <div className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">✉️ Email Balance</span>
+                        <span className="text-[9px] font-bold text-cyan-700 bg-cyan-100 px-1.5 py-0.2 rounded font-mono">{profile?.emailMultiplier || platformConfig.emailMultiplier || 3}X</span>
+                      </div>
+                      <span className={`font-mono font-black text-lg tabular-nums ${emailCredits <= 0 ? "text-rose-600" : "text-cyan-800"}`}>
+                        {emailCredits} <span className="text-[11px] font-semibold text-gray-600">Credits</span>
+                      </span>
+                      {emailCredits <= 0 && (
+                        <span className="block text-[9px] font-black text-rose-600 tracking-wide uppercase">Gateway Locked 🔒</span>
+                      )}
+                    </div>
+                    <div className={`w-2.5 h-2.5 rounded-full ${emailCredits > 50 ? "bg-cyan-500" : emailCredits > 10 ? "bg-amber-500 animate-pulse" : "bg-rose-500 animate-ping"}`} />
+                  </div>
                 </div>
+                <p className="text-[10.5px] text-gray-500 font-medium text-right">
+                  Unused balance carries forward up to next {platformConfig.creditRolloverMonths || 4} months
+                </p>
               </div>
             </div>
 

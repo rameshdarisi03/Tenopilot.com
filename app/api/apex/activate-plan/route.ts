@@ -4,6 +4,7 @@ import { db } from "@/lib/firebase";
 import { calculateStackedExpiry } from "@/lib/subscriptionEngine";
 import { sendSESEmail } from "@/lib/sesService";
 import { sendWhatsAppMessage, formatIndianPhoneNumber } from "@/lib/whatsappService";
+import { evaluateAndExecutePropertyRollover } from "@/lib/creditRolloverEngine";
 
 export async function POST(req: NextRequest) {
   try {
@@ -416,32 +417,12 @@ export async function POST(req: NextRequest) {
         }
 
         for (const propId of Array.from(targetPropertyIds)) {
-          const walletRef = doc(db, `properties/${propId}/whatsapp/wallet`);
-          const wSnap = await getDoc(walletRef);
-          const currentCredits = wSnap.exists() && typeof wSnap.data()?.credits === "number" ? wSnap.data().credits : 0;
-          const currentTxs = wSnap.exists() && Array.isArray(wSnap.data()?.transactions) ? wSnap.data().transactions : [];
-          const newBalance = Math.max(currentCredits + welcomeCredits, welcomeCredits);
-
-          const newTx = {
-            id: `tx-pro-bonus-${Date.now()}`,
-            type: "STARTER_BONUS",
-            amount: welcomeCredits,
-            balanceAfter: newBalance,
-            description: `+${welcomeCredits} Pro Subscription Welcome Bonus (${plan})`,
-            timestamp: nowIso,
-            status: "DELIVERED",
-          };
-
-          await setDoc(
-            walletRef,
-            {
-              credits: newBalance,
-              transactions: [newTx, ...currentTxs].slice(0, 100),
-              updatedAt: nowIso,
-              updatedBy: activatedBy,
-            },
-            { merge: true }
-          );
+          // Execute authentic credit rollover calculation on property's dedicated timeline
+          await evaluateAndExecutePropertyRollover(propId, {
+            force: true,
+            freshMonthlyQuotaWa: welcomeCredits,
+            freshMonthlyQuotaEmail: welcomeCredits * 3,
+          });
         }
       } catch (wErr) {
         console.warn("Notice provisioning Pro WhatsApp welcome bonus credits:", wErr);
