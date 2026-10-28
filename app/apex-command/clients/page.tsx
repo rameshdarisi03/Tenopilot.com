@@ -1414,37 +1414,6 @@ export default function ApexCommandClientsPage() {
                             <span>360° Profile & Activate</span>
                           </button>
 
-                          {/* Impersonate / Preview for each building in portfolio */}
-                          {acc.propertyIds.length === 1 && (
-                            <Link
-                              href={`/p/${acc.propertyIds[0]}/overview?impersonate=true`}
-                              target="_blank"
-                              className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-bold text-xs border border-white/10 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
-                            >
-                              <Eye className="w-3.5 h-3.5 text-blue-400" />
-                              <span>Preview</span>
-                            </Link>
-                          )}
-                          {acc.propertyIds.length > 1 && (
-                            <div className="flex items-center gap-1">
-                              {acc.propertyIds.map((pid, idx) => {
-                                const bName = acc.propertyNames?.[idx] || (idx === 0 ? acc.primaryPropertyName : `Building #${idx + 1}`);
-                                return (
-                                  <Link
-                                    key={pid}
-                                    href={`/p/${pid}/overview?impersonate=true`}
-                                    target="_blank"
-                                    className="px-2.5 py-2 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 font-bold text-xs border border-blue-500/30 flex items-center gap-1 cursor-pointer transition-all active:scale-95"
-                                    title={`Preview ${bName}`}
-                                  >
-                                    <Eye className="w-3 h-3 text-blue-400" />
-                                    <span>{idx === 0 ? "Bldg #1" : `Bldg #${idx + 1}`}</span>
-                                  </Link>
-                                );
-                              })}
-                            </div>
-                          )}
-
                           {/* Suspend / Resume Button */}
                           <button
                             onClick={() => handleToggleSuspend(acc)}
@@ -1847,19 +1816,6 @@ export default function ApexCommandClientsPage() {
                       {selectedCustomer360.propertyIds.join(", ") || "None"}
                     </span>
                   </p>
-
-                  {selectedCustomer360.propertyIds.length > 0 && (
-                    <div className="pt-2">
-                      <Link
-                        href={`/p/${selectedCustomer360.propertyIds[0]}/overview?impersonate=true`}
-                        target="_blank"
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition-all"
-                      >
-                        <Eye className="w-3.5 h-3.5 text-blue-400" />
-                        <span>Impersonate & Open Client Dashboard ➔</span>
-                      </Link>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -2102,14 +2058,9 @@ export default function ApexCommandClientsPage() {
                               <span className="font-bold text-white text-xs truncate block">{bName}</span>
                               <span className="text-[10px] font-mono text-gray-400 truncate block">{pid}</span>
                             </div>
-                            <Link
-                              href={`/p/${pid}/overview?impersonate=true`}
-                              target="_blank"
-                              className="px-2.5 py-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 font-bold text-[10px] border border-blue-500/30 flex items-center gap-1 shrink-0"
-                            >
-                              <Eye className="w-3 h-3" />
-                              <span>Preview</span>
-                            </Link>
+                            <span className="px-2 py-1 rounded-lg bg-white/5 text-gray-400 font-bold text-[10px] border border-white/10 shrink-0">
+                              Building #{idx + 1}
+                            </span>
                           </div>
                         );
                       })}
