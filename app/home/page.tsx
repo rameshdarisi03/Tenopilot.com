@@ -44,6 +44,7 @@ import { getMaxAllowedProperties, MULTI_PROPERTY_MONTHLY_PRICE } from "@/lib/sub
 import { usePlatformConfig } from "@/lib/usePlatformConfig";
 import { compressPaymentScreenshot } from "@/lib/imageCompression";
 import { EditProfileModal } from "@/components/dashboard/EditProfileModal";
+import { MultiPropertyOnboardingWizard } from "@/components/dashboard/MultiPropertyOnboardingWizard";
 
 import { portfolioStore, PortfolioProperty } from "@/constants/portfolioStore";
 import { doc, getDoc, setDoc } from "firebase/firestore";
@@ -51,7 +52,7 @@ import { db } from "@/lib/firebase";
 
 export default function HomeWorkspacePage() {
   const router = useRouter();
-  const { profile, logout } = useAuth();
+  const { profile, user, logout } = useAuth();
   const { config: platformConfig } = usePlatformConfig();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
@@ -883,120 +884,20 @@ export default function HomeWorkspacePage() {
         )}
       </main>
 
-      {/* 🏢 ADD NEW PROPERTY MODAL */}
-      {showAddPropertyModal && (
-        <div
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
-          onClick={() => setShowAddPropertyModal(false)}
-        >
-          <div
-            className="bg-white rounded-3xl border border-[#d7c2b9] shadow-2xl max-w-md w-full p-6 space-y-5 animate-in zoom-in-95 text-xs text-[#201a17]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-[#f8ede3] pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2.5 rounded-xl bg-[#f8ede3] text-[#964407]">
-                  <Building2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-serif font-bold text-lg text-[#201a17]">
-                    Onboard New Building
-                  </h3>
-                  <p className="text-[11px] text-[#554339] font-medium">
-                    Expand your PG / Hostel portfolio
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowAddPropertyModal(false)}
-                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateProperty} className="space-y-4">
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-[#554339] mb-1">
-                  Building / Property Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Meridian Men's Executive PG"
-                  value={newPropName}
-                  onChange={(e) => setNewPropName(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-[#d7c2b9] focus:outline-none focus:ring-2 focus:ring-[#964407] font-medium text-xs bg-[#fff8f6]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-[#554339] mb-1">
-                  Location / Area *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Gachibowli, Hyderabad"
-                  value={newPropLocation}
-                  onChange={(e) => setNewPropLocation(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-[#d7c2b9] focus:outline-none focus:ring-2 focus:ring-[#964407] font-medium text-xs bg-[#fff8f6]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-[#554339] mb-1">
-                  Initial Bed Capacity
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="500"
-                  value={newPropBeds}
-                  onChange={(e) => setNewPropBeds(Number(e.target.value))}
-                  className="w-full px-4 py-2.5 rounded-xl border border-[#d7c2b9] focus:outline-none focus:ring-2 focus:ring-[#964407] font-medium text-xs bg-[#fff8f6]"
-                />
-              </div>
-
-              {properties.length > 0 && (
-                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200/80 text-[11px] text-emerald-950 space-y-1.5">
-                  <div className="flex items-center gap-1.5 font-bold text-emerald-900">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-700" />
-                    <span>Auto-Inherited from {properties[0]?.name || "Primary Property"}:</span>
-                  </div>
-                  <ul className="text-[10px] text-emerald-800 space-y-0.5 list-disc list-inside">
-                    <li>Billing Cycle Mode & Monthly Rent Due Day</li>
-                    <li>Overdue Grace Period & House Rules</li>
-                    <li>Parent Organization ID ({profile?.organizationId || `org_${profile?.uid || "admin"}`})</li>
-                  </ul>
-                </div>
-              )}
-
-              <div className="p-3 rounded-xl bg-orange-50 border border-orange-200 text-[10px] text-orange-950 font-medium leading-relaxed">
-                💡 <strong>Dynamic Routing:</strong> Adding this building creates a dedicated multi-tenant URL (`/p/${newPropName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}/overview`) with its own isolated layout and financial ledger.
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-[#f8ede3]">
-                <button
-                  type="button"
-                  onClick={() => setShowAddPropertyModal(false)}
-                  className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold shadow-md cursor-pointer"
-                >
-                  Onboard Building
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* 🏢 MULTI-PROPERTY ONBOARDING WIZARD */}
+      <MultiPropertyOnboardingWizard
+        isOpen={showAddPropertyModal}
+        onClose={() => setShowAddPropertyModal(false)}
+        profile={profile}
+        user={user}
+        existingProperties={properties}
+        onPropertyCreated={(newProp) => {
+          setProperties((prev) => {
+            if (prev.some((p) => p.id === newProp.id)) return prev;
+            return [...prev, newProp];
+          });
+        }}
+      />
 
       {/* 🔒 MULTI-PROPERTY EXPANSION MODAL */}
       {showMultiPropertyModal && (
