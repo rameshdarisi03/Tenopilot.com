@@ -16,6 +16,8 @@ export async function GET() {
       const data = masterDoc.data();
       const config: PlatformConfig = {
         proMonthlyPrice: Number(data.proMonthlyPrice) || DEFAULT_PLATFORM_CONFIG.proMonthlyPrice,
+        proQuarterlyPrice: Number(data.proQuarterlyPrice) || DEFAULT_PLATFORM_CONFIG.proQuarterlyPrice,
+        proSemiAnnualPrice: Number(data.proSemiAnnualPrice) || DEFAULT_PLATFORM_CONFIG.proSemiAnnualPrice,
         proAnnualPrice: Number(data.proAnnualPrice) || DEFAULT_PLATFORM_CONFIG.proAnnualPrice,
         multiPropertyPrice: Number(data.multiPropertyPrice) || DEFAULT_PLATFORM_CONFIG.multiPropertyPrice,
         tenantPackPrice: Number(data.tenantPackPrice) || DEFAULT_PLATFORM_CONFIG.tenantPackPrice,

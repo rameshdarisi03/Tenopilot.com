@@ -194,11 +194,11 @@ export default function MasterControlsPage() {
                 <span className="text-[10px] text-slate-400 font-mono">INR (₹)</span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Pro Monthly */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Pro Monthly (1 Mo) */}
                 <div className="p-3.5 rounded-xl bg-[#16191f] border border-white/6 space-y-1.5">
                   <span className="text-[10px] font-bold text-purple-300 uppercase tracking-wider block">
-                    💎 Pro Monthly Plan
+                    💎 Pro Monthly (1 Month)
                   </span>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-slate-400">₹</span>
@@ -213,14 +213,58 @@ export default function MasterControlsPage() {
                     <span className="text-xs text-slate-400 whitespace-nowrap">/ mo</span>
                   </div>
                   <p className="text-[10px] text-slate-500">
-                    Reflects in pricing page, upgrade modal, and Razorpay.
+                    Standard flexible 30-day baseline subscription.
                   </p>
                 </div>
 
-                {/* Pro Annual */}
+                {/* Pro Quarterly (3 Mo) */}
                 <div className="p-3.5 rounded-xl bg-[#16191f] border border-white/6 space-y-1.5">
-                  <span className="text-[10px] font-bold text-purple-300 uppercase tracking-wider block">
-                    🏆 Pro Annual Plan
+                  <span className="text-[10px] font-bold text-blue-300 uppercase tracking-wider block">
+                    🥉 Pro Quarterly (3 Months)
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-slate-400">₹</span>
+                    <input
+                      type="number"
+                      value={config.proQuarterlyPrice || 3299}
+                      onChange={(e) =>
+                        setConfig({ ...config, proQuarterlyPrice: Number(e.target.value) })
+                      }
+                      className="w-full bg-[#0d0f12] border border-white/10 rounded-lg px-3 py-2 text-white font-mono font-bold text-sm focus:outline-none focus:border-blue-500"
+                    />
+                    <span className="text-xs text-slate-400 whitespace-nowrap">/ 3 mo</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500">
+                    Billed every 90 days (≈₹{Math.round((config.proQuarterlyPrice || 3299) / 3)}/mo, save ₹{((config.proMonthlyPrice || 1199) * 3) - (config.proQuarterlyPrice || 3299)}).
+                  </p>
+                </div>
+
+                {/* Pro Semi-Annual (6 Mo) */}
+                <div className="p-3.5 rounded-xl bg-[#16191f] border border-white/6 space-y-1.5">
+                  <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider block">
+                    🥈 Pro Semi-Annual (6 Months)
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-slate-400">₹</span>
+                    <input
+                      type="number"
+                      value={config.proSemiAnnualPrice || 6299}
+                      onChange={(e) =>
+                        setConfig({ ...config, proSemiAnnualPrice: Number(e.target.value) })
+                      }
+                      className="w-full bg-[#0d0f12] border border-white/10 rounded-lg px-3 py-2 text-white font-mono font-bold text-sm focus:outline-none focus:border-amber-500"
+                    />
+                    <span className="text-xs text-slate-400 whitespace-nowrap">/ 6 mo</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500">
+                    Billed every 180 days (≈₹{Math.round((config.proSemiAnnualPrice || 6299) / 6)}/mo, save ₹{((config.proMonthlyPrice || 1199) * 6) - (config.proSemiAnnualPrice || 6299)}).
+                  </p>
+                </div>
+
+                {/* Pro Annual (12 Mo) */}
+                <div className="p-3.5 rounded-xl bg-[#16191f] border border-white/6 space-y-1.5">
+                  <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider block">
+                    🥇 Pro Annual (12 Months)
                   </span>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-slate-400">₹</span>
@@ -230,12 +274,12 @@ export default function MasterControlsPage() {
                       onChange={(e) =>
                         setConfig({ ...config, proAnnualPrice: Number(e.target.value) })
                       }
-                      className="w-full bg-[#0d0f12] border border-white/10 rounded-lg px-3 py-2 text-white font-mono font-bold text-sm focus:outline-none focus:border-purple-500"
+                      className="w-full bg-[#0d0f12] border border-white/10 rounded-lg px-3 py-2 text-white font-mono font-bold text-sm focus:outline-none focus:border-emerald-500"
                     />
                     <span className="text-xs text-slate-400 whitespace-nowrap">/ yr</span>
                   </div>
                   <p className="text-[10px] text-slate-500">
-                    Billed annually with built-in discount badge.
+                    Billed annually (≈₹{Math.round((config.proAnnualPrice || 11999) / 12)}/mo, 2 Months Free).
                   </p>
                 </div>
 

@@ -205,10 +205,10 @@ export default function ApexCommandClientsPage() {
   const [isSavingCapacity, setIsSavingCapacity] = useState<boolean>(false);
 
   // Plan Activation Form State
-  const [planSelection, setPlanSelection] = useState<"PRO_MONTHLY" | "PRO_ANNUAL" | "MULTI_PROPERTY_MONTHLY" | "TENANT_EXTENSION_PACK_25" | "TRIAL_EXTENSION">("PRO_MONTHLY");
+  const [planSelection, setPlanSelection] = useState<"PRO_MONTHLY" | "PRO_QUARTERLY" | "PRO_SEMI_ANNUAL" | "PRO_ANNUAL" | "MULTI_PROPERTY_MONTHLY" | "TENANT_EXTENSION_PACK_25" | "TRIAL_EXTENSION">("PRO_MONTHLY");
   const [planDurationDays, setPlanDurationDays] = useState<number>(30);
   const [paymentModeSelection, setPaymentModeSelection] = useState<"UPI" | "Cash" | "Bank Transfer" | "VIP Pass">("UPI");
-  const [planAmount, setPlanAmount] = useState<number>(999);
+  const [planAmount, setPlanAmount] = useState<number>(1199);
   const [discountPercentage, setDiscountPercentage] = useState<number>(0);
   const [receiptTag, setReceiptTag] = useState<string>("");
   const [receiptProofUrl, setReceiptProofUrl] = useState<string>("");
@@ -533,7 +533,7 @@ export default function ApexCommandClientsPage() {
           userId: req.userId,
           email: req.customerEmail,
           plan: req.plan || "PRO_MONTHLY",
-          durationDays: req.plan === "PRO_ANNUAL" ? 365 : 30,
+          durationDays: req.plan === "PRO_ANNUAL" ? 365 : req.plan === "PRO_SEMI_ANNUAL" ? 180 : req.plan === "PRO_QUARTERLY" ? 90 : 30,
           paymentMode: req.paymentMode || "UPI / Bank Transfer (Offline)",
           amountPaid: req.amount || 999,
           receiptNumber: req.id,
@@ -1403,7 +1403,7 @@ export default function ApexCommandClientsPage() {
                               setPlanSelection("PRO_MONTHLY");
                               setPlanDurationDays(30);
                               setPaymentModeSelection("UPI");
-                              setPlanAmount(999);
+                              setPlanAmount(1199);
                               setReceiptTag(`REC-${Date.now().toString().slice(-6)}`);
                               setReceiptProofUrl("");
                               setInternalNotes("");
@@ -1841,10 +1841,16 @@ export default function ApexCommandClientsPage() {
                         setPlanSelection(val);
                         if (val === "PRO_MONTHLY") {
                           setPlanDurationDays(30);
-                          setPlanAmount(999);
+                          setPlanAmount(paymentModeSelection === "VIP Pass" ? 0 : 1199);
+                        } else if (val === "PRO_QUARTERLY") {
+                          setPlanDurationDays(90);
+                          setPlanAmount(paymentModeSelection === "VIP Pass" ? 0 : 3299);
+                        } else if (val === "PRO_SEMI_ANNUAL") {
+                          setPlanDurationDays(180);
+                          setPlanAmount(paymentModeSelection === "VIP Pass" ? 0 : 6299);
                         } else if (val === "PRO_ANNUAL") {
                           setPlanDurationDays(365);
-                          setPlanAmount(paymentModeSelection === "VIP Pass" ? 0 : 9990);
+                          setPlanAmount(paymentModeSelection === "VIP Pass" ? 0 : 11999);
                         } else if (val === "MULTI_PROPERTY_MONTHLY") {
                           setPlanDurationDays(30);
                           setPlanAmount(paymentModeSelection === "VIP Pass" ? 0 : globalMultiPropPrice);
@@ -1858,8 +1864,10 @@ export default function ApexCommandClientsPage() {
                       }}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d1117] border border-white/10 text-white text-xs focus:ring-2 focus:ring-amber-500"
                     >
-                      <option value="PRO_MONTHLY">💎 Pro Monthly Plan (₹999 / 30 Days)</option>
-                      <option value="PRO_ANNUAL">🏆 Pro Annual Plan (₹9,990 / 365 Days)</option>
+                      <option value="PRO_MONTHLY">💎 Pro Monthly Plan (₹1,199 / 30 Days)</option>
+                      <option value="PRO_QUARTERLY">🥉 Pro Quarterly Plan (₹3,299 / 90 Days)</option>
+                      <option value="PRO_SEMI_ANNUAL">🥈 Pro Semi-Annual Plan (₹6,299 / 180 Days)</option>
+                      <option value="PRO_ANNUAL">🥇 Pro Annual Plan (₹11,999 / 365 Days)</option>
                       <option value="MULTI_PROPERTY_MONTHLY">🏢 Multi-Property Add-on (+1 Building @ ₹{globalMultiPropPrice} / 30 Days)</option>
                       <option value="TENANT_EXTENSION_PACK_25">👥 Tenant Extension Pack (+25 Tenants @ ₹{globalTenantPackPrice} / 30 Days)</option>
                       <option value="TRIAL_EXTENSION">⏳ Extend Free Trial (+10 / +30 Days)</option>

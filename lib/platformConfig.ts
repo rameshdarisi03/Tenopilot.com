@@ -1,6 +1,8 @@
 export interface PlatformConfig {
   // Plan Pricing
   proMonthlyPrice: number;
+  proQuarterlyPrice: number;
+  proSemiAnnualPrice: number;
   proAnnualPrice: number;
   multiPropertyPrice: number;
   tenantPackPrice: number;
@@ -31,9 +33,11 @@ export interface PlatformConfig {
 
 export const DEFAULT_PLATFORM_CONFIG: PlatformConfig = {
   // Plan Pricing
-  proMonthlyPrice: 999,
-  proAnnualPrice: 9990,
-  multiPropertyPrice: 999,
+  proMonthlyPrice: 1199,
+  proQuarterlyPrice: 3299,
+  proSemiAnnualPrice: 6299,
+  proAnnualPrice: 11999,
+  multiPropertyPrice: 1199,
   tenantPackPrice: 125,
 
   // Trial & Grace Engine

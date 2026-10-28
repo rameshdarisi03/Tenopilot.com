@@ -73,9 +73,13 @@ export function TenoPilotInvoiceModal({
   const planTitle = invoice.plan === "VIP_PASS"
     ? "TenoPilot VIP Access Pass (Lifetime Founder License)"
     : invoice.plan === "PRO_ANNUAL"
-    ? "TenoPilot Pro Annual Subscription"
+    ? "TenoPilot Pro Annual Subscription (365 Days)"
+    : invoice.plan === "PRO_SEMI_ANNUAL"
+    ? "TenoPilot Pro Semi-Annual Subscription (180 Days)"
+    : invoice.plan === "PRO_QUARTERLY"
+    ? "TenoPilot Pro Quarterly Subscription (90 Days)"
     : invoice.plan === "PRO_MONTHLY"
-    ? "TenoPilot Pro Monthly Subscription"
+    ? "TenoPilot Pro Monthly Subscription (30 Days)"
     : isCreditPack
     ? `WhatsApp Cloud Message Credit Pack (${invoice.creditsAdded || 750} Credits)`
     : invoice.plan || "TenoPilot Pro Subscription";

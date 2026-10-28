@@ -16,6 +16,8 @@ export async function GET() {
       const data = masterDoc.data();
       const config: PlatformConfig = {
         proMonthlyPrice: Number(data.proMonthlyPrice) || DEFAULT_PLATFORM_CONFIG.proMonthlyPrice,
+        proQuarterlyPrice: Number(data.proQuarterlyPrice) || DEFAULT_PLATFORM_CONFIG.proQuarterlyPrice,
+        proSemiAnnualPrice: Number(data.proSemiAnnualPrice) || DEFAULT_PLATFORM_CONFIG.proSemiAnnualPrice,
         proAnnualPrice: Number(data.proAnnualPrice) || DEFAULT_PLATFORM_CONFIG.proAnnualPrice,
         multiPropertyPrice: Number(data.multiPropertyPrice) || DEFAULT_PLATFORM_CONFIG.multiPropertyPrice,
         tenantPackPrice: Number(data.tenantPackPrice) || DEFAULT_PLATFORM_CONFIG.tenantPackPrice,
@@ -60,6 +62,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {
       proMonthlyPrice = DEFAULT_PLATFORM_CONFIG.proMonthlyPrice,
+      proQuarterlyPrice = DEFAULT_PLATFORM_CONFIG.proQuarterlyPrice,
+      proSemiAnnualPrice = DEFAULT_PLATFORM_CONFIG.proSemiAnnualPrice,
       proAnnualPrice = DEFAULT_PLATFORM_CONFIG.proAnnualPrice,
       multiPropertyPrice = DEFAULT_PLATFORM_CONFIG.multiPropertyPrice,
       tenantPackPrice = DEFAULT_PLATFORM_CONFIG.tenantPackPrice,
@@ -110,6 +114,8 @@ export async function POST(req: NextRequest) {
 
     const payload: PlatformConfig = {
       proMonthlyPrice: Math.max(1, Number(proMonthlyPrice)),
+      proQuarterlyPrice: Math.max(1, Number(proQuarterlyPrice || DEFAULT_PLATFORM_CONFIG.proQuarterlyPrice)),
+      proSemiAnnualPrice: Math.max(1, Number(proSemiAnnualPrice || DEFAULT_PLATFORM_CONFIG.proSemiAnnualPrice)),
       proAnnualPrice: Math.max(1, Number(proAnnualPrice)),
       multiPropertyPrice: Math.max(0, Number(multiPropertyPrice)),
       tenantPackPrice: Math.max(0, Number(tenantPackPrice)),

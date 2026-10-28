@@ -61,18 +61,62 @@ export default function SubscriptionBillingPage() {
   const { config: platformConfig } = usePlatformConfig();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<"PRO_MONTHLY" | "PRO_ANNUAL">("PRO_MONTHLY");
+  const [selectedPlan, setSelectedPlan] = useState<
+    "PRO_MONTHLY" | "PRO_QUARTERLY" | "PRO_SEMI_ANNUAL" | "PRO_ANNUAL"
+  >("PRO_MONTHLY");
   const [mobilePlanIndex, setMobilePlanIndex] = useState<number>(0);
   const [paymentChannel, setPaymentChannel] = useState<"ONLINE" | "OFFLINE">("ONLINE");
   const [showRazorpayModal, setShowRazorpayModal] = useState(false);
 
-  // Auto-slide mobile plan carousel every 2 seconds
+  // Auto-slide mobile plan carousel across all 4 plans
   useEffect(() => {
     const timer = setInterval(() => {
-      setMobilePlanIndex((prev) => (prev === 0 ? 1 : 0));
-    }, 2000);
+      setMobilePlanIndex((prev) => (prev + 1) % 4);
+    }, 3000);
     return () => clearInterval(timer);
   }, []);
+
+  const getPlanPrice = (plan: "PRO_MONTHLY" | "PRO_QUARTERLY" | "PRO_SEMI_ANNUAL" | "PRO_ANNUAL") => {
+    switch (plan) {
+      case "PRO_QUARTERLY":
+        return platformConfig.proQuarterlyPrice ?? 3299;
+      case "PRO_SEMI_ANNUAL":
+        return platformConfig.proSemiAnnualPrice ?? 6299;
+      case "PRO_ANNUAL":
+        return platformConfig.proAnnualPrice ?? 11999;
+      case "PRO_MONTHLY":
+      default:
+        return platformConfig.proMonthlyPrice ?? 1199;
+    }
+  };
+
+  const getPlanDurationDays = (plan: "PRO_MONTHLY" | "PRO_QUARTERLY" | "PRO_SEMI_ANNUAL" | "PRO_ANNUAL") => {
+    switch (plan) {
+      case "PRO_QUARTERLY":
+        return 90;
+      case "PRO_SEMI_ANNUAL":
+        return 180;
+      case "PRO_ANNUAL":
+        return 365;
+      case "PRO_MONTHLY":
+      default:
+        return 30;
+    }
+  };
+
+  const getPlanDisplayName = (plan: string) => {
+    switch (plan) {
+      case "PRO_QUARTERLY":
+        return "Pro Quarterly (90 Days)";
+      case "PRO_SEMI_ANNUAL":
+        return "Pro Semi-Annual (180 Days)";
+      case "PRO_ANNUAL":
+        return "Pro Annual (365 Days)";
+      case "PRO_MONTHLY":
+      default:
+        return "Pro Monthly (30 Days)";
+    }
+  };
 
   // Offline Verification State
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
@@ -505,7 +549,7 @@ export default function SubscriptionBillingPage() {
           propertyId,
           propertyName: "TenoPilot PG",
           plan: selectedPlan,
-          amount: selectedPlan === "PRO_MONTHLY" ? platformConfig.proMonthlyPrice : platformConfig.proAnnualPrice,
+          amount: getPlanPrice(selectedPlan),
           paymentMode: "UPI / Bank Transfer (Offline)",
           screenshotData: screenshotPreview,
           notes: receiptNotes || "Payment screenshot submitted via client subscription portal",
@@ -701,7 +745,7 @@ export default function SubscriptionBillingPage() {
                       Your Payment Screenshot is Under Review
                     </h3>
                     <p className="text-xs text-gray-700 leading-relaxed max-w-2xl">
-                      We have safely received your proof for <strong>{pendingRequest.plan === "PRO_MONTHLY" ? `Pro Monthly (₹${platformConfig.proMonthlyPrice})` : `Pro Annual (₹${platformConfig.proAnnualPrice.toLocaleString("en-IN")})`}</strong>. Our founder team verifies transactions directly with bank records. Your workspace will automatically unlock immediately upon approval.
+                      We have safely received your proof for <strong>{getPlanDisplayName(pendingRequest.plan)}</strong>. Our founder team verifies transactions directly with bank records. Your workspace will automatically unlock immediately upon approval.
                     </p>
                   </div>
                 </div>
@@ -1097,28 +1141,28 @@ export default function SubscriptionBillingPage() {
               </p>
             </div>
 
-            {/* Desktop / Tablet View (Hidden on Mobile) */}
-            <div className="hidden md:grid md:grid-cols-2 gap-6">
+            {/* Desktop / Tablet View (Hidden on Mobile) - 4 Plans Grid */}
+            <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
               {/* Plan 1: Pro Monthly */}
               <div
                 onClick={() => setSelectedPlan("PRO_MONTHLY")}
-                className={`p-6 sm:p-7 rounded-3xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
+                className={`p-5 sm:p-6 rounded-3xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
                   selectedPlan === "PRO_MONTHLY"
                     ? "bg-white border-[#c2652a] shadow-md ring-2 ring-[#c2652a]/20"
                     : "bg-white/60 border-[#d7c2b9]/60 hover:border-[#c2652a]/50"
                 }`}
               >
                 {selectedPlan === "PRO_MONTHLY" && (
-                  <span className="absolute -top-3 right-6 bg-[#c2652a] text-white text-[10px] font-black uppercase px-3 py-0.5 rounded-full shadow-xs">
+                  <span className="absolute -top-3 right-5 bg-[#c2652a] text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full shadow-xs">
                     SELECTED
                   </span>
                 )}
 
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="font-black text-base text-[#201a17]">Pro Monthly Plan</h4>
-                      <p className="text-[11px] text-gray-500">Flexible 30-day recurring subscription</p>
+                      <h4 className="font-black text-base text-[#201a17]">Pro Monthly</h4>
+                      <p className="text-[11px] text-gray-500">Flexible 30-day recurring</p>
                     </div>
                     <div className="p-2 rounded-xl bg-amber-50 text-[#c2652a]">
                       <Zap className="w-5 h-5" />
@@ -1126,52 +1170,194 @@ export default function SubscriptionBillingPage() {
                   </div>
 
                   <div className="pt-2 border-t border-gray-100 flex items-baseline gap-1">
-                    <span className="text-3xl font-black text-[#201a17]">₹{platformConfig.proMonthlyPrice.toLocaleString("en-IN")}</span>
+                    <span className="text-2xl font-black text-[#201a17]">
+                      ₹{platformConfig.proMonthlyPrice.toLocaleString("en-IN")}
+                    </span>
                     <span className="text-xs text-gray-500 font-bold">/ Month</span>
                   </div>
 
-                  <ul className="space-y-2 text-xs text-gray-600 pt-2">
-                    {proFeatures.slice(0, 5).map((f, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                        <span>{f}</span>
+                  <p className="text-[11px] text-gray-500 font-medium">
+                    Zero lock-in • 30 days full access
+                  </p>
+
+                  <ul className="space-y-1.5 text-xs text-gray-600 pt-2 border-t border-gray-100/60">
+                    {proFeatures.slice(0, 4).map((f, i) => (
+                      <li key={i} className="flex items-start gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                        <span className="line-clamp-1">{f}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
 
-                <div className="pt-6">
+                <div className="pt-5">
                   <button
                     type="button"
-                    className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all ${
+                    className={`w-full py-2 rounded-xl font-bold text-xs transition-all ${
                       selectedPlan === "PRO_MONTHLY"
                         ? "bg-[#201a17] text-white shadow-xs"
                         : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
                   >
-                    {selectedPlan === "PRO_MONTHLY" ? "✓ Plan Selected" : `Select Monthly (₹${platformConfig.proMonthlyPrice})`}
+                    {selectedPlan === "PRO_MONTHLY" ? "✓ Plan Selected" : `Select Monthly (₹${platformConfig.proMonthlyPrice.toLocaleString("en-IN")})`}
                   </button>
                 </div>
               </div>
 
-              {/* Plan 2: Pro Annual */}
+              {/* Plan 2: Pro Quarterly */}
+              <div
+                onClick={() => setSelectedPlan("PRO_QUARTERLY")}
+                className={`p-5 sm:p-6 rounded-3xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
+                  selectedPlan === "PRO_QUARTERLY"
+                    ? "bg-white border-[#c2652a] shadow-md ring-2 ring-[#c2652a]/20"
+                    : "bg-white/60 border-[#d7c2b9]/60 hover:border-[#c2652a]/50"
+                }`}
+              >
+                {selectedPlan === "PRO_QUARTERLY" ? (
+                  <span className="absolute -top-3 right-5 bg-[#c2652a] text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full shadow-xs">
+                    SELECTED
+                  </span>
+                ) : (
+                  <span className="absolute -top-3 right-5 bg-gradient-to-r from-amber-600 to-orange-600 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-xs">
+                    SAVE ₹{(platformConfig.proMonthlyPrice * 3 - platformConfig.proQuarterlyPrice).toLocaleString("en-IN")} (~8% OFF)
+                  </span>
+                )}
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-black text-base text-[#201a17]">Pro Quarterly</h4>
+                      <p className="text-[11px] text-gray-500">90 days quarterly flexibility</p>
+                    </div>
+                    <div className="p-2 rounded-xl bg-orange-50 text-orange-600">
+                      <Sparkles className="w-5 h-5" />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-gray-100 flex items-baseline gap-1">
+                    <span className="text-2xl font-black text-[#201a17]">
+                      ₹{platformConfig.proQuarterlyPrice.toLocaleString("en-IN")}
+                    </span>
+                    <span className="text-xs text-gray-500 font-bold">/ 90 Days</span>
+                  </div>
+
+                  <p className="text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-md inline-block">
+                    ≈ ₹{Math.round(platformConfig.proQuarterlyPrice / 3).toLocaleString("en-IN")}/mo
+                  </p>
+
+                  <ul className="space-y-1.5 text-xs text-gray-600 pt-2 border-t border-gray-100/60">
+                    {proFeatures.slice(0, 4).map((f, i) => (
+                      <li key={i} className="flex items-start gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                        <span className="line-clamp-1">{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="pt-5">
+                  <button
+                    type="button"
+                    className={`w-full py-2 rounded-xl font-bold text-xs transition-all ${
+                      selectedPlan === "PRO_QUARTERLY"
+                        ? "bg-[#201a17] text-white shadow-xs"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    {selectedPlan === "PRO_QUARTERLY" ? "✓ Plan Selected" : `Select Quarterly (₹${platformConfig.proQuarterlyPrice.toLocaleString("en-IN")})`}
+                  </button>
+                </div>
+              </div>
+
+              {/* Plan 3: Pro Semi-Annual */}
+              <div
+                onClick={() => setSelectedPlan("PRO_SEMI_ANNUAL")}
+                className={`p-5 sm:p-6 rounded-3xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
+                  selectedPlan === "PRO_SEMI_ANNUAL"
+                    ? "bg-white border-[#c2652a] shadow-md ring-2 ring-[#c2652a]/20"
+                    : "bg-white/60 border-[#d7c2b9]/60 hover:border-[#c2652a]/50"
+                }`}
+              >
+                {selectedPlan === "PRO_SEMI_ANNUAL" ? (
+                  <span className="absolute -top-3 right-5 bg-[#c2652a] text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full shadow-xs">
+                    SELECTED
+                  </span>
+                ) : (
+                  <span className="absolute -top-3 right-5 bg-gradient-to-r from-indigo-600 to-blue-600 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-xs">
+                    SAVE ₹{(platformConfig.proMonthlyPrice * 6 - platformConfig.proSemiAnnualPrice).toLocaleString("en-IN")} (~13% OFF)
+                  </span>
+                )}
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-black text-base text-[#201a17]">Pro Semi-Annual</h4>
+                      <p className="text-[11px] text-gray-500">180 days half-year operations</p>
+                    </div>
+                    <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+                      <Layers className="w-5 h-5" />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-gray-100 flex items-baseline gap-1">
+                    <span className="text-2xl font-black text-[#201a17]">
+                      ₹{platformConfig.proSemiAnnualPrice.toLocaleString("en-IN")}
+                    </span>
+                    <span className="text-xs text-gray-500 font-bold">/ 180 Days</span>
+                  </div>
+
+                  <p className="text-[11px] text-indigo-700 font-bold bg-indigo-50 px-2 py-0.5 rounded-md inline-block">
+                    ≈ ₹{Math.round(platformConfig.proSemiAnnualPrice / 6).toLocaleString("en-IN")}/mo
+                  </p>
+
+                  <ul className="space-y-1.5 text-xs text-gray-600 pt-2 border-t border-gray-100/60">
+                    {proFeatures.slice(0, 4).map((f, i) => (
+                      <li key={i} className="flex items-start gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                        <span className="line-clamp-1">{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="pt-5">
+                  <button
+                    type="button"
+                    className={`w-full py-2 rounded-xl font-bold text-xs transition-all ${
+                      selectedPlan === "PRO_SEMI_ANNUAL"
+                        ? "bg-[#201a17] text-white shadow-xs"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    {selectedPlan === "PRO_SEMI_ANNUAL" ? "✓ Plan Selected" : `Select Semi-Annual (₹${platformConfig.proSemiAnnualPrice.toLocaleString("en-IN")})`}
+                  </button>
+                </div>
+              </div>
+
+              {/* Plan 4: Pro Annual */}
               <div
                 onClick={() => setSelectedPlan("PRO_ANNUAL")}
-                className={`p-6 sm:p-7 rounded-3xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
+                className={`p-5 sm:p-6 rounded-3xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
                   selectedPlan === "PRO_ANNUAL"
                     ? "bg-white border-[#c2652a] shadow-md ring-2 ring-[#c2652a]/20"
                     : "bg-white/60 border-[#d7c2b9]/60 hover:border-[#c2652a]/50"
                 }`}
               >
-                <span className="absolute -top-3 right-6 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-[10px] font-black uppercase px-3 py-0.5 rounded-full shadow-xs">
-                  SAVE ₹{(platformConfig.proMonthlyPrice * 12 - platformConfig.proAnnualPrice).toLocaleString("en-IN")} (2 MONTHS FREE) 🏆
-                </span>
+                {selectedPlan === "PRO_ANNUAL" ? (
+                  <span className="absolute -top-3 right-5 bg-[#c2652a] text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full shadow-xs">
+                    SELECTED
+                  </span>
+                ) : (
+                  <span className="absolute -top-3 right-5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-xs">
+                    SAVE ₹{(platformConfig.proMonthlyPrice * 12 - platformConfig.proAnnualPrice).toLocaleString("en-IN")} (2 MO FREE) 🏆
+                  </span>
+                )}
 
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="font-black text-base text-[#201a17]">Pro Annual Plan</h4>
-                      <p className="text-[11px] text-gray-500">365 days uninterrupted peace of mind</p>
+                      <h4 className="font-black text-base text-[#201a17]">Pro Annual</h4>
+                      <p className="text-[11px] text-gray-500">365 days full peace of mind</p>
                     </div>
                     <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
                       <ShieldCheck className="w-5 h-5" />
@@ -1179,24 +1365,30 @@ export default function SubscriptionBillingPage() {
                   </div>
 
                   <div className="pt-2 border-t border-gray-100 flex items-baseline gap-1">
-                    <span className="text-3xl font-black text-[#201a17]">₹{platformConfig.proAnnualPrice.toLocaleString("en-IN")}</span>
-                    <span className="text-xs text-gray-500 font-bold">/ Year (₹{Math.round(platformConfig.proAnnualPrice / 12).toLocaleString("en-IN")}/mo)</span>
+                    <span className="text-2xl font-black text-[#201a17]">
+                      ₹{platformConfig.proAnnualPrice.toLocaleString("en-IN")}
+                    </span>
+                    <span className="text-xs text-gray-500 font-bold">/ Year</span>
                   </div>
 
-                  <ul className="space-y-2 text-xs text-gray-600 pt-2">
-                    {proFeatures.map((f, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                        <span>{f}</span>
+                  <p className="text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-md inline-block">
+                    ≈ ₹{Math.round(platformConfig.proAnnualPrice / 12).toLocaleString("en-IN")}/mo • Only &lt; ₹1,000/mo
+                  </p>
+
+                  <ul className="space-y-1.5 text-xs text-gray-600 pt-2 border-t border-gray-100/60">
+                    {proFeatures.slice(0, 4).map((f, i) => (
+                      <li key={i} className="flex items-start gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                        <span className="line-clamp-1">{f}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
 
-                <div className="pt-6">
+                <div className="pt-5">
                   <button
                     type="button"
-                    className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all ${
+                    className={`w-full py-2 rounded-xl font-bold text-xs transition-all ${
                       selectedPlan === "PRO_ANNUAL"
                         ? "bg-[#201a17] text-white shadow-xs"
                         : "bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -1208,7 +1400,7 @@ export default function SubscriptionBillingPage() {
               </div>
             </div>
 
-            {/* Mobile / Smartphone Carousel View (Sliding Left-Right Every 2s) */}
+            {/* Mobile / Smartphone Carousel View (Sliding Left-Right Across 4 Plans) */}
             <div className="block md:hidden">
               <div className="relative overflow-hidden pt-3 pb-1">
                 <div
@@ -1274,18 +1466,164 @@ export default function SubscriptionBillingPage() {
                               : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                           }`}
                         >
-                          {selectedPlan === "PRO_MONTHLY" ? "✓ Plan Selected" : `Select Monthly (₹${platformConfig.proMonthlyPrice})`}
+                          {selectedPlan === "PRO_MONTHLY" ? "✓ Plan Selected" : `Select Monthly (₹${platformConfig.proMonthlyPrice.toLocaleString("en-IN")})`}
                         </button>
                       </div>
                     </div>
                   </div>
 
-                  {/* Slide 1: Pro Annual */}
+                  {/* Slide 1: Pro Quarterly */}
+                  <div className="w-full shrink-0 px-1">
+                    <div
+                      onClick={() => {
+                        setSelectedPlan("PRO_QUARTERLY");
+                        setMobilePlanIndex(1);
+                      }}
+                      className={`p-5 rounded-3xl border-2 transition-all cursor-pointer relative flex flex-col justify-between min-h-[360px] ${
+                        selectedPlan === "PRO_QUARTERLY"
+                          ? "bg-white border-[#c2652a] shadow-md ring-2 ring-[#c2652a]/20"
+                          : "bg-white/80 border-[#d7c2b9]/60 hover:border-[#c2652a]/50"
+                      }`}
+                    >
+                      {selectedPlan === "PRO_QUARTERLY" ? (
+                        <span className="absolute -top-3 right-6 bg-[#c2652a] text-white text-[10px] font-black uppercase px-3 py-0.5 rounded-full shadow-xs">
+                          SELECTED
+                        </span>
+                      ) : (
+                        <span className="absolute -top-3 right-6 bg-gradient-to-r from-amber-600 to-orange-600 text-white text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full shadow-xs">
+                          SAVE ₹{(platformConfig.proMonthlyPrice * 3 - platformConfig.proQuarterlyPrice).toLocaleString("en-IN")} (~8% OFF)
+                        </span>
+                      )}
+
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-black text-base text-[#201a17]">Pro Quarterly Plan</h4>
+                            <p className="text-[11px] text-gray-500">90 days quarterly flexibility</p>
+                          </div>
+                          <div className="p-2 rounded-xl bg-orange-50 text-orange-600">
+                            <Sparkles className="w-5 h-5" />
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-gray-100 flex items-baseline gap-1">
+                          <span className="text-3xl font-black text-[#201a17]">₹{platformConfig.proQuarterlyPrice.toLocaleString("en-IN")}</span>
+                          <span className="text-xs text-gray-500 font-bold">/ 90 Days</span>
+                        </div>
+
+                        <p className="text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-md inline-block">
+                          ≈ ₹{Math.round(platformConfig.proQuarterlyPrice / 3).toLocaleString("en-IN")}/mo
+                        </p>
+
+                        <ul className="space-y-1.5 text-xs text-gray-600 pt-1">
+                          {proFeatures.slice(0, 4).map((f, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                              <span className="line-clamp-1">{f}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="pt-4">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPlan("PRO_QUARTERLY");
+                            setMobilePlanIndex(1);
+                          }}
+                          className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all ${
+                            selectedPlan === "PRO_QUARTERLY"
+                              ? "bg-[#201a17] text-white shadow-xs"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                        >
+                          {selectedPlan === "PRO_QUARTERLY" ? "✓ Plan Selected" : `Select Quarterly (₹${platformConfig.proQuarterlyPrice.toLocaleString("en-IN")})`}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Slide 2: Pro Semi-Annual */}
+                  <div className="w-full shrink-0 px-1">
+                    <div
+                      onClick={() => {
+                        setSelectedPlan("PRO_SEMI_ANNUAL");
+                        setMobilePlanIndex(2);
+                      }}
+                      className={`p-5 rounded-3xl border-2 transition-all cursor-pointer relative flex flex-col justify-between min-h-[360px] ${
+                        selectedPlan === "PRO_SEMI_ANNUAL"
+                          ? "bg-white border-[#c2652a] shadow-md ring-2 ring-[#c2652a]/20"
+                          : "bg-white/80 border-[#d7c2b9]/60 hover:border-[#c2652a]/50"
+                      }`}
+                    >
+                      {selectedPlan === "PRO_SEMI_ANNUAL" ? (
+                        <span className="absolute -top-3 right-6 bg-[#c2652a] text-white text-[10px] font-black uppercase px-3 py-0.5 rounded-full shadow-xs">
+                          SELECTED
+                        </span>
+                      ) : (
+                        <span className="absolute -top-3 right-6 bg-gradient-to-r from-indigo-600 to-blue-600 text-white text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full shadow-xs">
+                          SAVE ₹{(platformConfig.proMonthlyPrice * 6 - platformConfig.proSemiAnnualPrice).toLocaleString("en-IN")} (~13% OFF)
+                        </span>
+                      )}
+
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-black text-base text-[#201a17]">Pro Semi-Annual</h4>
+                            <p className="text-[11px] text-gray-500">180 days half-year operations</p>
+                          </div>
+                          <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+                            <Layers className="w-5 h-5" />
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-gray-100 flex items-baseline gap-1">
+                          <span className="text-3xl font-black text-[#201a17]">₹{platformConfig.proSemiAnnualPrice.toLocaleString("en-IN")}</span>
+                          <span className="text-xs text-gray-500 font-bold">/ 180 Days</span>
+                        </div>
+
+                        <p className="text-[11px] text-indigo-700 font-bold bg-indigo-50 px-2 py-0.5 rounded-md inline-block">
+                          ≈ ₹{Math.round(platformConfig.proSemiAnnualPrice / 6).toLocaleString("en-IN")}/mo
+                        </p>
+
+                        <ul className="space-y-1.5 text-xs text-gray-600 pt-1">
+                          {proFeatures.slice(0, 4).map((f, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                              <span className="line-clamp-1">{f}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="pt-4">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPlan("PRO_SEMI_ANNUAL");
+                            setMobilePlanIndex(2);
+                          }}
+                          className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all ${
+                            selectedPlan === "PRO_SEMI_ANNUAL"
+                              ? "bg-[#201a17] text-white shadow-xs"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                        >
+                          {selectedPlan === "PRO_SEMI_ANNUAL" ? "✓ Plan Selected" : `Select Semi-Annual (₹${platformConfig.proSemiAnnualPrice.toLocaleString("en-IN")})`}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Slide 3: Pro Annual */}
                   <div className="w-full shrink-0 px-1">
                     <div
                       onClick={() => {
                         setSelectedPlan("PRO_ANNUAL");
-                        setMobilePlanIndex(1);
+                        setMobilePlanIndex(3);
                       }}
                       className={`p-5 rounded-3xl border-2 transition-all cursor-pointer relative flex flex-col justify-between min-h-[360px] ${
                         selectedPlan === "PRO_ANNUAL"
@@ -1293,9 +1631,15 @@ export default function SubscriptionBillingPage() {
                           : "bg-white/80 border-[#d7c2b9]/60 hover:border-[#c2652a]/50"
                       }`}
                     >
-                      <span className="absolute -top-3 right-6 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full shadow-xs">
-                        SAVE ₹{(platformConfig.proMonthlyPrice * 12 - platformConfig.proAnnualPrice).toLocaleString("en-IN")} 🏆
-                      </span>
+                      {selectedPlan === "PRO_ANNUAL" ? (
+                        <span className="absolute -top-3 right-6 bg-[#c2652a] text-white text-[10px] font-black uppercase px-3 py-0.5 rounded-full shadow-xs">
+                          SELECTED
+                        </span>
+                      ) : (
+                        <span className="absolute -top-3 right-6 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full shadow-xs">
+                          SAVE ₹{(platformConfig.proMonthlyPrice * 12 - platformConfig.proAnnualPrice).toLocaleString("en-IN")} (2 MO FREE) 🏆
+                        </span>
+                      )}
 
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
@@ -1313,6 +1657,10 @@ export default function SubscriptionBillingPage() {
                           <span className="text-xs text-gray-500 font-bold">/ Year</span>
                         </div>
 
+                        <p className="text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-md inline-block">
+                          ≈ ₹{Math.round(platformConfig.proAnnualPrice / 12).toLocaleString("en-IN")}/mo
+                        </p>
+
                         <ul className="space-y-1.5 text-xs text-gray-600 pt-1">
                           {proFeatures.slice(0, 4).map((f, i) => (
                             <li key={i} className="flex items-start gap-2">
@@ -1329,7 +1677,7 @@ export default function SubscriptionBillingPage() {
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedPlan("PRO_ANNUAL");
-                            setMobilePlanIndex(1);
+                            setMobilePlanIndex(3);
                           }}
                           className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all ${
                             selectedPlan === "PRO_ANNUAL"
@@ -1337,7 +1685,7 @@ export default function SubscriptionBillingPage() {
                               : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                           }`}
                         >
-                          {selectedPlan === "PRO_ANNUAL" ? "✓ Plan Selected" : `Select Annual (₹${platformConfig.proAnnualPrice})`}
+                          {selectedPlan === "PRO_ANNUAL" ? "✓ Plan Selected" : `Select Annual (₹${platformConfig.proAnnualPrice.toLocaleString("en-IN")})`}
                         </button>
                       </div>
                     </div>
@@ -1349,36 +1697,31 @@ export default function SubscriptionBillingPage() {
               <div className="flex items-center justify-between px-2 pt-1 pb-1">
                 <button
                   type="button"
-                  onClick={() => setMobilePlanIndex((prev) => (prev === 0 ? 1 : 0))}
-                  className="w-8 h-8 rounded-full bg-white border border-[#d7c2b9] text-[#201a17] shadow-xs flex items-center justify-center active:scale-90 transition-all hover:bg-amber-50"
+                  onClick={() => setMobilePlanIndex((prev) => (prev - 1 + 4) % 4)}
+                  className="w-8 h-8 rounded-full bg-white border border-[#d7c2b9] text-[#201a17] shadow-xs flex items-center justify-center active:scale-90 transition-all hover:bg-amber-50 cursor-pointer"
                   aria-label="Previous plan"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setMobilePlanIndex(0)}
-                    className={`h-2 rounded-full transition-all ${
-                      mobilePlanIndex === 0 ? "w-6 bg-[#c2652a]" : "w-2 bg-stone-300"
-                    }`}
-                    aria-label="Monthly Plan indicator"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setMobilePlanIndex(1)}
-                    className={`h-2 rounded-full transition-all ${
-                      mobilePlanIndex === 1 ? "w-6 bg-[#c2652a]" : "w-2 bg-stone-300"
-                    }`}
-                    aria-label="Annual Plan indicator"
-                  />
+                <div className="flex items-center gap-1.5">
+                  {[0, 1, 2, 3].map((idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setMobilePlanIndex(idx)}
+                      className={`h-2 rounded-full transition-all ${
+                        mobilePlanIndex === idx ? "w-6 bg-[#c2652a]" : "w-2 bg-stone-300"
+                      }`}
+                      aria-label={`Plan ${idx + 1} indicator`}
+                    />
+                  ))}
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => setMobilePlanIndex((prev) => (prev === 0 ? 1 : 0))}
-                  className="w-8 h-8 rounded-full bg-white border border-[#d7c2b9] text-[#201a17] shadow-xs flex items-center justify-center active:scale-90 transition-all hover:bg-amber-50"
+                  onClick={() => setMobilePlanIndex((prev) => (prev + 1) % 4)}
+                  className="w-8 h-8 rounded-full bg-white border border-[#d7c2b9] text-[#201a17] shadow-xs flex items-center justify-center active:scale-90 transition-all hover:bg-amber-50 cursor-pointer"
                   aria-label="Next plan"
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -1396,7 +1739,7 @@ export default function SubscriptionBillingPage() {
                   <span>2. Select Payment Method & Activate</span>
                 </h3>
                 <span className="text-[11px] font-bold text-gray-500">
-                  Total Due: <strong className="text-slate-900 font-mono text-xs">₹{selectedPlan === "PRO_MONTHLY" ? platformConfig.proMonthlyPrice.toLocaleString("en-IN") : platformConfig.proAnnualPrice.toLocaleString("en-IN")}</strong>
+                  Total Due: <strong className="text-slate-900 font-mono text-xs">₹{getPlanPrice(selectedPlan).toLocaleString("en-IN")}</strong>
                 </span>
               </div>
               <p className="text-xs text-gray-500 mt-0.5">
@@ -1467,10 +1810,10 @@ export default function SubscriptionBillingPage() {
 
                   <div className="text-right shrink-0">
                     <span className="text-2xl font-black text-white font-mono">
-                      ₹{selectedPlan === "PRO_MONTHLY" ? platformConfig.proMonthlyPrice.toLocaleString("en-IN") : platformConfig.proAnnualPrice.toLocaleString("en-IN")}
+                      ₹{getPlanPrice(selectedPlan).toLocaleString("en-IN")}
                     </span>
                     <span className="text-xs text-slate-400 block font-sans">
-                      {selectedPlan === "PRO_MONTHLY" ? "30 Days Access" : "365 Days Access"}
+                      {getPlanDurationDays(selectedPlan)} Days Access
                     </span>
                   </div>
                 </div>
@@ -1497,7 +1840,7 @@ export default function SubscriptionBillingPage() {
                     className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-blue-500 via-[#3399cc] to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-black text-xs shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2.5 cursor-pointer transition-all active:scale-95"
                   >
                     <Lock className="w-4 h-4" />
-                    <span>Pay ₹{selectedPlan === "PRO_MONTHLY" ? platformConfig.proMonthlyPrice.toLocaleString("en-IN") : platformConfig.proAnnualPrice.toLocaleString("en-IN")} via Razorpay Gateway (Instant)</span>
+                    <span>Pay ₹{getPlanPrice(selectedPlan).toLocaleString("en-IN")} via Razorpay Gateway (Instant)</span>
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -1527,7 +1870,7 @@ export default function SubscriptionBillingPage() {
                       </button>
                     </div>
                     <p className="text-[11px] text-gray-500">
-                      Scan or pay <strong>₹{selectedPlan === "PRO_MONTHLY" ? platformConfig.proMonthlyPrice.toLocaleString("en-IN") : platformConfig.proAnnualPrice.toLocaleString("en-IN")}</strong> from PhonePe, Google Pay, Paytm, or BHIM.
+                      Scan or pay <strong>₹{getPlanPrice(selectedPlan).toLocaleString("en-IN")}</strong> from PhonePe, Google Pay, Paytm, or BHIM.
                     </p>
                   </div>
 
@@ -1763,6 +2106,10 @@ export default function SubscriptionBillingPage() {
                           ? "TenoPilot VIP Access Pass (Lifetime Founder License)"
                           : tx.plan === "PRO_ANNUAL"
                           ? "TenoPilot Pro Annual Subscription (365 Days Access)"
+                          : tx.plan === "PRO_SEMI_ANNUAL"
+                          ? "TenoPilot Pro Semi-Annual Subscription (180 Days Access)"
+                          : tx.plan === "PRO_QUARTERLY"
+                          ? "TenoPilot Pro Quarterly Subscription (90 Days Access)"
                           : tx.plan === "PRO_MONTHLY"
                           ? "TenoPilot Pro Monthly Subscription (30 Days Access)"
                           : isCreditPack
@@ -1809,6 +2156,10 @@ export default function SubscriptionBillingPage() {
                               <span className="font-bold text-gray-800">
                                 {tx.plan === "PRO_ANNUAL"
                                   ? "💎 Pro Annual"
+                                  : tx.plan === "PRO_SEMI_ANNUAL"
+                                  ? "🥈 Pro Semi-Annual"
+                                  : tx.plan === "PRO_QUARTERLY"
+                                  ? "🥉 Pro Quarterly"
                                   : tx.plan === "PRO_MONTHLY"
                                   ? "💎 Pro Monthly"
                                   : isCreditPack
@@ -1898,7 +2249,7 @@ export default function SubscriptionBillingPage() {
           }, 1000);
         }}
         plan={selectedPlan}
-        amount={selectedPlan === "PRO_MONTHLY" ? 999 : 9990}
+        amount={getPlanPrice(selectedPlan)}
         customerEmail={profile?.email}
         customerName={profile?.displayName || "PG Owner"}
         customerPhone={profile?.phone || "9876543210"}

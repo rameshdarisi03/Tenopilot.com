@@ -64,7 +64,14 @@ export function RazorpayModalMockup({
           email: customerEmail,
           phone: customerPhone,
           plan,
-          durationDays: plan === "PRO_MONTHLY" ? 30 : 365,
+          durationDays:
+            plan === "PRO_MONTHLY"
+              ? 30
+              : plan === "PRO_QUARTERLY"
+              ? 90
+              : plan === "PRO_SEMI_ANNUAL"
+              ? 180
+              : 365,
           paymentMode: `Razorpay (${activeTab})`,
           amountPaid: amount,
           propertyId,
@@ -110,6 +117,10 @@ export function RazorpayModalMockup({
     itemDescription ||
     (plan === "PRO_MONTHLY"
       ? "TenoPilot Pro (1 Month Renewal)"
+      : plan === "PRO_QUARTERLY"
+      ? "TenoPilot Pro (3 Months Plan)"
+      : plan === "PRO_SEMI_ANNUAL"
+      ? "TenoPilot Pro (6 Months Plan)"
       : plan === "PRO_ANNUAL"
       ? "TenoPilot Pro (1 Year Plan)"
       : `WhatsApp Credit Pack (+${credits || 250} Credits)`);
@@ -185,7 +196,16 @@ export function RazorpayModalMockup({
               </div>
               <div className="flex justify-between">
                 <span>Plan Duration:</span>
-                <strong className="text-emerald-700">{plan === "PRO_MONTHLY" ? "+30 Days" : "+365 Days"} Stacked</strong>
+                <strong className="text-emerald-700">
+                  {plan === "PRO_MONTHLY"
+                    ? "+30 Days"
+                    : plan === "PRO_QUARTERLY"
+                    ? "+90 Days"
+                    : plan === "PRO_SEMI_ANNUAL"
+                    ? "+180 Days"
+                    : "+365 Days"}{" "}
+                  Stacked
+                </strong>
               </div>
             </div>
 

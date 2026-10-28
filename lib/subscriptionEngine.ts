@@ -93,6 +93,8 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
 
   const isProPlan =
     userProfile.plan === "PRO_MONTHLY" ||
+    userProfile.plan === "PRO_QUARTERLY" ||
+    userProfile.plan === "PRO_SEMI_ANNUAL" ||
     userProfile.plan === "PRO_ANNUAL" ||
     userProfile.plan === "VIP_PASS" ||
     userProfile.plan === "ORGANIZATION_STAFF" ||
@@ -343,6 +345,8 @@ export function getEffectiveTenantLimit(userProfile?: any): number {
     sub.status === "PRO_PRE_EXPIRY" ||
     sub.status === "GRACE_PERIOD" ||
     userProfile.plan === "PRO_MONTHLY" ||
+    userProfile.plan === "PRO_QUARTERLY" ||
+    userProfile.plan === "PRO_SEMI_ANNUAL" ||
     userProfile.plan === "PRO_ANNUAL" ||
     userProfile.plan === "VIP_PASS" ||
     userProfile.subscriptionPlan === "pro" ||
