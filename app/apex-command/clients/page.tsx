@@ -1360,14 +1360,19 @@ export default function ApexCommandClientsPage() {
                                 </span>
                               ) : null}
 
-                              <span className="flex items-center gap-1 text-gray-300 font-medium">
-                                <Building2 className="w-3 h-3 text-gray-500" />
-                                {acc.primaryPropertyName}
-                              </span>
+                              <div className="flex flex-wrap items-center gap-1.5 text-gray-300 font-medium">
+                                <Building2 className="w-3.5 h-3.5 text-blue-400" />
+                                <span>{acc.primaryPropertyName}</span>
+                                {acc.propertyIds.length > 1 && (
+                                  <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/30 text-[10px] font-bold">
+                                    +{acc.propertyIds.length - 1} more ({acc.propertyIds.length} Buildings)
+                                  </span>
+                                )}
+                              </div>
 
                               <span className="flex items-center gap-1">
                                 <Layers className="w-3 h-3 text-gray-500" />
-                                {acc.totalBeds || 40} Beds
+                                {acc.totalBeds || 40} Beds {acc.propertyIds.length > 1 ? `(${acc.propertyIds.length} Props)` : ""}
                               </span>
 
                               <span className="flex items-center gap-1">
@@ -1409,8 +1414,8 @@ export default function ApexCommandClientsPage() {
                             <span>360° Profile & Activate</span>
                           </button>
 
-                          {/* Impersonate / Preview */}
-                          {acc.propertyIds.length > 0 && (
+                          {/* Impersonate / Preview for each building in portfolio */}
+                          {acc.propertyIds.length === 1 && (
                             <Link
                               href={`/p/${acc.propertyIds[0]}/overview?impersonate=true`}
                               target="_blank"
@@ -1419,6 +1424,25 @@ export default function ApexCommandClientsPage() {
                               <Eye className="w-3.5 h-3.5 text-blue-400" />
                               <span>Preview</span>
                             </Link>
+                          )}
+                          {acc.propertyIds.length > 1 && (
+                            <div className="flex items-center gap-1">
+                              {acc.propertyIds.map((pid, idx) => {
+                                const bName = acc.propertyNames?.[idx] || (idx === 0 ? acc.primaryPropertyName : `Building #${idx + 1}`);
+                                return (
+                                  <Link
+                                    key={pid}
+                                    href={`/p/${pid}/overview?impersonate=true`}
+                                    target="_blank"
+                                    className="px-2.5 py-2 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 font-bold text-xs border border-blue-500/30 flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                                    title={`Preview ${bName}`}
+                                  >
+                                    <Eye className="w-3 h-3 text-blue-400" />
+                                    <span>{idx === 0 ? "Bldg #1" : `Bldg #${idx + 1}`}</span>
+                                  </Link>
+                                );
+                              })}
+                            </div>
                           )}
 
                           {/* Suspend / Resume Button */}
@@ -2059,6 +2083,39 @@ export default function ApexCommandClientsPage() {
                     </p>
                   </div>
                 </div>
+
+                {/* Active Buildings in Portfolio Card */}
+                {selectedCustomer360.propertyIds && selectedCustomer360.propertyIds.length > 0 && (
+                  <div className="p-4 rounded-2xl bg-[#0d1117] border border-white/10 space-y-2.5">
+                    <div className="flex items-center justify-between text-xs font-bold text-gray-300">
+                      <span className="flex items-center gap-1.5">
+                        <Building2 className="w-4 h-4 text-blue-400" />
+                        <span>Active Portfolio Properties ({selectedCustomer360.propertyIds.length}/{capacityMaxProps} Used)</span>
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {selectedCustomer360.propertyIds.map((pid, idx) => {
+                        const bName = selectedCustomer360.propertyNames?.[idx] || (idx === 0 ? selectedCustomer360.primaryPropertyName : `Property #${idx + 1}`);
+                        return (
+                          <div key={pid} className="p-3 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between">
+                            <div className="truncate mr-2">
+                              <span className="font-bold text-white text-xs truncate block">{bName}</span>
+                              <span className="text-[10px] font-mono text-gray-400 truncate block">{pid}</span>
+                            </div>
+                            <Link
+                              href={`/p/${pid}/overview?impersonate=true`}
+                              target="_blank"
+                              className="px-2.5 py-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 font-bold text-[10px] border border-blue-500/30 flex items-center gap-1 shrink-0"
+                            >
+                              <Eye className="w-3 h-3" />
+                              <span>Preview</span>
+                            </Link>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Interactive Limit Controls */}
                 <div className="space-y-4 p-5 rounded-2xl bg-[#0d1117] border border-white/10">

@@ -19,6 +19,7 @@ export interface ScannedAccountRecord {
   detectionReason: string;
   propertyIds: string[];
   primaryPropertyName?: string;
+  propertyNames?: string[];
   city?: string;
   plan?: string;
   totalBeds?: number;
@@ -124,14 +125,25 @@ export async function GET(req: NextRequest) {
       console.warn("Scanner founder_clients fetch error:", e);
     }
 
-    // 4. Fetch Staff Accounts to exclude non-owner staff
+    // 4. Fetch Staff Accounts to strictly exclude non-owner staff from customer cards
     const staffAccountsSet = new Set<string>();
+    const nonOwnerStaffEmails = new Set<string>();
     try {
       const staffSnap = await getDocs(collection(db, "staff_accounts"));
       staffSnap.docs.forEach((d) => {
         const data = d.data() as any;
-        if (data.email) {
-          staffAccountsSet.add(data.email.toLowerCase().trim());
+        const e = (data.email || d.id || "").toLowerCase().trim();
+        if (e) {
+          staffAccountsSet.add(e);
+          if (
+            data.role === "admin" ||
+            data.role === "receptionist" ||
+            data.role === "staff" ||
+            Boolean(data.ownerEmail) ||
+            Boolean(data.masterAdminUid)
+          ) {
+            nonOwnerStaffEmails.add(e);
+          }
         }
       });
     } catch (e) {
@@ -198,11 +210,18 @@ export async function GET(req: NextRequest) {
         const orgId = data.organizationId || "";
         const mappedProps = (email && ownerPropertiesMap.get(email)) || (orgId ? ownerPropertiesMap.get(orgId) : null);
 
-        // Exclude internal staff accounts
-        const isStaff = (email && staffAccountsSet.has(email)) || data.role === "admin" || data.role === "receptionist";
-        const isMasterAdmin = data.role === "master_admin" || Boolean(vipInvite) || Boolean(founderClient) || Boolean(mappedProps);
+        // 🔒 STRICT RBAC: Exclude internal staff accounts (Property Admins, Receptionists, Desk Staff)
+        // Staff members are managed inside the Master Admin's Team directory, never as customer cards!
+        const isNonOwnerStaff =
+          (email && nonOwnerStaffEmails.has(email)) ||
+          data.role === "admin" ||
+          data.role === "receptionist" ||
+          data.role === "staff";
 
-        if (isStaff && !isMasterAdmin) {
+        if (isNonOwnerStaff && data.role !== "master_admin") {
+          continue;
+        }
+        if (email && nonOwnerStaffEmails.has(email)) {
           continue;
         }
 
@@ -287,6 +306,7 @@ export async function GET(req: NextRequest) {
           detectionReason: subEvaluation.badgeLabel,
           propertyIds: propIds,
           primaryPropertyName: primaryPropName,
+          propertyNames: mappedProps?.names || userPort?.names || (primaryPropName ? [primaryPropName] : []),
           city: city,
           plan: subEvaluation.plan,
           totalBeds: totalBeds,
@@ -322,6 +342,7 @@ export async function GET(req: NextRequest) {
 
     // 6. Include any Pending VIP Invites not yet signed up
     vipInvitesMap.forEach((inv, email) => {
+      if (nonOwnerStaffEmails.has(email)) return;
       if (!processedEmails.has(email)) {
         processedEmails.add(email);
         scannedAccounts.push({

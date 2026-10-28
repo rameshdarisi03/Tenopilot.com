@@ -55,6 +55,17 @@ export async function GET(req: NextRequest) {
     // Pre-fetch Property Names map for friendly display
     const propertyNameMap = new Map<string, string>();
     try {
+      const propSnap = await getDocs(collection(db, "properties"));
+      propSnap.docs.forEach((d) => {
+        const data = d.data();
+        const name = data.name || data.propertyName || data.title;
+        if (name) propertyNameMap.set(d.id, name);
+      });
+    } catch (e) {
+      console.warn("Notice loading properties for staff:", e);
+    }
+
+    try {
       const propSnap = await getDocs(collection(db, "portfolio_properties"));
       propSnap.docs.forEach((d) => {
         const data = d.data();
@@ -78,6 +89,10 @@ export async function GET(req: NextRequest) {
 
     const resolvePropertyName = (propId: string, assigned: string[]): string => {
       if (assigned.includes("*") || propId === "*") return "All Buildings (Global Admin)";
+      if (assigned.length > 1) {
+        const names = assigned.map((id) => propertyNameMap.get(id) || id);
+        return names.join(", ");
+      }
       if (propertyNameMap.has(propId)) return propertyNameMap.get(propId)!;
       if (propId === "sunshine-pg") return "Sunshine Luxury Living";
       if (propId === "vibe-stays") return "Vibe Stays PG";
