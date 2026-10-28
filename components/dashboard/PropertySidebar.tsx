@@ -25,6 +25,9 @@ import { staffStore, UserRole } from "@/lib/staffStore";
 import { useAuth } from "@/providers/AuthProvider";
 import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModal";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
+import { PropertySwitcher } from "@/components/dashboard/PropertySwitcher";
+import { MultiPropertyOnboardingWizard } from "@/components/dashboard/MultiPropertyOnboardingWizard";
+import { portfolioStore } from "@/constants/portfolioStore";
 
 export function PropertySidebar({
   propertyId: propPropertyId,
@@ -38,9 +41,10 @@ export function PropertySidebar({
   const pathname = usePathname();
   const router = useRouter();
   const [activeRole, setActiveRole] = useState<UserRole>(() => staffStore.getActiveRole());
-  const { profile, logout } = useAuth();
+  const { profile, user, logout } = useAuth();
   const propertyId = propPropertyId || profile?.assignedPropertyId || "";
   const [showFastTrackModal, setShowFastTrackModal] = useState(false);
+  const [showAddPropertyModal, setShowAddPropertyModal] = useState(false);
   const [pendingKycCount, setPendingKycCount] = useState<number>(0);
 
   useEffect(() => {
@@ -132,6 +136,15 @@ export function PropertySidebar({
             <X className="w-5 h-5" />
           </button>
         )}
+      </div>
+
+      {/* 🏢 In-Dashboard Real-Time RBAC Property Switcher */}
+      <div className="px-3 pt-3 pb-2 border-b border-[#d7c2b9]/40 bg-[#fff5f0]/50">
+        <PropertySwitcher
+          currentPropertyId={propertyId}
+          onOpenAddProperty={() => setShowAddPropertyModal(true)}
+          onCloseMobile={onMobileClose}
+        />
       </div>
 
       {/* Navigation Menus */}
@@ -288,6 +301,20 @@ export function PropertySidebar({
         isOpen={showFastTrackModal}
         onClose={() => setShowFastTrackModal(false)}
       />
+      {/* Multi-Property Expansion Wizard */}
+      {showAddPropertyModal && (
+        <MultiPropertyOnboardingWizard
+          isOpen={showAddPropertyModal}
+          onClose={() => setShowAddPropertyModal(false)}
+          profile={profile}
+          user={user}
+          existingProperties={portfolioStore.getProperties()}
+          onPropertyCreated={(newProp) => {
+            setShowAddPropertyModal(false);
+            router.push(`/p/${newProp.id}/overview`);
+          }}
+        />
+      )}
     </>
   );
 }

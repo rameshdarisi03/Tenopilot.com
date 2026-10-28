@@ -17,6 +17,7 @@ export interface UserProfile {
   phone?: string;
   role: "master_admin" | "admin" | "receptionist";
   assignedPropertyId: string;
+  assignedPropertyIds?: string[];
   propertyName?: string;
   isNewUser?: boolean;
   onboardingCompleted?: boolean;
@@ -470,6 +471,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   organizationId: staffAccountDoc?.organizationId || orgId,
                   role: resolvedRole,
                   assignedPropertyId: resolvedProp,
+                  assignedPropertyIds: Array.isArray(staffAccountDoc?.assignedPropertyIds) && staffAccountDoc.assignedPropertyIds.length > 0
+                    ? staffAccountDoc.assignedPropertyIds
+                    : (resolvedProp ? [resolvedProp] : []),
+                  propertyName: staffAccountDoc?.propertyName || "",
                   isNewUser: false,
                   onboardingCompleted: true,
                   plan: staffAccountDoc?.plan && staffAccountDoc?.plan !== "ORGANIZATION_STAFF" ? staffAccountDoc.plan : "PRO_MONTHLY",
@@ -791,7 +796,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           staffAccountRef,
           (snap) => {
             if (snap.exists()) {
-              evaluateCloudSecurityState(snap.data(), "staff_accounts");
+              const staffData = snap.data();
+              evaluateCloudSecurityState(staffData, "staff_accounts");
+
+              // 🛡️ Live RBAC & Dynamic Property Assignment Sync
+              setProfile((prev) => {
+                if (!prev) return prev;
+                const newRole = staffData.role || prev.role;
+                const newAssignedIds: string[] = Array.isArray(staffData.assignedPropertyIds) && staffData.assignedPropertyIds.length > 0
+                  ? staffData.assignedPropertyIds
+                  : (staffData.assignedPropertyId ? [staffData.assignedPropertyId] : (prev.assignedPropertyIds || []));
+                const newAssignedId = staffData.assignedPropertyId || (newAssignedIds && newAssignedIds[0]) || prev.assignedPropertyId;
+                const newPropName = staffData.propertyName || prev.propertyName;
+
+                const roleChanged = prev.role !== newRole;
+                const propsChanged = JSON.stringify(prev.assignedPropertyIds || []) !== JSON.stringify(newAssignedIds);
+                const assignedIdChanged = prev.assignedPropertyId !== newAssignedId;
+                const nameChanged = prev.propertyName !== newPropName;
+
+                if (roleChanged || propsChanged || assignedIdChanged || nameChanged) {
+                  staffStore.setActiveRole(newRole);
+                  return {
+                    ...prev,
+                    role: newRole,
+                    assignedPropertyId: newAssignedId,
+                    assignedPropertyIds: newAssignedIds,
+                    propertyName: newPropName,
+                  };
+                }
+                return prev;
+              });
             }
           },
           (err) => console.warn("Staff account snapshot listener notice:", err)
