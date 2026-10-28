@@ -1547,8 +1547,8 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* Direct 6-Digit Keyboard Input with Auto-Submit */}
-                <div className="space-y-2 max-w-xs mx-auto">
+                {/* Direct 6-Digit Keyboard Input with Native Smartphone Number Pad */}
+                <div className="space-y-3 max-w-xs mx-auto">
                   <label className="block text-xs font-bold text-gray-600">
                     Enter 6-Digit Security MPIN
                   </label>
@@ -1557,6 +1557,8 @@ export default function LoginPage() {
                     type="password"
                     inputMode="numeric"
                     pattern="[0-9]*"
+                    autoComplete="one-time-code"
+                    autoFocus
                     maxLength={6}
                     disabled={lockoutExpiry !== null || isLoading}
                     value={pinValue}
@@ -1568,62 +1570,11 @@ export default function LoginPage() {
                       }
                     }}
                     placeholder="••••••"
-                    className="w-full px-4 py-3 rounded-2xl border-2 border-gray-300 focus:border-[#c2652a] font-mono text-center font-bold tracking-[0.5em] text-2xl bg-white shadow-xs focus:ring-4 focus:ring-orange-100 focus:outline-hidden"
+                    className="w-full px-4 py-3.5 rounded-2xl border-2 border-gray-300 focus:border-[#c2652a] font-mono text-center font-bold tracking-[0.5em] text-3xl bg-white shadow-sm focus:ring-4 focus:ring-orange-100 focus:outline-hidden"
                   />
-                  <p className="text-[10px] text-gray-400">
+                  <p className="text-[11px] text-gray-500 font-medium">
                     {lockoutExpiry ? `Locked: ${lockoutCountdown}s remaining` : "Fast 1.5s unlock • Auto-submits on 6th digit"}
                   </p>
-                </div>
-
-                {/* Fast On-Screen Numeric Dial Pad for PWA & Mobile Thumb Tapping */}
-                <div className="max-w-[260px] mx-auto grid grid-cols-3 gap-2 pt-1">
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                    <button
-                      key={num}
-                      type="button"
-                      disabled={lockoutExpiry !== null || isLoading}
-                      onClick={() => {
-                        if (pinValue.length < 6) {
-                          const next = pinValue + String(num);
-                          setPinValue(next);
-                          if (next.length === 6) verifyAndRedirect(next);
-                        }
-                      }}
-                      className="h-12 rounded-2xl bg-white hover:bg-orange-50 border border-gray-200 active:bg-orange-100 font-bold text-lg text-gray-800 shadow-2xs transition-all active:scale-95 flex items-center justify-center cursor-pointer disabled:opacity-40"
-                    >
-                      {num}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    disabled={lockoutExpiry !== null || isLoading || pinValue.length === 0}
-                    onClick={() => setPinValue("")}
-                    className="h-12 rounded-2xl bg-gray-50 hover:bg-gray-100 border border-gray-200 active:bg-gray-200 font-bold text-xs text-gray-500 uppercase tracking-wider transition-all active:scale-95 flex items-center justify-center cursor-pointer disabled:opacity-30"
-                  >
-                    Clear
-                  </button>
-                  <button
-                    type="button"
-                    disabled={lockoutExpiry !== null || isLoading}
-                    onClick={() => {
-                      if (pinValue.length < 6) {
-                        const next = pinValue + "0";
-                        setPinValue(next);
-                        if (next.length === 6) verifyAndRedirect(next);
-                      }
-                    }}
-                    className="h-12 rounded-2xl bg-white hover:bg-orange-50 border border-gray-200 active:bg-orange-100 font-bold text-lg text-gray-800 shadow-2xs transition-all active:scale-95 flex items-center justify-center cursor-pointer disabled:opacity-40"
-                  >
-                    0
-                  </button>
-                  <button
-                    type="button"
-                    disabled={lockoutExpiry !== null || isLoading || pinValue.length === 0}
-                    onClick={() => setPinValue((prev) => prev.slice(0, -1))}
-                    className="h-12 rounded-2xl bg-gray-50 hover:bg-gray-100 border border-gray-200 active:bg-gray-200 font-bold text-sm text-gray-600 transition-all active:scale-95 flex items-center justify-center cursor-pointer disabled:opacity-30"
-                  >
-                    ⌫
-                  </button>
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3 text-xs font-bold pt-2">
