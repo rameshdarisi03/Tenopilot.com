@@ -222,10 +222,48 @@ export default function StaffManagementPage() {
         // Property Admin scope: strictly their assigned building
         propList = [{ id: assignedPropId, name: assignedPropName }];
       } else {
+        const directPropsMap = new Map<string, string>();
         const liveProps = portfolioStore.getProperties();
-        propList = liveProps
-          .filter((p) => p.id !== "sunshine-pg" && p.name !== "Sunshine Luxury PG" && p.name !== "All Properties" && p.id !== "*")
-          .map((p) => ({ id: p.id, name: p.name }));
+        liveProps.forEach((p) => {
+          if (p.id && p.id !== "sunshine-pg" && p.name !== "Sunshine Luxury PG" && p.name !== "All Properties" && p.id !== "*") {
+            directPropsMap.set(p.id, p.name);
+          }
+        });
+
+        // 🛡️ Dynamic Multi-Property Scanner: directly query portfolio_properties & properties in Firestore
+        if (db) {
+          try {
+            const ppSnap = await getDocs(collection(db, "portfolio_properties"));
+            ppSnap.docs.forEach((d) => {
+              const data = d.data();
+              const orgMatch = Boolean(profile?.organizationId && data.organizationId === profile.organizationId);
+              const emailMatch = Boolean(profile?.email && data.ownerEmail?.toLowerCase() === profile.email.toLowerCase());
+              if (orgMatch || emailMatch || isMasterAdmin) {
+                const name = data.name || data.propertyName || d.id;
+                if (name && name !== "All Properties" && d.id !== "sunshine-pg") {
+                  directPropsMap.set(d.id, name);
+                }
+              }
+            });
+
+            const pSnap = await getDocs(collection(db, "properties"));
+            pSnap.docs.forEach((d) => {
+              const data = d.data();
+              const orgMatch = Boolean(profile?.organizationId && data.organizationId === profile.organizationId);
+              const emailMatch = Boolean(profile?.email && data.ownerEmail?.toLowerCase() === profile.email.toLowerCase());
+              if (orgMatch || emailMatch || isMasterAdmin) {
+                const name = data.name || data.propertyName || d.id;
+                if (name && name !== "All Properties" && d.id !== "sunshine-pg") {
+                  directPropsMap.set(d.id, name);
+                }
+              }
+            });
+          } catch (scanErr) {
+            console.warn("Notice dynamic scan in staff management:", scanErr);
+          }
+        }
+
+        propList = Array.from(directPropsMap.entries()).map(([id, name]) => ({ id, name }));
 
         if (propList.length === 0 && assignedPropId && assignedPropId !== "sunshine-pg") {
           propList = [{ id: assignedPropId, name: assignedPropName }];
@@ -608,9 +646,7 @@ export default function StaffManagementPage() {
 
       const propDisplayName =
         editRole === "admin"
-          ? editSelectedPropertyIds.length === properties.length
-            ? "All Properties"
-            : selectedProps.map((p) => p.name).join(", ")
+          ? selectedProps.map((p) => p.name).filter(Boolean).join(", ") || (selectedProps[0]?.name || "Assigned Buildings")
           : selectedProps[0]?.name || "Assigned PG";
 
       const primaryPropId =
@@ -771,9 +807,7 @@ export default function StaffManagementPage() {
 
       const propDisplayName =
         role === "admin"
-          ? selectedPropertyIds.length === properties.length
-            ? "All Properties"
-            : selectedProps.map((p) => p.name).join(", ")
+          ? selectedProps.map((p) => p.name).filter(Boolean).join(", ") || (selectedProps[0]?.name || "Assigned Buildings")
           : resolvedCurrentPropertyName || selectedProps[0]?.name || "Assigned PG";
 
       // For Property Admins creating Receptionists, inherit the organization's owner attributes

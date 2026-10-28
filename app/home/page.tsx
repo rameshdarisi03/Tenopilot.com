@@ -304,12 +304,33 @@ export default function HomeWorkspacePage() {
             if (pid && pid !== "sunshine-pg") {
               try {
                 const propSnap = await getDoc(doc(db, "properties", pid));
-                const pData = propSnap.exists() ? propSnap.data() : null;
+                let pData = propSnap.exists() ? propSnap.data() : null;
+
+                if (!pData) {
+                  const ppSnap = await getDoc(doc(db, "portfolio_properties", pid));
+                  if (ppSnap.exists()) pData = ppSnap.data();
+                }
+
+                if (!pData) {
+                  const sSnap = await getDoc(doc(db, `properties/${pid}/settings/config`));
+                  if (sSnap.exists()) pData = sSnap.data();
+                }
+
+                let realPropName = pData?.name || pData?.propertyName || "";
+                if (!realPropName || realPropName === "All Properties") {
+                  realPropName = pid
+                    .replace(/^prop-/, "")
+                    .replace(/^\d+-/, "")
+                    .split("-")
+                    .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+                    .join(" ") || "Assigned Property";
+                }
+
                 fallbackProps.push({
                   id: pid,
-                  name: pData?.name || pData?.propertyName || staffDoc?.propertyName || match?.propertyName || profile?.propertyName || "Assigned Property",
-                  location: pData?.city ? `${pData.city}, India` : "India",
-                  bedsCount: pData?.approxBeds || 40,
+                  name: realPropName,
+                  location: pData?.city || pData?.location ? `${pData.city || pData.location}, India` : "India",
+                  bedsCount: pData?.approxBeds || pData?.totalBeds || pData?.bedsCount || 40,
                   occupancyRate: "0.0%",
                   collectionRate: "0%",
                   status: "HEALTHY",
@@ -317,7 +338,12 @@ export default function HomeWorkspacePage() {
               } catch {
                 fallbackProps.push({
                   id: pid,
-                  name: staffDoc?.propertyName || match?.propertyName || profile?.propertyName || "Assigned Property",
+                  name: pid
+                    .replace(/^prop-/, "")
+                    .replace(/^\d+-/, "")
+                    .split("-")
+                    .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+                    .join(" ") || "Assigned Property",
                   location: "India",
                   bedsCount: 40,
                   occupancyRate: "0.0%",
@@ -480,28 +506,29 @@ export default function HomeWorkspacePage() {
     // 2. Add to active in-memory portfolioStore
     await portfolioStore.addProperty(newBuilding, profile?.email);
 
-    // 3. Atomically register in Cloud Firestore portfolio_properties for Apex Command & Staff Scanner
+    // 3. Atomically register in Cloud Firestore portfolio_properties AND properties for Apex Command & Staff Scanner
     if (db) {
       try {
-        await setDoc(
-          doc(db, "portfolio_properties", cleanPropId),
-          {
-            id: cleanPropId,
-            name: newBuilding.name,
-            propertyName: newBuilding.name,
-            city: newBuilding.location,
-            location: newBuilding.location,
-            totalBeds: newBuilding.bedsCount,
-            bedsCount: newBuilding.bedsCount,
-            ownerEmail: ownerEmail,
-            ownerUid: profile?.uid || "",
-            ownerPhone: profile?.phone || "",
-            organizationId: orgId,
-            createdAt: new Date().toISOString(),
-            status: "HEALTHY",
-          },
-          { merge: true }
-        );
+        const propDocData = {
+          id: cleanPropId,
+          name: newBuilding.name,
+          propertyName: newBuilding.name,
+          city: newBuilding.location,
+          location: newBuilding.location,
+          approxBeds: newBuilding.bedsCount,
+          totalBeds: newBuilding.bedsCount,
+          bedsCount: newBuilding.bedsCount,
+          ownerEmail: ownerEmail,
+          ownerUid: profile?.uid || "",
+          ownerPhone: profile?.phone || "",
+          organizationId: orgId,
+          createdAt: new Date().toISOString(),
+          status: "Active",
+        };
+
+        // Write both collections for complete cross-compatibility
+        await setDoc(doc(db, "portfolio_properties", cleanPropId), propDocData, { merge: true });
+        await setDoc(doc(db, "properties", cleanPropId), propDocData, { merge: true });
 
         // 4. Update owner's users document propertyIds array
         if (profile?.uid) {
@@ -549,23 +576,13 @@ export default function HomeWorkspacePage() {
           }
         }
 
-        // 6. Initialize isolated credit wallets for this building
+        // 6. Initialize clean isolated credit wallets for this expansion building (0 credits - paid expansion property)
         const waWalletRef = doc(db, `properties/${cleanPropId}/whatsapp/wallet`);
         await setDoc(
           waWalletRef,
           {
-            credits: 25,
-            transactions: [
-              {
-                id: `tx-starter-${Date.now()}`,
-                type: "STARTER_BONUS",
-                amount: 25,
-                balanceAfter: 25,
-                description: `+25 Starter WhatsApp Credits (${newBuilding.name})`,
-                timestamp: new Date().toISOString(),
-                status: "DELIVERED",
-              },
-            ],
+            credits: 0,
+            transactions: [],
             updatedAt: new Date().toISOString(),
           },
           { merge: true }
@@ -575,18 +592,8 @@ export default function HomeWorkspacePage() {
         await setDoc(
           emailWalletRef,
           {
-            credits: 100,
-            transactions: [
-              {
-                id: `tx-starter-email-${Date.now()}`,
-                type: "STARTER_BONUS",
-                amount: 100,
-                balanceAfter: 100,
-                description: `+100 Starter Email Credits (${newBuilding.name})`,
-                timestamp: new Date().toISOString(),
-                status: "DELIVERED",
-              },
-            ],
+            credits: 0,
+            transactions: [],
             updatedAt: new Date().toISOString(),
           },
           { merge: true }

@@ -214,6 +214,14 @@ export async function POST(req: NextRequest) {
       updatePayload.maxPropertiesAllowed = bumpedMaxProps;
       updatePayload.hasCustomLimitsOverride = true;
       updatePayload.customLimitsOverrideAt = nowIso;
+      // 🛡️ Decouple: Do not overwrite base plan or stack onto Property #1's validity cycle
+      delete updatePayload.plan;
+      delete updatePayload.subscriptionPlan;
+      if (currentExpiryIso) {
+        updatePayload.planExpiresAt = currentExpiryIso;
+      } else {
+        delete updatePayload.planExpiresAt;
+      }
     }
 
     // If activating Tenant Extension Pack, increment tenantExtensionPacks
@@ -221,6 +229,14 @@ export async function POST(req: NextRequest) {
       updatePayload.tenantExtensionPacks = existingExtensionPacks + 1;
       updatePayload.hasCustomLimitsOverride = true;
       updatePayload.customLimitsOverrideAt = nowIso;
+      // 🛡️ Decouple: Do not overwrite base plan or stack onto Property #1's validity cycle
+      delete updatePayload.plan;
+      delete updatePayload.subscriptionPlan;
+      if (currentExpiryIso) {
+        updatePayload.planExpiresAt = currentExpiryIso;
+      } else {
+        delete updatePayload.planExpiresAt;
+      }
     }
 
     // 1. Update users collection (by explicit userId, email, verified phone, and linked accounts)
