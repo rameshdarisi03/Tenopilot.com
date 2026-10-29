@@ -68,11 +68,11 @@ export default function SubscriptionBillingPage() {
   const [paymentChannel, setPaymentChannel] = useState<"ONLINE" | "OFFLINE">("ONLINE");
   const [showRazorpayModal, setShowRazorpayModal] = useState(false);
 
-  // Auto-slide mobile plan carousel across all 4 plans
+  // Auto-slide mobile plan carousel across all 5 plans (including Custom Tailored Plan)
   useEffect(() => {
     const timer = setInterval(() => {
-      setMobilePlanIndex((prev) => (prev + 1) % 4);
-    }, 3000);
+      setMobilePlanIndex((prev) => (prev + 1) % 5);
+    }, 3200);
     return () => clearInterval(timer);
   }, []);
 
@@ -117,6 +117,10 @@ export default function SubscriptionBillingPage() {
         return "Pro Monthly (30 Days)";
     }
   };
+
+  const customPlanWhatsappUrl = `https://wa.me/91${platformConfig.founderWhatsapp}?text=${encodeURIComponent(
+    `Hi Ramesh, I manage ${profile?.propertyName || "our property"} (Property ID: ${propertyId}) and have 300+ beds (e.g. 380 tenants). I would like to discuss a custom tailored Pro plan for our operations.`
+  )}`;
 
   // Offline Verification State
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
@@ -1400,6 +1404,80 @@ export default function SubscriptionBillingPage() {
               </div>
             </div>
 
+            {/* 👑 CUSTOMISE PLAN BANNER (FOR 300+ TENANTS / MULTI-BRANCH OPERATORS) */}
+            <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-[#201a17] via-[#2c221e] to-[#1a1412] text-white border-2 border-amber-500/30 shadow-xl relative overflow-hidden">
+              {/* Subtle Ambient Glow */}
+              <div className="absolute -right-16 -top-16 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -left-16 -bottom-16 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+              <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+                <div className="space-y-3 max-w-2xl">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-3 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-xs">
+                      <span>👑</span>
+                      <span>ENTERPRISE & CAMPUS TAILORED FLIGHT DECK</span>
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-black uppercase tracking-wider">
+                      300+ Beds / Multi-Building
+                    </span>
+                  </div>
+
+                  <h3 className="font-serif font-black text-xl sm:text-2xl text-white">
+                    Need a Custom Tailored Plan for 300+ Tenants?
+                  </h3>
+
+                  <p className="text-xs sm:text-sm text-gray-300 leading-relaxed font-normal">
+                    Operating a large 380-bed hostel, multiple PG wings, or a corporate co-living campus? Talk directly with founder Ramesh to craft a customized plan with tailored bed capacity, dedicated WhatsApp/Email quotas, and personalized onboarding.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 text-xs text-gray-200">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>Custom Bed Limits (300 to 1,000+ beds)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>High-Volume Meta WhatsApp & SES Email Pool</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>{platformConfig.creditRolloverMonths || 4}-Month Credit Rollover Included</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Dedicated Priority SLA & Direct Founder Onboarding</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row lg:flex-col items-stretch sm:items-center lg:items-end gap-3 w-full lg:w-auto shrink-0 pt-2 lg:pt-0">
+                  <a
+                    href={customPlanWhatsappUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2.5 transition-all cursor-pointer active:scale-95 text-center"
+                  >
+                    <Smartphone className="w-4 h-4 text-white" />
+                    <span>Talk with Founder Ramesh (WhatsApp)</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </a>
+
+                  <a
+                    href={`tel:+91${platformConfig.founderWhatsapp}`}
+                    className="px-5 py-3 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer text-center"
+                  >
+                    <Phone className="w-3.5 h-3.5 text-gray-300" />
+                    <span>Call +91 ${platformConfig.founderWhatsapp.slice(0, 5)} ${platformConfig.founderWhatsapp.slice(5)}</span>
+                  </a>
+
+                  <span className="text-[10px] text-gray-400 text-center lg:text-right font-medium">
+                    ⚡ Same-day activation with official GST invoice
+                  </span>
+                </div>
+              </div>
+            </div>
+
             {/* Mobile / Smartphone Carousel View (Sliding Left-Right Across 4 Plans) */}
             <div className="block md:hidden">
               <div className="relative overflow-hidden pt-3 pb-1">
@@ -1690,6 +1768,64 @@ export default function SubscriptionBillingPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Slide 4: Custom Tailored Plan */}
+                  <div className="w-full shrink-0 px-1">
+                    <div
+                      className="p-5 rounded-3xl border-2 border-amber-500/40 bg-gradient-to-br from-[#201a17] to-[#2c221e] text-white relative flex flex-col justify-between min-h-[360px] shadow-lg"
+                    >
+                      <span className="absolute -top-3 right-6 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full shadow-xs">
+                        👑 300+ BEDS TAILORED
+                      </span>
+
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-black text-base text-white">Custom Enterprise</h4>
+                            <p className="text-[11px] text-amber-300/80">Tailored for 380+ beds & multi-branch</p>
+                          </div>
+                          <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400">
+                            <Building2 className="w-5 h-5" />
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-white/10 flex items-baseline gap-1">
+                          <span className="text-2xl font-black text-amber-400 font-serif">Tailored Pricing</span>
+                        </div>
+
+                        <ul className="space-y-1.5 text-xs text-gray-300 pt-1">
+                          <li className="flex items-start gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                            <span>Exact bed capacity (e.g. 380 beds)</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                            <span>High-volume WhatsApp & Email pool</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                            <span>{platformConfig.creditRolloverMonths || 4}-month rollover included</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                            <span>1-on-1 direct onboarding with Ramesh</span>
+                          </li>
+                        </ul>
+                      </div>
+
+                      <div className="pt-4">
+                        <a
+                          href={customPlanWhatsappUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all"
+                        >
+                          <Smartphone className="w-4 h-4" />
+                          <span>Talk with Founder Ramesh (WhatsApp)</span>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -1697,7 +1833,7 @@ export default function SubscriptionBillingPage() {
               <div className="flex items-center justify-between px-2 pt-1 pb-1">
                 <button
                   type="button"
-                  onClick={() => setMobilePlanIndex((prev) => (prev - 1 + 4) % 4)}
+                  onClick={() => setMobilePlanIndex((prev) => (prev - 1 + 5) % 5)}
                   className="w-8 h-8 rounded-full bg-white border border-[#d7c2b9] text-[#201a17] shadow-xs flex items-center justify-center active:scale-90 transition-all hover:bg-amber-50 cursor-pointer"
                   aria-label="Previous plan"
                 >
@@ -1705,7 +1841,7 @@ export default function SubscriptionBillingPage() {
                 </button>
 
                 <div className="flex items-center gap-1.5">
-                  {[0, 1, 2, 3].map((idx) => (
+                  {[0, 1, 2, 3, 4].map((idx) => (
                     <button
                       key={idx}
                       type="button"
@@ -1720,7 +1856,7 @@ export default function SubscriptionBillingPage() {
 
                 <button
                   type="button"
-                  onClick={() => setMobilePlanIndex((prev) => (prev + 1) % 4)}
+                  onClick={() => setMobilePlanIndex((prev) => (prev + 1) % 5)}
                   className="w-8 h-8 rounded-full bg-white border border-[#d7c2b9] text-[#201a17] shadow-xs flex items-center justify-center active:scale-90 transition-all hover:bg-amber-50 cursor-pointer"
                   aria-label="Next plan"
                 >
