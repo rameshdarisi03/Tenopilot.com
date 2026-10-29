@@ -39,6 +39,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import { normalizePhoneNumber } from "@/utils/security";
 import {
   propertySettingsStore,
   PropertySettingsData,
@@ -654,11 +655,19 @@ export default function PropertySettingsPage({
                                 <span className="text-[10px] text-gray-500 font-bold">📲 WhatsApp:</span>
                                 <input
                                   type="tel"
-                                  maxLength={10}
+                                  maxLength={16}
                                   placeholder="10-digit mobile"
                                   value={partner.phone || ""}
+                                  onPaste={(e) => {
+                                    e.preventDefault();
+                                    const pasted = e.clipboardData.getData("text");
+                                    const clean = normalizePhoneNumber(pasted);
+                                    const updated = partners.map((p) => (p.id === partner.id ? { ...p, phone: clean } : p));
+                                    setPartners(updated);
+                                  }}
                                   onChange={(e) => {
-                                    const clean = e.target.value.replace(/\D/g, "").slice(0, 10);
+                                    const digits = e.target.value.replace(/\D/g, "");
+                                    const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
                                     const updated = partners.map((p) => (p.id === partner.id ? { ...p, phone: clean } : p));
                                     setPartners(updated);
                                   }}
@@ -867,10 +876,20 @@ export default function PropertySettingsPage({
                             <span className="absolute left-3 top-2 text-xs font-bold text-gray-500">+91</span>
                             <input
                               type="tel"
-                              maxLength={10}
+                              maxLength={16}
                               placeholder="e.g. 9876543210"
                               value={newQrPhone}
-                              onChange={(e) => setNewQrPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                              onPaste={(e) => {
+                                e.preventDefault();
+                                const pasted = e.clipboardData.getData("text");
+                                const clean = normalizePhoneNumber(pasted);
+                                setNewQrPhone(clean);
+                              }}
+                              onChange={(e) => {
+                                const digits = e.target.value.replace(/\D/g, "");
+                                const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
+                                setNewQrPhone(clean);
+                              }}
                               className="w-full pl-11 pr-3 py-2 rounded-xl border border-gray-300 text-xs font-mono font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                             />
                           </div>
@@ -1327,8 +1346,19 @@ export default function PropertySettingsPage({
                       <input
                         type="tel"
                         required
+                        maxLength={16}
                         value={settings.managerPhone}
-                        onChange={(e) => setSettings({ ...settings, managerPhone: e.target.value.replace(/\D/g, "").slice(0, 15) })}
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          const pasted = e.clipboardData.getData("text");
+                          const clean = normalizePhoneNumber(pasted);
+                          setSettings({ ...settings, managerPhone: clean });
+                        }}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, "");
+                          const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
+                          setSettings({ ...settings, managerPhone: clean });
+                        }}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                       />
                       <p className="text-[10px] text-gray-400 mt-1 font-medium">

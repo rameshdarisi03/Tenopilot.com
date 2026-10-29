@@ -825,7 +825,7 @@ export function FastTrackImportModal({
     fullName: "",
     phone: "",
     roomNumber,
-    bedCode: "Bed A",
+    bedCode: "",
     sharingType: 2,
     sharingLabel: "2-Sharing",
     rentAmount: 0,

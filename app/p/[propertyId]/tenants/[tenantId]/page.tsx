@@ -33,7 +33,7 @@ import { complianceLogStore } from "@/constants/complianceLogStore";
 import { sanitizeOccupantForCompliance } from "@/utils/dpdpRetentionEngine";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
 import { generateReceiptNumber } from "@/lib/invoiceNumberEngine";
-import { buildWhatsAppUrl, sanitizeVehicleNumber } from "@/utils/security";
+import { buildWhatsAppUrl, sanitizeVehicleNumber, normalizePhoneNumber } from "@/utils/security";
 import { generatePayToken } from "@/lib/paymentToken";
 import { RentReceiptModal } from "@/components/RentReceiptModal";
 import { VoidReceiptModal } from "@/components/dashboard/VoidReceiptModal";
@@ -5077,9 +5077,20 @@ export default function IndividualTenantProfilePage({
                       <input
                         type="tel"
                         required
+                        maxLength={16}
                         placeholder="9206651295"
                         value={editPhone}
-                        onChange={(e) => setEditPhone(e.target.value.replace(/\D/g, "").slice(0, 15))}
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          const pasted = e.clipboardData.getData("text");
+                          const clean = normalizePhoneNumber(pasted);
+                          setEditPhone(clean);
+                        }}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, "");
+                          const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
+                          setEditPhone(clean);
+                        }}
                         className="flex-1 px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                       />
                     </div>
@@ -5125,9 +5136,20 @@ export default function IndividualTenantProfilePage({
                       />
                       <input
                         type="tel"
+                        maxLength={16}
                         placeholder="e.g. 9812345678 (Parent/Guardian)"
                         value={editEmergencyPhone}
-                        onChange={(e) => setEditEmergencyPhone(e.target.value.replace(/\D/g, "").slice(0, 15))}
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          const pasted = e.clipboardData.getData("text");
+                          const clean = normalizePhoneNumber(pasted);
+                          setEditEmergencyPhone(clean);
+                        }}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, "");
+                          const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
+                          setEditEmergencyPhone(clean);
+                        }}
                         className="flex-1 px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                       />
                     </div>

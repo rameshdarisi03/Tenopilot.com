@@ -40,6 +40,7 @@ import {
   sanitizeEmailAddress,
   sanitizeVehicleNumber,
   validateBase64Attachment,
+  normalizePhoneNumber,
 } from "@/utils/security";
 import { compressPaymentScreenshot } from "@/lib/imageCompression";
 
@@ -804,9 +805,19 @@ export default function TenantSelfOnboardingPage({
                       <input
                         type="tel"
                         required
-                        maxLength={10}
+                        maxLength={16}
                         value={phone}
-                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          const pasted = e.clipboardData.getData("text");
+                          const clean = normalizePhoneNumber(pasted);
+                          setPhone(clean);
+                        }}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, "");
+                          const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
+                          setPhone(clean);
+                        }}
                         placeholder="10-digit mobile number"
                         className={`w-full pl-12 pr-3.5 py-2.5 rounded-xl border font-mono font-bold text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 ${
                           isPhoneAlreadyRegistered
@@ -889,9 +900,19 @@ export default function TenantSelfOnboardingPage({
                       <input
                         type="tel"
                         required
-                        maxLength={10}
+                        maxLength={16}
                         value={emergencyPhone}
-                        onChange={(e) => setEmergencyPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          const pasted = e.clipboardData.getData("text");
+                          const clean = normalizePhoneNumber(pasted);
+                          setEmergencyPhone(clean);
+                        }}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, "");
+                          const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
+                          setEmergencyPhone(clean);
+                        }}
                         placeholder="10-digit phone number *"
                         className={`w-full px-3.5 py-2 rounded-xl border font-mono font-bold text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a] ${
                           isEmergencySameAsMobile ? "border-rose-500 bg-rose-50/40" : "border-gray-300 bg-white"
@@ -1308,9 +1329,19 @@ export default function TenantSelfOnboardingPage({
                     <input
                       type="tel"
                       required
-                      maxLength={10}
+                      maxLength={16}
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                      onPaste={(e) => {
+                        e.preventDefault();
+                        const pasted = e.clipboardData.getData("text");
+                        const clean = normalizePhoneNumber(pasted);
+                        setPhone(clean);
+                      }}
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/\D/g, "");
+                        const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
+                        setPhone(clean);
+                      }}
                       placeholder="10-digit mobile number"
                       className={`w-full pl-12 pr-3.5 py-2.5 rounded-xl border font-mono font-bold text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 ${
                         isPhoneAlreadyRegistered
@@ -1392,9 +1423,19 @@ export default function TenantSelfOnboardingPage({
                       <input
                         type="tel"
                         required
-                        maxLength={10}
+                        maxLength={16}
                         value={emergencyPhone}
-                        onChange={(e) => setEmergencyPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          const pasted = e.clipboardData.getData("text");
+                          const clean = normalizePhoneNumber(pasted);
+                          setEmergencyPhone(clean);
+                        }}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, "");
+                          const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
+                          setEmergencyPhone(clean);
+                        }}
                         placeholder="10-digit phone number *"
                         className={`w-full px-3.5 py-2 rounded-xl border font-mono font-bold text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a] ${
                           isEmergencySameAsMobile ? "border-rose-500 bg-rose-50/40" : "border-gray-300 bg-white"

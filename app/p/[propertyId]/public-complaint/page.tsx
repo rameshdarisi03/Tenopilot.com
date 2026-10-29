@@ -49,6 +49,7 @@ import {
   X,
   Eye,
 } from "lucide-react";
+import { normalizePhoneNumber } from "@/utils/security";
 
 function formatTimelineDate(isoStr: string): string {
   try {
@@ -221,7 +222,8 @@ export default function PublicTenantComplaintPage({
 
   // Strict As-of-Today Active Resident Verification Handler
   const handlePhoneChange = (inputPhone: string) => {
-    const cleanDigits = inputPhone.replace(/\D/g, "").slice(0, 10);
+    const digits = inputPhone.replace(/\D/g, "");
+    const cleanDigits = digits.length > 10 ? normalizePhoneNumber(digits) : digits.slice(0, 10);
     setTenantPhone(cleanDigits);
 
     if (cleanDigits.length === 10) {
@@ -506,8 +508,14 @@ export default function PublicTenantComplaintPage({
                       <input
                         type="tel"
                         required
-                        maxLength={10}
+                        maxLength={16}
                         value={tenantPhone}
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          const pasted = e.clipboardData.getData("text");
+                          const clean = normalizePhoneNumber(pasted);
+                          handlePhoneChange(clean);
+                        }}
                         onChange={(e) => handlePhoneChange(e.target.value)}
                         placeholder="Enter 10-digit mobile number (e.g. 9876543210)"
                         className={`w-full pl-10 pr-3.5 py-3 rounded-xl border bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#964407] tabular-nums ${
@@ -795,8 +803,14 @@ export default function PublicTenantComplaintPage({
                 <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
                 <input
                   type="tel"
-                  maxLength={10}
+                  maxLength={16}
                   value={tenantPhone}
+                  onPaste={(e) => {
+                    e.preventDefault();
+                    const pasted = e.clipboardData.getData("text");
+                    const clean = normalizePhoneNumber(pasted);
+                    handlePhoneChange(clean);
+                  }}
                   onChange={(e) => handlePhoneChange(e.target.value)}
                   placeholder="Enter 10-digit mobile number"
                   className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#964407] tabular-nums"

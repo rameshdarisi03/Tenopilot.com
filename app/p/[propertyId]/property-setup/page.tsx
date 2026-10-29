@@ -227,19 +227,21 @@ export default function PropertySetupPage({
   // 1-Click Direct Bed Addition on Room Card
   const handleAddBedDirect = (floorId: string, room: RoomConfig) => {
     const currentBeds = room.beds || [];
-    const usedCodes = new Set(currentBeds.map((b) => b.bedCode.trim().toUpperCase()));
+    const usedLetters = new Set<string>();
+    currentBeds.forEach((b) => {
+      const match = (b.bedCode || "").toUpperCase().match(/[A-Z]/);
+      if (match) usedLetters.add(match[0]);
+    });
+
     const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    let nextCode = "";
+    let nextLetter = "";
     for (let i = 0; i < alphabet.length; i++) {
-      const candidate = `Bed ${alphabet[i]}`;
-      if (!usedCodes.has(candidate)) {
-        nextCode = candidate;
+      if (!usedLetters.has(alphabet[i])) {
+        nextLetter = alphabet[i];
         break;
       }
     }
-    if (!nextCode) {
-      nextCode = `Bed ${currentBeds.length + 1}`;
-    }
+    const nextCode = nextLetter ? `Bed ${nextLetter}` : `Bed ${currentBeds.length + 1}`;
 
     const newBed: BedSlotConfig = {
       id: `bed-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -519,15 +521,28 @@ export default function PropertySetupPage({
       return;
     }
 
-    const bedLetters = Array.from({ length: 26 }, (_, i) => `BED ${String.fromCharCode(65 + i)}`);
     let updatedBeds = [...room.beds];
 
     if (newSharingCapacity > room.beds.length) {
+      const usedLetters = new Set<string>();
+      updatedBeds.forEach((b) => {
+        const match = (b.bedCode || "").toUpperCase().match(/[A-Z]/);
+        if (match) usedLetters.add(match[0]);
+      });
+      const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      let alphaIdx = 0;
+
       // Append new vacant beds
       for (let i = room.beds.length; i < newSharingCapacity; i++) {
+        while (alphaIdx < alphabet.length && usedLetters.has(alphabet[alphaIdx])) {
+          alphaIdx++;
+        }
+        const nextLetter = alphaIdx < alphabet.length ? alphabet[alphaIdx] : String(i + 1);
+        usedLetters.add(nextLetter);
+
         updatedBeds.push({
-          id: `bed-${Date.now()}-${i}`,
-          bedCode: bedLetters[i] || `BED ${i + 1}`,
+          id: `bed-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`,
+          bedCode: `Bed ${nextLetter}`,
           status: "Available",
         });
       }

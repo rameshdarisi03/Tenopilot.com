@@ -54,6 +54,7 @@ import {
   Check,
   ChevronDown,
 } from "lucide-react";
+import { normalizePhoneNumber } from "@/utils/security";
 
 
 const STATUS_OPTIONS: Array<{
@@ -392,7 +393,8 @@ export default function AdminComplaintsPage({
   };
 
   const handleWalkInPhoneChange = (inputPhone: string) => {
-    const cleanDigits = inputPhone.replace(/\D/g, "").slice(0, 10);
+    const digits = inputPhone.replace(/\D/g, "");
+    const cleanDigits = digits.length > 10 ? normalizePhoneNumber(digits) : digits.slice(0, 10);
     setLogTenantPhone(cleanDigits);
 
     if (cleanDigits.length === 10) {
@@ -1198,8 +1200,14 @@ export default function AdminComplaintsPage({
                   <input
                     type="tel"
                     required
-                    maxLength={10}
+                    maxLength={16}
                     value={logTenantPhone}
+                    onPaste={(e) => {
+                      e.preventDefault();
+                      const pasted = e.clipboardData.getData("text");
+                      const clean = normalizePhoneNumber(pasted);
+                      handleWalkInPhoneChange(clean);
+                    }}
                     onChange={(e) => handleWalkInPhoneChange(e.target.value)}
                     placeholder="Enter 10-digit mobile number..."
                     className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a] tabular-nums"

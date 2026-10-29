@@ -295,8 +295,9 @@ export function reconcileRoomSharingAndBeds(rows: FastTrackParsedRow[]): FastTra
     }
   });
 
-  // Step 2: Track sequential bed index per room (Bed A, Bed B, Bed C...)
+  // Step 2: Track sequential bed index and used letters per room (Bed A, Bed B, Bed C...)
   const roomBedTracker = new Map<string, number>();
+  const roomUsedLetters = new Map<string, Set<string>>();
 
   return rows.map((r) => {
     const rm = (r.roomNumber || "").trim().toUpperCase();
@@ -310,16 +311,38 @@ export function reconcileRoomSharingAndBeds(rows: FastTrackParsedRow[]): FastTra
     const finalLabel = finalSharing === 1 ? "Single Room" : `${finalSharing}-Sharing`;
 
     // Bed slot assignment
+    let usedLetters = roomUsedLetters.get(rm);
+    if (!usedLetters) {
+      usedLetters = new Set<string>();
+      roomUsedLetters.set(rm, usedLetters);
+    }
+
     const currentBedIdx = (roomBedTracker.get(rm) || 0) + 1;
     roomBedTracker.set(rm, currentBedIdx);
 
-    const autoBedLetter = String.fromCharCode(64 + Math.min(currentBedIdx, 26)); // A, B, C...
-    const finalBedCode = normalizeBedCode(r.bedCode, autoBedLetter);
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const autoBedLetter = alphabet[Math.min(currentBedIdx - 1, 25)] || "A";
+
+    let candidateCode = normalizeBedCode(r.bedCode, autoBedLetter);
+    let letterMatch = candidateCode.toUpperCase().match(/[A-Z]/);
+    let assignedLetter = letterMatch ? letterMatch[0] : "";
+
+    // If empty or already used in this room, pick the next available letter in alphabet
+    if (!assignedLetter || usedLetters.has(assignedLetter)) {
+      let idx = 0;
+      while (idx < alphabet.length && usedLetters.has(alphabet[idx])) {
+        idx++;
+      }
+      assignedLetter = idx < alphabet.length ? alphabet[idx] : String(currentBedIdx);
+      candidateCode = `Bed ${assignedLetter}`;
+    }
+
+    usedLetters.add(assignedLetter);
 
     return {
       ...r,
       roomNumber: rm,
-      bedCode: finalBedCode,
+      bedCode: candidateCode,
       sharingType: finalSharing,
       sharingLabel: finalLabel,
     };

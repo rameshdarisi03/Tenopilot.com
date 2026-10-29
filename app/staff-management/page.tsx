@@ -30,6 +30,7 @@ import {
   Loader2,
   Pencil,
 } from "lucide-react";
+import { normalizePhoneNumber } from "@/utils/security";
 import { staffStore, StaffMember, UserRole } from "@/lib/staffStore";
 import { portfolioStore } from "@/constants/portfolioStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
@@ -1319,8 +1320,19 @@ export default function StaffManagementPage() {
                   <div className="relative flex-1">
                     <input
                       type="tel"
+                      maxLength={16}
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                      onPaste={(e) => {
+                        e.preventDefault();
+                        const pasted = e.clipboardData.getData("text");
+                        const clean = normalizePhoneNumber(pasted);
+                        setPhone(clean);
+                      }}
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/\D/g, "");
+                        const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
+                        setPhone(clean);
+                      }}
                       placeholder="9876543210 (10 digits)"
                       className={`w-full px-3.5 py-2.5 pr-10 rounded-xl border font-medium text-gray-900 focus:ring-2 bg-white text-xs transition-colors ${
                         phoneStatus === "conflict"
@@ -1684,8 +1696,19 @@ export default function StaffManagementPage() {
                     <div className="relative flex-1">
                       <input
                         type="tel"
+                        maxLength={16}
                         value={editPhone}
-                        onChange={(e) => setEditPhone(e.target.value)}
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          const pasted = e.clipboardData.getData("text");
+                          const clean = normalizePhoneNumber(pasted);
+                          setEditPhone(clean);
+                        }}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, "");
+                          const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
+                          setEditPhone(clean);
+                        }}
                         placeholder="9876543210 (10 digits)"
                         className={`w-full px-3.5 py-2.5 pr-10 rounded-xl border font-medium text-gray-900 focus:ring-2 bg-white text-xs transition-colors ${
                           editPhoneStatus === "conflict"

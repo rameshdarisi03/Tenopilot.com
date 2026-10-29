@@ -51,7 +51,7 @@ import { propertyStore } from "@/constants/propertyLayoutStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { SelfKycDeskStandeeModal } from "@/components/SelfKycDeskStandeeModal";
-import { buildWhatsAppUrl } from "@/utils/security";
+import { buildWhatsAppUrl, normalizePhoneNumber } from "@/utils/security";
 import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
 import { getCanonicalPortalOrigin } from "@/utils/urlUtils";
 import { useAuth } from "@/providers/AuthProvider";
@@ -1642,10 +1642,20 @@ export default function SelfKycDeskPage({
                     />
                     <input
                       type="tel"
-                      maxLength={10}
+                      maxLength={16}
                       placeholder="9876543210 (Optional if email entered)"
                       value={inviteCandidatePhone}
-                      onChange={(e) => setInviteCandidatePhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                      onPaste={(e) => {
+                        e.preventDefault();
+                        const pasted = e.clipboardData.getData("text");
+                        const clean = normalizePhoneNumber(pasted);
+                        setInviteCandidatePhone(clean);
+                      }}
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/\D/g, "");
+                        const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
+                        setInviteCandidatePhone(clean);
+                      }}
                       className={`flex-1 px-3 py-2.5 rounded-xl border text-xs font-semibold text-gray-900 focus:ring-1 transition-colors ${
                         existingResidentConflict
                           ? "border-red-500 bg-red-50/40 text-red-950 focus:ring-red-500"

@@ -24,6 +24,7 @@ import {
   Check,
   Mail,
 } from "lucide-react";
+import { normalizePhoneNumber } from "@/utils/security";
 import { useAuth } from "@/providers/AuthProvider";
 import { auth, db } from "@/lib/firebase";
 import { doc, setDoc, getDoc, deleteDoc, collection, query, where, getDocs } from "firebase/firestore";
@@ -1097,11 +1098,20 @@ function WelcomeOnboardingContent() {
                             <input
                               type="tel"
                               inputMode="numeric"
-                              maxLength={10}
+                              maxLength={16}
                               placeholder="98765 43210"
                               value={phoneInput}
+                              onPaste={(e) => {
+                                e.preventDefault();
+                                const pasted = e.clipboardData.getData("text");
+                                const clean = normalizePhoneNumber(pasted);
+                                setPhoneInput(clean);
+                                setPhoneError(null);
+                              }}
                               onChange={(e) => {
-                                setPhoneInput(e.target.value.replace(/\D/g, "").slice(0, 10));
+                                const digits = e.target.value.replace(/\D/g, "");
+                                const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
+                                setPhoneInput(clean);
                                 setPhoneError(null);
                               }}
                               disabled={phoneOtpSent || isSendingPhoneOtp}

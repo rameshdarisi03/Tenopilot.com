@@ -143,9 +143,35 @@ export function normalizeAndSortBuildingStructure(floors: FloorConfig[]): FloorC
 
   const consolidated = Array.from(floorMap.values());
 
-  // 1. Sort rooms inside each floor naturally (101, 102, 103, 104, 105, 106, 107...)
+  // 1. Sort rooms inside each floor naturally (101, 102, 103, 104, 105, 106, 107...) & Auto-Heal Bed Slot Letters (Bed A, Bed B, Bed C...)
   consolidated.forEach((fl) => {
     fl.rooms.sort((a, b) => compareRoomNumbers(a.roomNumber, b.roomNumber));
+    fl.rooms.forEach((rm) => {
+      if (Array.isArray(rm.beds) && rm.beds.length > 0) {
+        const seenLetters = new Set<string>();
+        const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        let alphaIdx = 0;
+
+        rm.beds.forEach((b, idx) => {
+          const cleanCode = (b.bedCode || "").trim().toUpperCase();
+          const letterMatch = cleanCode.match(/[A-Z]/);
+          let assignedLetter = letterMatch ? letterMatch[0] : "";
+
+          // If empty or duplicate bed letter in same room (e.g. two 'Bed A' slots)
+          if (!assignedLetter || seenLetters.has(assignedLetter)) {
+            while (alphaIdx < alphabet.length && seenLetters.has(alphabet[alphaIdx])) {
+              alphaIdx++;
+            }
+            assignedLetter = alphaIdx < alphabet.length ? alphabet[alphaIdx] : String(idx + 1);
+            b.bedCode = `Bed ${assignedLetter}`;
+          } else {
+            b.bedCode = `Bed ${assignedLetter}`;
+          }
+          seenLetters.add(assignedLetter);
+        });
+        rm.sharingType = Math.max(rm.sharingType || 0, rm.beds.length);
+      }
+    });
     fl.totalBeds = fl.rooms.reduce((acc, r) => acc + (r.beds ? r.beds.length : 0), 0);
   });
 
