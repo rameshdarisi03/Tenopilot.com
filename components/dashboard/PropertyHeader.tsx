@@ -62,7 +62,27 @@ export function PropertyHeader({
       : (profile?.assignedPropertyId || savedSessionData?.assignedPropertyId || "prop-1792314481132");
 
   const displayName = profile?.displayName || savedSessionData?.name || "Property Owner";
-  const userEmail = profile?.email || savedSessionData?.email || "owner@tenopilot.com";
+  const rawEmail = profile?.email || savedSessionData?.email || "";
+  const rawPhone = profile?.phone || savedSessionData?.phone || "";
+  const isSyntheticEmail =
+    !rawEmail ||
+    rawEmail.startsWith("phone_") ||
+    rawEmail.includes("phone.tenopilot") ||
+    rawEmail.includes("tenopilot.auth") ||
+    !rawEmail.includes("@");
+
+  let displayIdentifier = "";
+  if (!isSyntheticEmail) {
+    displayIdentifier = rawEmail;
+  } else {
+    const rawDigits = (rawPhone || (rawEmail.match(/phone_(\d+)/)?.[1] || "")).replace(/\D/g, "");
+    const pure10 = rawDigits.slice(-10);
+    if (pure10.length === 10) {
+      displayIdentifier = `+91 ${pure10.slice(0, 5)} ${pure10.slice(5)}`;
+    }
+  }
+
+  const userEmail = displayIdentifier || "Property Owner";
   const userInitials = displayName.split(" ").map((n: string) => n.charAt(0)).join("").toUpperCase().slice(0, 2) || "PO";
   const currentPropertyName =
     portfolioStore.getProperties().find((p) => p.id === effectivePropertyId)?.name ||

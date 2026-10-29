@@ -477,21 +477,47 @@ export async function executeFastTrackBatchIngest(
 
     currentStructure.forEach((floor) => {
       floor.rooms.forEach((room) => {
+        // 1. Canonical bed sorting: ensure Bed A precedes Bed B, Bed C...
+        if (Array.isArray(room.beds)) {
+          room.beds.sort((a, b) =>
+            (a.bedCode || "").localeCompare(b.bedCode || "", undefined, { numeric: true, sensitivity: "base" })
+          );
+        }
+
         const roomOccupants = activeOccupantsByRoom.get(room.roomNumber.toUpperCase().trim()) || [];
         const usedOccIdsInRoom = new Set<string>();
+        const bedAssignments = new Map<string, any>();
 
+        // Step 1: Assign occupants who have an exact bedCode match
         room.beds.forEach((bed) => {
           const cleanBedCode = (bed.bedCode || "").toUpperCase().trim();
-          // Match by bedCode first, fallback to first unassigned occupant in room
-          const matchingOcc =
-            roomOccupants.find(
-              (o) =>
-                !usedOccIdsInRoom.has(o.id) &&
-                (o.bedCode || "").toUpperCase().trim() === cleanBedCode
-            ) || roomOccupants.find((o) => !usedOccIdsInRoom.has(o.id));
+          const exactMatch = roomOccupants.find(
+            (o) =>
+              !usedOccIdsInRoom.has(o.id) &&
+              (o.bedCode || "").toUpperCase().trim() === cleanBedCode
+          );
+          if (exactMatch) {
+            usedOccIdsInRoom.add(exactMatch.id);
+            bedAssignments.set(bed.id, exactMatch);
+          }
+        });
 
+        // Step 2: Sequentially allocate unassigned occupants to unassigned empty beds in canonical order (Bed A, Bed B...)
+        const remainingOccupants = roomOccupants.filter((o) => !usedOccIdsInRoom.has(o.id));
+        let remIdx = 0;
+        room.beds.forEach((bed) => {
+          if (!bedAssignments.has(bed.id) && remIdx < remainingOccupants.length) {
+            const occ = remainingOccupants[remIdx++];
+            usedOccIdsInRoom.add(occ.id);
+            occ.bedCode = bed.bedCode; // Align occupant bedCode
+            bedAssignments.set(bed.id, occ);
+          }
+        });
+
+        // Step 3: Apply assignments to beds
+        room.beds.forEach((bed) => {
+          const matchingOcc = bedAssignments.get(bed.id);
           if (matchingOcc) {
-            usedOccIdsInRoom.add(matchingOcc.id);
             bed.status =
               matchingOcc.lifecycleStatus === "Notice"
                 ? "Vacating"
@@ -499,7 +525,6 @@ export async function executeFastTrackBatchIngest(
                 ? "Guest"
                 : "Occupied";
             bed.occupant = matchingOcc;
-            matchingOcc.bedCode = bed.bedCode; // Align bed code to physical layout
             structureUpdated = true;
           } else {
             bed.status = "Available";

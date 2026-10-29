@@ -148,6 +148,11 @@ export function normalizeAndSortBuildingStructure(floors: FloorConfig[]): FloorC
     fl.rooms.sort((a, b) => compareRoomNumbers(a.roomNumber, b.roomNumber));
     fl.rooms.forEach((rm) => {
       if (Array.isArray(rm.beds) && rm.beds.length > 0) {
+        // Canonical Bed Sorting: Ensure Bed A always precedes Bed B, Bed C, etc.
+        rm.beds.sort((a, b) =>
+          (a.bedCode || "").localeCompare(b.bedCode || "", undefined, { numeric: true, sensitivity: "base" })
+        );
+
         const seenLetters = new Set<string>();
         const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         let alphaIdx = 0;

@@ -202,15 +202,29 @@ function PropertyMapContent({
 
     propertyGrid.forEach((floor) => {
       floor.rooms.forEach((room) => {
-        room.beds.forEach((bed) => {
+        const sortedBeds = [...(room.beds || [])].sort((a, b) =>
+          (a.bedCode || "").localeCompare(b.bedCode || "", undefined, { numeric: true, sensitivity: "base" })
+        );
+        const roomClaimedOccIds = new Set<string>();
+
+        sortedBeds.forEach((bed) => {
           const timeline = getBedOccupantsTimeline(room.roomNumber, bed.bedCode, bed, propertyId);
-          const primaryOcc =
+          let primaryOcc =
             timeline.activeOccupant ||
             (bed.occupant &&
              bed.occupant.lifecycleStatus !== "Past" &&
              bed.occupant.lifecycleStatus !== "Booked"
               ? bed.occupant
               : undefined);
+
+          // Deduplicate: If this occupant was already claimed by an earlier bed in this room, do not duplicate
+          if (primaryOcc) {
+            if (roomClaimedOccIds.has(primaryOcc.id)) {
+              primaryOcc = undefined;
+            } else {
+              roomClaimedOccIds.add(primaryOcc.id);
+            }
+          }
           const rawNext =
             timeline.nextBooking ||
             (bed.occupant && bed.occupant.lifecycleStatus === "Booked"
@@ -303,18 +317,32 @@ function PropertyMapContent({
               return false;
             return true;
           })
-          .map((rm) => ({
-            ...rm,
-            beds: rm.beds.filter((bd) => {
-              if (activeFilterStatus === "ALL") return true;
-              const timeline = getBedOccupantsTimeline(rm.roomNumber, bd.bedCode, bd, propertyId);
-              const primaryOcc =
-                timeline.activeOccupant ||
-                (bd.occupant &&
-                 bd.occupant.lifecycleStatus !== "Past" &&
-                 bd.occupant.lifecycleStatus !== "Booked"
-                  ? bd.occupant
-                  : undefined);
+          .map((rm) => {
+            const sortedBeds = [...(rm.beds || [])].sort((a, b) =>
+              (a.bedCode || "").localeCompare(b.bedCode || "", undefined, { numeric: true, sensitivity: "base" })
+            );
+            const rmClaimedOccIds = new Set<string>();
+
+            return {
+              ...rm,
+              beds: sortedBeds.filter((bd) => {
+                if (activeFilterStatus === "ALL") return true;
+                const timeline = getBedOccupantsTimeline(rm.roomNumber, bd.bedCode, bd, propertyId);
+                let primaryOcc =
+                  timeline.activeOccupant ||
+                  (bd.occupant &&
+                   bd.occupant.lifecycleStatus !== "Past" &&
+                   bd.occupant.lifecycleStatus !== "Booked"
+                    ? bd.occupant
+                    : undefined);
+
+                if (primaryOcc) {
+                  if (rmClaimedOccIds.has(primaryOcc.id)) {
+                    primaryOcc = undefined;
+                  } else {
+                    rmClaimedOccIds.add(primaryOcc.id);
+                  }
+                }
               const rawNext =
                 timeline.nextBooking ||
                 (bd.occupant && bd.occupant.lifecycleStatus === "Booked"
@@ -341,8 +369,9 @@ function PropertyMapContent({
 
               return effStatus === activeFilterStatus;
             }),
-          }))
-          .filter((rm) => rm.beds.length > 0),
+          };
+        })
+        .filter((rm) => rm.beds.length > 0),
       }))
       .filter((fl) => fl.rooms.length > 0);
   }, [propertyGrid, selectedFloor, selectedRoom, activeFilterStatus]);
@@ -694,17 +723,31 @@ function PropertyMapContent({
                               ? "grid-cols-4"
                               : "grid-cols-5";
 
+                          const sortedBeds = [...(room.beds || [])].sort((a, b) =>
+                            (a.bedCode || "").localeCompare(b.bedCode || "", undefined, { numeric: true, sensitivity: "base" })
+                          );
+                          const roomCardClaimedOccIds = new Set<string>();
+
                           return (
                             <div className={`grid ${gridCols} gap-2.5`}>
-                              {room.beds.map((bed) => {
+                              {sortedBeds.map((bed) => {
                                   const timeline = getBedOccupantsTimeline(room.roomNumber, bed.bedCode, bed, propertyId);
-                                  const primaryOcc =
+                                  let primaryOcc =
                                     timeline.activeOccupant ||
                                     (bed.occupant &&
                                      bed.occupant.lifecycleStatus !== "Past" &&
                                      bed.occupant.lifecycleStatus !== "Booked"
                                       ? bed.occupant
                                       : undefined);
+
+                                  // Deduplicate: If an occupant was already rendered on an earlier bed in this room, do NOT duplicate
+                                  if (primaryOcc) {
+                                    if (roomCardClaimedOccIds.has(primaryOcc.id)) {
+                                      primaryOcc = undefined;
+                                    } else {
+                                      roomCardClaimedOccIds.add(primaryOcc.id);
+                                    }
+                                  }
                                   const rawNext =
                                     timeline.nextBooking ||
                                     (bed.occupant && bed.occupant.lifecycleStatus === "Booked"

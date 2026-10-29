@@ -1115,7 +1115,12 @@ export function getBedOccupantsTimeline(
       }
       return false;
     }) ||
-    (bed.occupant && bed.occupant.lifecycleStatus !== "Booked" && bed.occupant.lifecycleStatus !== "Past" ? bed.occupant : undefined);
+    (bed.occupant &&
+     bed.occupant.lifecycleStatus !== "Booked" &&
+     bed.occupant.lifecycleStatus !== "Past" &&
+     (!bed.occupant.bedCode || (bed.occupant.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "") === cleanBed)
+      ? bed.occupant
+      : undefined);
 
   // 2. Chronological list of upcoming pre-booked reservations strictly in the FUTURE (today < joiningDate)
   const bookedList = matching
