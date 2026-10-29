@@ -38,6 +38,10 @@ import {
   Mail,
   Send,
   Receipt,
+  LayoutGrid,
+  Smartphone,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import {
   parseRawSpreadsheetText,
@@ -140,7 +144,10 @@ export function FastTrackImportModal({
   // Ingestion final result
   const [ingestResult, setIngestResult] = useState<BatchIngestResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isMaximized, setIsMaximized] = useState<boolean>(false);
+  const [isMaximized, setIsMaximized] = useState<boolean>(true);
+  const [viewMode, setViewMode] = useState<"cards" | "table">("table");
+  const [draftSavedToast, setDraftSavedToast] = useState<{ message: string; count: number } | null>(null);
+  const [expandedCardIndices, setExpandedCardIndices] = useState<Set<number>>(new Set());
   const [dateFormatMode, setDateFormatMode] = useState<"DD-MMM-YYYY" | "DD/MM/YYYY" | "YYYY-MM-DD">("DD-MMM-YYYY");
   const [activeFocusedRow, setActiveFocusedRow] = useState<number | null>(null);
 
@@ -447,21 +454,30 @@ export function FastTrackImportModal({
   const [isReScanningWithAi, setIsReScanningWithAi] = useState(false);
 
   const handleRescanWithGeminiAi = async () => {
-    if (!pastedText || pastedText.trim().length === 0) {
-      alert("No raw spreadsheet text found to re-scan. You can edit the rows directly or paste new data.");
+    if ((!pastedText || pastedText.trim().length === 0) && editableRows.length === 0) {
+      alert("No roster data found to enhance. Please paste spreadsheet data, upload images, or add resident rows first.");
       return;
     }
 
     setIsReScanningWithAi(true);
     try {
+      const payload: any = {
+        propertyId,
+        defaultRentalTiers: settings.rentalTiers,
+      };
+
+      if (pastedText && pastedText.trim().length > 0) {
+        payload.rawText = pastedText;
+      } else {
+        payload.existingRows = editableRows;
+        payload.customInstructions =
+          "Standardize all tenant names to Proper Case, normalize Indian mobile numbers to 10 digits, resolve room sharing types and bed allocations, validate dates, and clean up rents.";
+      }
+
       const apiRes = await fetch("/api/fasttrack/ai-scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          rawText: pastedText,
-          propertyId,
-          defaultRentalTiers: settings.rentalTiers,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!apiRes.ok) {
@@ -630,7 +646,12 @@ export function FastTrackImportModal({
       localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftData));
       setSavedDraft(draftData);
       setDraftSaveStatus(`Cloud draft saved ✓ (${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })})`);
-      setTimeout(() => setDraftSaveStatus(null), 3500);
+      setDraftSavedToast({
+        message: `Draft successfully saved to cloud! All ${targetRows.length} resident entries are secure. You can close this window anytime and resume whenever you want.`,
+        count: targetRows.length,
+      });
+      setTimeout(() => setDraftSaveStatus(null), 4000);
+      setTimeout(() => setDraftSavedToast(null), 6000);
 
       // 2. Persistent Firestore sync
       await saveFastTrackDraftToFirestore(propertyId, draftData);
@@ -1052,7 +1073,11 @@ export function FastTrackImportModal({
       setParsedResult(null);
       setEditableRows([]);
       setIngestResult(null);
-      setIsMaximized(false);
+      setIsMaximized(true);
+      if (typeof window !== "undefined" && window.innerWidth < 768) {
+        setViewMode("cards");
+      }
+      setDraftSavedToast(null);
       setProcessingError(null);
       setProcessingProgress(0);
       setShowAppendDrawer(false);
@@ -1762,10 +1787,12 @@ export function FastTrackImportModal({
   const uniqueRoomsCount = new Set(editableRows.map((r) => r.roomNumber)).size;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-2 md:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div
-        className={`bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden transition-all duration-300 ${
-          isMaximized ? "w-[98vw] h-[96vh]" : "w-full max-w-4xl max-h-[90vh]"
+        className={`bg-white shadow-2xl border border-gray-100 flex flex-col overflow-hidden transition-all duration-300 ${
+          isMaximized
+            ? "w-full h-full sm:w-[98vw] sm:h-[96vh] rounded-none sm:rounded-3xl"
+            : "w-full max-w-4xl max-h-[90vh] rounded-2xl"
         }`}
       >
         {/* MODAL HEADER */}
@@ -2696,8 +2723,53 @@ export function FastTrackImportModal({
                   <span>+ Add Resident</span>
                 </button>
 
+                {/* View Mode Toggle (Cards vs Table) */}
+                <div className="flex items-center rounded-xl bg-gray-100 p-0.5 border border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("cards")}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                      viewMode === "cards" ? "bg-white text-gray-900 shadow-xs" : "text-gray-500 hover:text-gray-800"
+                    }`}
+                    title="Mobile-friendly vertical card view"
+                  >
+                    <Smartphone className="w-3.5 h-3.5" />
+                    <span>Cards</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("table")}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                      viewMode === "table" ? "bg-white text-gray-900 shadow-xs" : "text-gray-500 hover:text-gray-800"
+                    }`}
+                    title="Spreadsheet grid table view"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span>Table</span>
+                  </button>
+                </div>
               </div>
             </div>
+
+            {/* 💾 Draft Saved Confirmation Banner */}
+            {draftSavedToast && (
+              <div className="px-4 py-3 rounded-2xl bg-emerald-50 border border-emerald-300 text-xs font-semibold text-emerald-950 flex items-center justify-between gap-3 shadow-xs animate-in fade-in">
+                <div className="flex items-center gap-2.5">
+                  <Save className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <div>
+                    <p className="font-bold text-emerald-950">Draft Saved to Cloud ✓</p>
+                    <p className="text-[11px] text-emerald-800">{draftSavedToast.message}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDraftSavedToast(null)}
+                  className="p-1 rounded-lg hover:bg-emerald-200 text-emerald-800 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
             {/* Required Fields Incomplete Alert Banner */}
             {hasAttemptedEnroll && hasInvalidRows && (
@@ -3052,30 +3124,319 @@ Anil Verma   9812345678   Room 103   12000"
                   </span>
                 </div>
               )}
-              <div className="overflow-x-auto overflow-y-auto max-h-[52vh] sm:max-h-[58vh]">
+              {viewMode === "cards" ? (
+                <div className="p-3 space-y-3.5 overflow-y-auto max-h-[58vh] bg-gray-50/60 divide-y-0">
+                  {editableRows.map((row, idx) => {
+                    const isDuplicateInTable = tableDuplicateIndices.has(idx);
+                    const showRowErrors = hasAttemptedEnroll;
+                    const isNameMissing = showRowErrors && (!row.fullName || !row.fullName.trim());
+                    const cleanPhoneDigits = (row.phone || "").replace(/\D/g, "");
+                    const isPhoneInvalid =
+                      showRowErrors && (!cleanPhoneDigits || cleanPhoneDigits.length !== 10 || !/^[6-9]/.test(cleanPhoneDigits));
+                    const isRoomMissing = showRowErrors && (!row.roomNumber || !row.roomNumber.trim());
+                    const isRentInvalid = showRowErrors && (!row.rentAmount || Number(row.rentAmount) <= 0);
+                    const isDateMissing = showRowErrors && !row.joiningDate;
+                    const isExpanded = expandedCardIndices.has(idx);
+
+                    const hasCardErrors = isNameMissing || isPhoneInvalid || isRoomMissing || isRentInvalid || isDateMissing || isDuplicateInTable;
+
+                    return (
+                      <div
+                        key={row.id || idx}
+                        className={`rounded-2xl border p-4 shadow-2xs space-y-3 transition-all ${
+                          isDuplicateInTable
+                            ? "bg-rose-50/80 border-rose-300 ring-1 ring-rose-200"
+                            : hasCardErrors
+                            ? "bg-rose-50/30 border-rose-300"
+                            : "bg-white border-gray-200 hover:border-gray-300"
+                        }`}
+                      >
+                        {/* 1. Card Top Bar */}
+                        <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-full bg-gray-100 font-mono text-xs font-bold text-gray-700 flex items-center justify-center">
+                              {idx + 1}
+                            </span>
+                            <span className="px-2.5 py-0.5 rounded-lg bg-orange-100 text-[#c2652a] font-bold text-xs">
+                              Room {row.roomNumber || "—"}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-lg bg-purple-50 text-purple-700 font-bold text-xs border border-purple-200">
+                              {row.bedCode || "Auto Bed"}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {hasCardErrors ? (
+                              <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 text-[10px] font-bold flex items-center gap-1 border border-rose-200">
+                                <AlertCircle className="w-3 h-3 text-rose-600" /> Fix Info
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[10px] font-bold flex items-center gap-1 border border-emerald-200">
+                                <Check className="w-3 h-3 text-emerald-600" /> Ready
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => removeRow(idx)}
+                              title="Delete Resident"
+                              className="p-1 rounded-lg hover:bg-rose-50 text-gray-400 hover:text-rose-600 transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 2. Tenant Full Name */}
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-500 uppercase flex items-center justify-between">
+                            <span>Tenant Name <span className="text-rose-500 font-extrabold">*</span></span>
+                            {isNameMissing && <span className="text-[10px] text-rose-600 font-bold">Required</span>}
+                          </label>
+                          <input
+                            type="text"
+                            value={row.fullName}
+                            onChange={(e) => updateRowField(idx, "fullName", e.target.value)}
+                            placeholder="Full Name (e.g. Sudharshan B)"
+                            className={`w-full px-3 py-2 mt-1 rounded-xl text-xs font-bold transition-all border ${
+                              isNameMissing
+                                ? "border-rose-400 bg-rose-50/60 text-rose-950 ring-1 ring-rose-200"
+                                : "border-gray-200 bg-white text-gray-900 focus:border-[#c2652a]"
+                            }`}
+                          />
+                        </div>
+
+                        {/* 3. 10-Digit Mobile Number */}
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-500 uppercase flex items-center justify-between">
+                            <span>10-Digit Mobile <span className="text-rose-500 font-extrabold">*</span></span>
+                            {isPhoneInvalid && <span className="text-[10px] text-rose-600 font-bold">10 digits required</span>}
+                          </label>
+                          <div className="relative mt-1">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 font-mono">
+                              +91
+                            </span>
+                            <input
+                              type="tel"
+                              maxLength={10}
+                              value={row.phone || ""}
+                              onChange={(e) => {
+                                const digits = e.target.value.replace(/\D/g, "");
+                                updateRowField(idx, "phone", digits);
+                              }}
+                              placeholder="9876543210"
+                              className={`w-full pl-11 pr-3 py-2 rounded-xl text-xs font-bold font-mono transition-all border ${
+                                isPhoneInvalid
+                                  ? "border-rose-400 bg-rose-50/60 text-rose-950 ring-1 ring-rose-200"
+                                  : "border-gray-200 bg-white text-gray-900 focus:border-[#c2652a]"
+                              }`}
+                            />
+                          </div>
+                        </div>
+
+                        {/* 4. Room No & Sharing Type */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-1">
+                              Room <span className="text-rose-500 font-extrabold">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={row.roomNumber}
+                              onChange={(e) => updateRowField(idx, "roomNumber", e.target.value.toUpperCase())}
+                              placeholder="e.g. 104"
+                              className={`w-full px-3 py-2 mt-1 rounded-xl text-xs font-bold text-center font-mono border ${
+                                isRoomMissing
+                                  ? "border-rose-400 bg-rose-50/60 text-rose-950 ring-1 ring-rose-200"
+                                  : "border-gray-200 bg-white text-gray-900 focus:border-[#c2652a]"
+                              }`}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-500 uppercase">
+                              Sharing
+                            </label>
+                            <select
+                              value={row.sharingType || 2}
+                              onChange={(e) => updateRowField(idx, "sharingType", Number(e.target.value))}
+                              className="w-full px-2 py-2 mt-1 rounded-xl text-xs font-bold border border-gray-200 bg-white text-gray-900 focus:border-[#c2652a]"
+                            >
+                              <option value={1}>Single</option>
+                              <option value={2}>2-Sharing</option>
+                              <option value={3}>3-Sharing</option>
+                              <option value={4}>4-Sharing</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* 5. Monthly Rent & Security Deposit */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-1">
+                              Rent (₹) <span className="text-rose-500 font-extrabold">*</span>
+                            </label>
+                            <input
+                              type="number"
+                              value={row.rentAmount || ""}
+                              onChange={(e) => updateRowField(idx, "rentAmount", Number(e.target.value))}
+                              placeholder="₹ Rent"
+                              className={`w-full px-3 py-2 mt-1 rounded-xl text-xs font-bold font-mono border ${
+                                isRentInvalid
+                                  ? "border-rose-400 bg-rose-50/60 text-rose-950 ring-1 ring-rose-200"
+                                  : "border-gray-200 bg-white text-gray-900 focus:border-[#c2652a]"
+                              }`}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-500 uppercase">
+                              Deposit (₹)
+                            </label>
+                            <input
+                              type="number"
+                              value={row.securityDeposit ?? 0}
+                              onChange={(e) => updateRowField(idx, "securityDeposit", Number(e.target.value))}
+                              placeholder="₹0"
+                              className="w-full px-3 py-2 mt-1 rounded-xl text-xs font-bold font-mono border border-gray-200 bg-white text-gray-900 focus:border-[#c2652a]"
+                            />
+                          </div>
+                        </div>
+
+                        {/* 6. Joining Date & Stay Type */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-1">
+                              Joining Date <span className="text-rose-500 font-extrabold">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={row.joiningDate || ""}
+                              onChange={(e) => updateRowField(idx, "joiningDate", e.target.value)}
+                              placeholder="e.g. 1st Jan"
+                              className={`w-full px-3 py-2 mt-1 rounded-xl text-xs font-bold border ${
+                                isDateMissing
+                                  ? "border-rose-400 bg-rose-50/60 text-rose-950 ring-1 ring-rose-200"
+                                  : "border-gray-200 bg-white text-gray-900 focus:border-[#c2652a]"
+                              }`}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-500 uppercase">
+                              Stay Type
+                            </label>
+                            <select
+                              value={row.stayType || "Tenant"}
+                              onChange={(e) => updateRowField(idx, "stayType", e.target.value as any)}
+                              className="w-full px-2 py-2 mt-1 rounded-xl text-xs font-bold border border-gray-200 bg-white text-gray-900 focus:border-[#c2652a]"
+                            >
+                              <option value="Tenant">Tenant</option>
+                              <option value="Guest">Guest</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* 7. Quick Payment Status Toggles */}
+                        <div className="flex items-center gap-4 pt-1">
+                          <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(row.isSecurityDepositPaid)}
+                              onChange={(e) => updateRowField(idx, "isSecurityDepositPaid", e.target.checked)}
+                              className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+                            />
+                            <span>Deposit Paid</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(row.isCurrentMonthRentPaid)}
+                              onChange={(e) => updateRowField(idx, "isCurrentMonthRentPaid", e.target.checked)}
+                              className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+                            />
+                            <span>Rent Paid (This Mo)</span>
+                          </label>
+                        </div>
+
+                        {/* 8. Optional Details Accordion */}
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setExpandedCardIndices((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(idx)) next.delete(idx);
+                                else next.add(idx);
+                                return next;
+                              });
+                            }}
+                            className="text-[11px] font-bold text-purple-700 hover:text-purple-800 flex items-center gap-1 cursor-pointer"
+                          >
+                            {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            <span>{isExpanded ? "Hide Optional Details" : "+ Workplace, Profession & Arrears"}</span>
+                          </button>
+
+                          {isExpanded && (
+                            <div className="mt-2 pt-2 border-t border-gray-100 space-y-2">
+                              <div>
+                                <label className="text-[10px] font-bold text-gray-400 uppercase">Workplace</label>
+                                <input
+                                  type="text"
+                                  value={row.workplace || ""}
+                                  onChange={(e) => updateRowField(idx, "workplace", e.target.value)}
+                                  placeholder="e.g. Infosys / Christ Univ"
+                                  className="w-full px-3 py-1.5 mt-1 rounded-xl text-xs border border-gray-200 bg-white"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-gray-400 uppercase">Profession</label>
+                                <input
+                                  type="text"
+                                  value={row.occupation || ""}
+                                  onChange={(e) => updateRowField(idx, "occupation", e.target.value)}
+                                  placeholder="e.g. Software Dev"
+                                  className="w-full px-3 py-1.5 mt-1 rounded-xl text-xs border border-gray-200 bg-white"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-gray-400 uppercase">Prior Arrears (₹)</label>
+                                <input
+                                  type="number"
+                                  value={row.priorArrearsAmount || 0}
+                                  onChange={(e) => updateRowField(idx, "priorArrearsAmount", Number(e.target.value))}
+                                  placeholder="0"
+                                  className="w-full px-3 py-1.5 mt-1 rounded-xl text-xs font-mono border border-gray-200 bg-white"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="overflow-x-auto overflow-y-auto max-h-[52vh] sm:max-h-[58vh]">
                 <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-gray-100/90 backdrop-blur-xs sticky top-0 z-10 text-[11px] font-bold text-gray-700 border-b border-gray-200">
+                  <thead className="bg-gray-100 sticky top-0 z-30 text-[11px] font-bold text-gray-700 border-b border-gray-200 shadow-2xs">
                     <tr>
-                      <th className="py-2.5 px-2.5 w-10 min-w-[40px] max-w-[40px] text-center font-mono sticky left-0 top-0 z-30 bg-gray-100">#</th>
-                      <th className="py-2.5 px-2.5 min-w-[76px] max-w-[76px] text-center sticky left-10 top-0 z-30 bg-gray-100">
+                      <th className="py-2.5 px-2.5 w-10 min-w-[40px] max-w-[40px] text-center font-mono sticky left-0 top-0 z-50 bg-gray-100 border-b border-gray-200">#</th>
+                      <th className="py-2.5 px-2.5 min-w-[76px] max-w-[76px] text-center sticky left-10 top-0 z-50 bg-gray-100 border-b border-gray-200">
                         <span>Room</span> <span className="text-rose-500 font-extrabold">*</span>
                       </th>
-                      <th className="py-2.5 px-3 min-w-[170px] sticky left-[116px] top-0 z-30 bg-gray-100 border-r border-gray-300 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.08)]">
+                      <th className="py-2.5 px-3 min-w-[170px] sticky left-[116px] top-0 z-50 bg-gray-100 border-r border-b border-gray-300 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.08)]">
                         <span>Tenant Name</span> <span className="text-rose-500 font-extrabold">*</span>
                       </th>
-                      <th className="py-2.5 px-3 min-w-[85px] text-center">Bed Slot</th>
-                      <th className="py-2.5 px-3 min-w-[130px]">
+                      <th className="py-2.5 px-3 min-w-[85px] text-center bg-gray-100 border-b border-gray-200">Bed Slot</th>
+                      <th className="py-2.5 px-3 min-w-[130px] bg-gray-100 border-b border-gray-200">
                         <span>10-Digit Mobile</span> <span className="text-rose-500 font-extrabold">*</span>
                       </th>
-                      <th className="py-2.5 px-3 min-w-[105px] text-center">Sharing</th>
-                      <th className="py-2.5 px-3 min-w-[140px]">
+                      <th className="py-2.5 px-3 min-w-[105px] text-center bg-gray-100 border-b border-gray-200">Sharing</th>
+                      <th className="py-2.5 px-3 min-w-[140px] bg-gray-100 border-b border-gray-200">
                         <span>Workplace</span> <span className="text-gray-400 font-normal text-[10px]">(Optional)</span>
                       </th>
-                      <th className="py-2.5 px-3 min-w-[130px]">
+                      <th className="py-2.5 px-3 min-w-[130px] bg-gray-100 border-b border-gray-200">
                         <span>Profession</span> <span className="text-gray-400 font-normal text-[10px]">(Optional)</span>
                       </th>
-                      <th className="py-2.5 px-3 min-w-[120px] text-center">Stay Type</th>
-                      <th className="py-2.5 px-3 min-w-[155px]">
+                      <th className="py-2.5 px-3 min-w-[120px] text-center bg-gray-100 border-b border-gray-200">Stay Type</th>
+                      <th className="py-2.5 px-3 min-w-[155px] bg-gray-100 border-b border-gray-200">
                         <div className="flex items-center justify-between gap-1.5">
                           <span>Joining Date <span className="text-rose-500 font-extrabold">*</span></span>
                           <select
@@ -3090,23 +3451,23 @@ Anil Verma   9812345678   Room 103   12000"
                           </select>
                         </div>
                       </th>
-                      <th className="py-2.5 px-3 min-w-[105px]">
+                      <th className="py-2.5 px-3 min-w-[105px] bg-gray-100 border-b border-gray-200">
                         <span>Monthly Rent</span> <span className="text-rose-500 font-extrabold">*</span>
                       </th>
-                      <th className="py-2.5 px-3 min-w-[105px]">
+                      <th className="py-2.5 px-3 min-w-[105px] bg-gray-100 border-b border-gray-200">
                         <span>Deposit</span> <span className="text-rose-500 font-extrabold">*</span>
                       </th>
-                      <th className="py-2.5 px-3 min-w-[130px] text-center">
+                      <th className="py-2.5 px-3 min-w-[130px] text-center bg-gray-100 border-b border-gray-200">
                         <span>Deposit Paid</span> <span className="text-rose-500 font-extrabold">*</span>
                       </th>
-                      <th className="py-2.5 px-3 min-w-[130px] text-center">
+                      <th className="py-2.5 px-3 min-w-[130px] text-center bg-gray-100 border-b border-gray-200">
                         <span>Rent Paid (This Mo)</span> <span className="text-rose-500 font-extrabold">*</span>
                       </th>
-                      <th className="py-2.5 px-3 min-w-[110px]">
+                      <th className="py-2.5 px-3 min-w-[110px] bg-gray-100 border-b border-gray-200">
                         <span>Prior Arrears</span> <span className="text-gray-400 font-normal text-[10px]">(₹0 default)</span>
                       </th>
-                      <th className="py-2.5 px-3 text-center">Status</th>
-                      <th className="py-2.5 px-3 text-center">Action</th>
+                      <th className="py-2.5 px-3 text-center bg-gray-100 border-b border-gray-200">Status</th>
+                      <th className="py-2.5 px-3 text-center bg-gray-100 border-b border-gray-200">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 bg-white">
@@ -3483,6 +3844,7 @@ Anil Verma   9812345678   Room 103   12000"
                   </tbody>
                 </table>
               </div>
+            )}
 
               {/* Bottom Quick Append Action */}
               <div className="p-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
