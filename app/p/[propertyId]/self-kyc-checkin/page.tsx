@@ -32,6 +32,7 @@ import {
 import { propertyStore, FloorConfig, RoomConfig, BedSlotConfig } from "@/constants/propertyLayoutStore";
 import { selfKycStore, SelfKycSubmission } from "@/lib/selfKycStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
+import { portfolioStore } from "@/constants/portfolioStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
@@ -69,7 +70,10 @@ export default function WalkInSelfKycCheckinPage({
   params: Promise<{ propertyId: string }>;
 }) {
   const resolvedParams = use(params);
-  const propertyId = resolvedParams?.propertyId || "sunshine-pg";
+  const propertyId =
+    resolvedParams?.propertyId ||
+    (typeof window !== "undefined" ? window.location.pathname.split("/")[2] : "") ||
+    "";
 
   // Flow State: "STAY_TYPE" -> "BED_SELECT" -> "KYC_FORM" -> "SUCCESS"
   const [step, setStep] = useState<"STAY_TYPE" | "BED_SELECT" | "KYC_FORM" | "SUCCESS">("STAY_TYPE");
@@ -136,7 +140,10 @@ export default function WalkInSelfKycCheckinPage({
     return unsub;
   }, [propertyId]);
 
-  const propertyName = propSettings?.propertyName || "Ramesh Residencies";
+  const propertyName =
+    propSettings?.propertyName ||
+    (propertyId ? portfolioStore.getProperties().find((p) => p.id === propertyId)?.name : null) ||
+    "Resident Digital Gate";
 
   // Existing active residents (phone & email sets) to block duplicate registration on public desk check-in without exposing PII
   const [existingResidentPhones, setExistingResidentPhones] = useState<Set<string>>(new Set());

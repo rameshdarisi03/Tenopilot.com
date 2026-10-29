@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({
           success: true,
           invite: inv,
-          propertyId: inv.propertyId || paramPropId || "sunshine-pg",
+          propertyId: inv.propertyId || paramPropId || "",
         });
       }
     } catch (e) {

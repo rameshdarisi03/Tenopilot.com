@@ -32,15 +32,20 @@ export default function PropertyRouteLayout({
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
 
-  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
-  const [checkingAuth, setCheckingAuth] = useState(true);
-  const [deniedReason, setDeniedReason] = useState<string | null>(null);
-
   // 1. PUBLIC ROUTES EXEMPTION
   // Public tools like Care Desk and Guest Self-KYC must open instantly without login
+  const currentPath =
+    pathname ||
+    (typeof window !== "undefined" ? window.location.pathname : "");
+
   const isPublicRoute =
-    pathname?.includes("/public-complaint") ||
-    pathname?.includes("/self-kyc-checkin");
+    currentPath.includes("/public-complaint") ||
+    currentPath.includes("/self-kyc-checkin") ||
+    currentPath.includes("/self-onboard");
+
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(() => (isPublicRoute ? true : null));
+  const [checkingAuth, setCheckingAuth] = useState(() => (isPublicRoute ? false : true));
+  const [deniedReason, setDeniedReason] = useState<string | null>(null);
 
   useEffect(() => {
     // If it's a public tool, grant access immediately and purge any stale post-login redirects

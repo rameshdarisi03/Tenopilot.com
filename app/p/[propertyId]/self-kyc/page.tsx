@@ -203,9 +203,28 @@ export default function SelfKycDeskPage({
     type?: "success" | "error" | "info";
   } | null>(null);
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const triggerToast = (text: string, type: "success" | "error" | "info" = "success") => {
     setToastMessage({ text, type });
     setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const handleManualRefresh = async () => {
+    if (!propertyId || isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        selfKycStore.refreshSubmissions(propertyId),
+        selfKycStore.refreshInvites(propertyId),
+      ]);
+      triggerToast("Live submissions synchronized with cloud", "success");
+    } catch (e) {
+      console.warn("Manual refresh failed:", e);
+      triggerToast("Failed to sync with cloud", "error");
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   // Subscriptions to self-kyc store and layout store
@@ -225,12 +244,32 @@ export default function SelfKycDeskPage({
       setInvites(list);
     });
 
+    // Proactively fetch fresh state from Firestore on mount
+    selfKycStore.refreshSubmissions(propertyId);
+    selfKycStore.refreshInvites(propertyId);
+
+    // Auto-refresh when manager returns to the tab
+    const handleFocus = () => {
+      selfKycStore.refreshSubmissions(propertyId);
+      selfKycStore.refreshInvites(propertyId);
+    };
+    window.addEventListener("focus", handleFocus);
+
     return () => {
       unsubStructure();
       unsubSubs();
       unsubInvs();
+      window.removeEventListener("focus", handleFocus);
     };
   }, [propertyId]);
+
+  // Refresh submissions whenever the owner switches tabs
+  useEffect(() => {
+    if (propertyId) {
+      selfKycStore.refreshSubmissions(propertyId);
+      selfKycStore.refreshInvites(propertyId);
+    }
+  }, [activeTab, propertyId]);
 
   // Derived lists
   const pendingSubmissions = useMemo(
@@ -921,6 +960,17 @@ export default function SelfKycDeskPage({
             <div className="flex items-center gap-2.5 flex-wrap">
               <button
                 type="button"
+                onClick={handleManualRefresh}
+                disabled={isRefreshing}
+                className="px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-60"
+                title="Force refresh live submissions from cloud without reloading the page"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-gray-600 ${isRefreshing ? "animate-spin text-[#c2652a]" : ""}`} />
+                <span>{isRefreshing ? "Syncing..." : "Sync Cloud"}</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setShowStandeeModal(true)}
                 className="px-4 py-2.5 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-800 text-xs font-bold shadow-xs flex items-center gap-2 transition-all cursor-pointer active:scale-95"
               >
@@ -1266,6 +1316,17 @@ export default function SelfKycDeskPage({
                   <p className="text-xs text-gray-500 max-w-md mx-auto">
                     New applicants who scan the reception desk QR or complete a self-KYC link will appear here for your review and approval.
                   </p>
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={handleManualRefresh}
+                      disabled={isRefreshing}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold transition-all cursor-pointer active:scale-95 disabled:opacity-60"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-[#c2652a]" : ""}`} />
+                      <span>{isRefreshing ? "Checking cloud..." : "Check for New Submissions"}</span>
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

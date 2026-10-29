@@ -16,6 +16,7 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
+import { portfolioStore } from "@/constants/portfolioStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { saveOccupantToFirestore, sanitizeForFirestore } from "@/lib/firestoreService";
 import {
@@ -141,6 +142,7 @@ function notifySubscribers(propId: string) {
 
 export const selfKycStore = {
   subscribeSubmissions(propertyId: string, callback: (subs: SelfKycSubmission[]) => void) {
+    if (!propertyId) return () => {};
     if (!SUBMISSION_LISTENERS.has(propertyId)) {
       SUBMISSION_LISTENERS.set(propertyId, new Set());
     }
@@ -149,10 +151,24 @@ export const selfKycStore = {
     loadLocalCache(propertyId);
     callback(SUBMISSIONS_CACHE.get(propertyId) || []);
 
-    // Setup Firestore listener
+    const colRef = collection(db, "properties", propertyId, "self_kyc_submissions");
+
+    // 1. Proactive fresh getDocs query from Firestore to guarantee zero-latency fresh data on mount
+    getDocs(colRef)
+      .then((snap) => {
+        const fetched: SelfKycSubmission[] = snap.docs.map((d) => d.data() as SelfKycSubmission);
+        fetched.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+        SUBMISSIONS_CACHE.set(propertyId, fetched);
+        saveLocalCache(propertyId, "subs");
+        notifySubscribers(propertyId);
+      })
+      .catch((err) => {
+        console.warn("Direct submissions fetch notice:", err);
+      });
+
+    // 2. Setup real-time Firestore listener
     if (!ACTIVE_UNSUBS.has(`subs_${propertyId}`)) {
       try {
-        const colRef = collection(db, "properties", propertyId, "self_kyc_submissions");
         const unsub = onSnapshot(colRef, (snap) => {
           const fetched: SelfKycSubmission[] = snap.docs.map((d) => d.data() as SelfKycSubmission);
           // Sort newest first
@@ -162,6 +178,7 @@ export const selfKycStore = {
           notifySubscribers(propertyId);
         }, (err) => {
           console.warn("Firestore submissions listener error:", err);
+          ACTIVE_UNSUBS.delete(`subs_${propertyId}`);
         });
         ACTIVE_UNSUBS.set(`subs_${propertyId}`, unsub);
       } catch (e) {
@@ -170,11 +187,21 @@ export const selfKycStore = {
     }
 
     return () => {
-      SUBMISSION_LISTENERS.get(propertyId)?.delete(callback);
+      const set = SUBMISSION_LISTENERS.get(propertyId);
+      set?.delete(callback);
+      // Clean up Firestore listener when no active subscribers remain
+      if (set && set.size === 0) {
+        const unsub = ACTIVE_UNSUBS.get(`subs_${propertyId}`);
+        if (unsub) {
+          try { unsub(); } catch {}
+          ACTIVE_UNSUBS.delete(`subs_${propertyId}`);
+        }
+      }
     };
   },
 
   subscribeInvites(propertyId: string, callback: (invs: SelfKycInvite[]) => void) {
+    if (!propertyId) return () => {};
     if (!INVITE_LISTENERS.has(propertyId)) {
       INVITE_LISTENERS.set(propertyId, new Set());
     }
@@ -184,10 +211,29 @@ export const selfKycStore = {
     const initialList = INVITES_CACHE.get(propertyId) || [];
     callback([...initialList]);
 
-    // Setup Firestore listener to synchronize cloud invites without destructive mutation
+    const colRef = collection(db, "properties", propertyId, "self_kyc_invites");
+
+    // 1. Proactive fresh getDocs query to guarantee zero-latency fresh invites on mount
+    getDocs(colRef)
+      .then((snap) => {
+        const fetched: SelfKycInvite[] = snap.docs.map((d) => d.data() as SelfKycInvite);
+        const local = INVITES_CACHE.get(propertyId) || [];
+        const map = new Map<string, SelfKycInvite>();
+        local.forEach((i) => map.set(i.id, i));
+        fetched.forEach((i) => map.set(i.id, i));
+        const merged = Array.from(map.values());
+        merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        INVITES_CACHE.set(propertyId, merged);
+        saveLocalCache(propertyId, "invs");
+        notifySubscribers(propertyId);
+      })
+      .catch((err) => {
+        console.warn("Direct invites fetch notice:", err);
+      });
+
+    // 2. Setup Firestore listener to synchronize cloud invites without destructive mutation
     if (!ACTIVE_UNSUBS.has(`invs_${propertyId}`)) {
       try {
-        const colRef = collection(db, "properties", propertyId, "self_kyc_invites");
         const unsub = onSnapshot(colRef, (snap) => {
           const fetched: SelfKycInvite[] = snap.docs.map((d) => d.data() as SelfKycInvite);
           const local = INVITES_CACHE.get(propertyId) || [];
@@ -204,6 +250,7 @@ export const selfKycStore = {
           notifySubscribers(propertyId);
         }, (err) => {
           console.warn("Firestore invites listener error:", err);
+          ACTIVE_UNSUBS.delete(`invs_${propertyId}`);
         });
         ACTIVE_UNSUBS.set(`invs_${propertyId}`, unsub);
       } catch (e) {
@@ -212,8 +259,57 @@ export const selfKycStore = {
     }
 
     return () => {
-      INVITE_LISTENERS.get(propertyId)?.delete(callback);
+      const set = INVITE_LISTENERS.get(propertyId);
+      set?.delete(callback);
+      // Clean up Firestore listener when no active subscribers remain
+      if (set && set.size === 0) {
+        const unsub = ACTIVE_UNSUBS.get(`invs_${propertyId}`);
+        if (unsub) {
+          try { unsub(); } catch {}
+          ACTIVE_UNSUBS.delete(`invs_${propertyId}`);
+        }
+      }
     };
+  },
+
+  // Direct manual refresh to guarantee 100% cloud sync on demand without requiring Ctrl+F5
+  async refreshSubmissions(propertyId: string): Promise<SelfKycSubmission[]> {
+    if (!propertyId) return [];
+    try {
+      const colRef = collection(db, "properties", propertyId, "self_kyc_submissions");
+      const snap = await getDocs(colRef);
+      const fetched: SelfKycSubmission[] = snap.docs.map((d) => d.data() as SelfKycSubmission);
+      fetched.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+      SUBMISSIONS_CACHE.set(propertyId, fetched);
+      saveLocalCache(propertyId, "subs");
+      notifySubscribers(propertyId);
+      return fetched;
+    } catch (e) {
+      console.warn("Manual refresh submissions failed:", e);
+      return SUBMISSIONS_CACHE.get(propertyId) || [];
+    }
+  },
+
+  async refreshInvites(propertyId: string): Promise<SelfKycInvite[]> {
+    if (!propertyId) return [];
+    try {
+      const colRef = collection(db, "properties", propertyId, "self_kyc_invites");
+      const snap = await getDocs(colRef);
+      const fetched: SelfKycInvite[] = snap.docs.map((d) => d.data() as SelfKycInvite);
+      const local = INVITES_CACHE.get(propertyId) || [];
+      const map = new Map<string, SelfKycInvite>();
+      local.forEach((i) => map.set(i.id, i));
+      fetched.forEach((i) => map.set(i.id, i));
+      const merged = Array.from(map.values());
+      merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      INVITES_CACHE.set(propertyId, merged);
+      saveLocalCache(propertyId, "invs");
+      notifySubscribers(propertyId);
+      return merged;
+    } catch (e) {
+      console.warn("Manual refresh invites failed:", e);
+      return INVITES_CACHE.get(propertyId) || [];
+    }
   },
 
   getSubmissions(propertyId: string): SelfKycSubmission[] {
@@ -285,10 +381,12 @@ export const selfKycStore = {
         if (res.ok) {
           const data = await res.json();
           if (data.success && data.invite) {
-            const pId = data.propertyId || data.invite.propertyId || "sunshine-pg";
-            const list = INVITES_CACHE.get(pId) || [];
-            INVITES_CACHE.set(pId, [data.invite, ...list.filter((i) => i.id !== data.invite.id)]);
-            saveLocalCache(pId, "invs");
+            const pId = data.propertyId || data.invite.propertyId || explicitPropertyId || "";
+            if (pId) {
+              const list = INVITES_CACHE.get(pId) || [];
+              INVITES_CACHE.set(pId, [data.invite, ...list.filter((i) => i.id !== data.invite.id)]);
+              saveLocalCache(pId, "invs");
+            }
             return { invite: data.invite, propertyId: pId };
           }
         }
@@ -324,10 +422,12 @@ export const selfKycStore = {
       const directSnap = await getDoc(directRef);
       if (directSnap.exists()) {
         const inv = directSnap.data() as SelfKycInvite;
-        const propId = inv.propertyId || explicitPropertyId || "sunshine-pg";
-        const list = INVITES_CACHE.get(propId) || [];
-        INVITES_CACHE.set(propId, [inv, ...list.filter((i) => i.id !== inv.id)]);
-        saveLocalCache(propId, "invs");
+        const propId = inv.propertyId || explicitPropertyId || "";
+        if (propId) {
+          const list = INVITES_CACHE.get(propId) || [];
+          INVITES_CACHE.set(propId, [inv, ...list.filter((i) => i.id !== inv.id)]);
+          saveLocalCache(propId, "invs");
+        }
         return { invite: inv, propertyId: propId };
       }
     } catch (e) {
@@ -358,7 +458,7 @@ export const selfKycStore = {
 
     // 7. Fallback: Check local layouts for holdCandidate
     try {
-      const knownProperties = ["sunshine-pg", "prop-1788438308277"];
+      const knownProperties = portfolioStore.getProperties().map((p) => p.id).filter(Boolean);
       for (const propId of knownProperties) {
         const structure = propertyStore.getStructure(propId);
         for (const fl of structure) {

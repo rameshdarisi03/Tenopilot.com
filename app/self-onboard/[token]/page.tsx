@@ -32,6 +32,7 @@ import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
 import { selfKycStore, SelfKycInvite, SelfKycSubmission } from "@/lib/selfKycStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { occupantStore } from "@/constants/mockOccupants";
+import { portfolioStore } from "@/constants/portfolioStore";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
 import {
@@ -58,15 +59,25 @@ export default function TenantSelfOnboardingPage({
   const resolvedParams = use(params);
   const token = resolvedParams?.token || "";
 
+  // Extract initial propertyId synchronously from URL search params on frame 1 to eliminate any property flash
+  const urlPropId = useMemo(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      return sp.get("p") || sp.get("propertyId") || "";
+    }
+    return "";
+  }, []);
+
   // 1. Invite State (for personalized invite links)
   const [invite, setInvite] = useState<SelfKycInvite | null>(null);
-  const [invitePropertyId, setInvitePropertyId] = useState<string>("");
+  const [invitePropertyId, setInvitePropertyId] = useState<string>(urlPropId);
   const [loadingInvite, setLoadingInvite] = useState(true);
 
-  // Resolved propertyId: from invite, or token (if slug), or fallback
+  // Resolved propertyId: from invite, URL search query, or token (if slug) — NEVER hardcoded to sunshine-pg
   const propertyId =
     invitePropertyId ||
-    (token && !token.startsWith("inv-") && token !== "undefined" ? token : "sunshine-pg");
+    urlPropId ||
+    (token && !token.startsWith("inv-") && token !== "undefined" ? token : "");
 
   // Step state:
   // "INVITE_FORM"  -> Pre-filled form with held room/bed from direct owner link
@@ -280,7 +291,7 @@ export default function TenantSelfOnboardingPage({
 
   // Property Branding & Name (Synced with Firestore SSOT)
   const [propSettings, setPropSettings] = useState(() =>
-    propertySettingsStore.getSettings(invitePropertyId || propertyId)
+    propertyId ? propertySettingsStore.getSettings(propertyId) : null
   );
 
   useEffect(() => {
@@ -294,7 +305,10 @@ export default function TenantSelfOnboardingPage({
     return unsub;
   }, [invitePropertyId, propertyId]);
 
-  const propertyName = propSettings?.propertyName || "Ramesh Residencies";
+  const propertyName =
+    propSettings?.propertyName ||
+    (propertyId ? portfolioStore.getProperties().find((p) => p.id === propertyId)?.name : null) ||
+    "Resident Digital Gate";
 
   // Compute available beds across floors for walk-in candidates
   const availableBeds = useMemo(() => {
