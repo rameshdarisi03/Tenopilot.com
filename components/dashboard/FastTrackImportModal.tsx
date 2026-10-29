@@ -58,7 +58,7 @@ import {
 } from "@/lib/firestoreService";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { buildWhatsAppUrl } from "@/utils/security";
-import { propertyStore } from "@/constants/propertyLayoutStore";
+import { propertyStore, normalizeAndSortBuildingStructure, compareRoomNumbers } from "@/constants/propertyLayoutStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
 import { useAuth } from "@/providers/AuthProvider";
@@ -666,7 +666,7 @@ export function FastTrackImportModal({
 
       // 2. Otherwise reverse-reconstruct dynamically from live structure and occupants
       const liveOccupants = occupantStore.getOccupants(propertyId) || [];
-      const liveStructure = propertyStore.getStructure(propertyId) || [];
+      const liveStructure = normalizeAndSortBuildingStructure(propertyStore.getStructure(propertyId) || []);
 
       const reconstructedRows: FastTrackParsedRow[] = [];
       const usedOccupantIds = new Set<string>();
@@ -773,6 +773,13 @@ export function FastTrackImportModal({
             warnings: [],
           });
         }
+      });
+
+      // Sort reconstructed rows so Floor 01 / Rooms 101-105 appear at the top
+      reconstructedRows.sort((a, b) => {
+        const roomCompare = compareRoomNumbers(a.roomNumber || "", b.roomNumber || "");
+        if (roomCompare !== 0) return roomCompare;
+        return (a.bedCode || "").localeCompare(b.bedCode || "");
       });
 
       if (reconstructedRows.length === 0) {

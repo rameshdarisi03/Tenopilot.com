@@ -3,7 +3,7 @@
  * Automatically generates or smart-merges Floor, Room, and Bed layouts from raw tenant rosters.
  */
 
-import { FloorConfig, RoomConfig, BedSlotConfig, propertyStore } from "@/constants/propertyLayoutStore";
+import { FloorConfig, RoomConfig, BedSlotConfig, propertyStore, extractCanonicalFloorLevel, normalizeAndSortBuildingStructure } from "@/constants/propertyLayoutStore";
 import { FastTrackParsedRow, inferRoomBlockAndFloor, isVacantRow } from "./fastTrackHeuristicParser";
 
 export function autoProvisionBuildingFromRoster(
@@ -111,7 +111,7 @@ export function autoProvisionBuildingFromRoster(
     });
   });
 
-  let finalStructure = generatedFloors;
+  let finalStructure = normalizeAndSortBuildingStructure(generatedFloors);
 
   // 🌟 SMART MERGE ENGINE: If existing structure exists and user chose to KEEP existing rooms
   if (existingStructure.length > 0 && !rebuild) {
@@ -149,17 +149,30 @@ export function autoProvisionBuildingFromRoster(
       // 2. If room does not exist in any floor, append it to matching floor or create floor
       if (!roomFound) {
         const inferred = inferRoomBlockAndFloor(rm);
-        const floorKey =
-          inferred.blockName && inferred.blockName !== "Main Building"
-            ? `${inferred.blockName} - ${inferred.floorName}`
-            : inferred.floorName;
+        const inferredLevel = extractCanonicalFloorLevel(inferred.floorName);
+        const inferredBlock = (inferred.blockName || "").trim().toLowerCase();
 
-        let targetFloor = merged.find((f) => f.floorName.toLowerCase() === floorKey.toLowerCase());
+        // 🌟 Canonical Floor Matching: Matches '1ST FLOOR', 'Floor 01', etc.
+        let targetFloor = merged.find((f) => {
+          const fLevel = extractCanonicalFloorLevel(f.floorName);
+          if (fLevel !== inferredLevel) return false;
+          if (inferredBlock && inferredBlock !== "main building") {
+            const fName = f.floorName.toLowerCase();
+            const fSub = (f.floorSubtitle || "").toLowerCase();
+            return fName.includes(inferredBlock) || fSub.includes(inferredBlock);
+          }
+          return true;
+        });
+
         if (!targetFloor) {
+          const ordinals = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th", "12th", "13th", "14th", "15th", "16th", "17th", "18th", "19th", "20th"];
+          const prettyFloor = inferredLevel === 0 ? "Ground Floor" : `${ordinals[inferredLevel - 1] || `${inferredLevel}th`} Floor`;
+          const finalFloorName = inferredBlock && inferredBlock !== "main building" ? `${inferred.blockName} - ${prettyFloor}` : prettyFloor;
+
           targetFloor = {
             id: `floor_${merged.length + 1}_${Date.now()}`,
-            floorName: floorKey,
-            floorSubtitle: `${floorKey} Executive Wings`,
+            floorName: finalFloorName,
+            floorSubtitle: `${finalFloorName} Executive Wings`,
             totalBeds: 0,
             rooms: [],
           };
@@ -191,7 +204,7 @@ export function autoProvisionBuildingFromRoster(
       }
     });
 
-    finalStructure = merged;
+    finalStructure = normalizeAndSortBuildingStructure(merged);
   }
 
   // Update propertyStore and trigger broadcast

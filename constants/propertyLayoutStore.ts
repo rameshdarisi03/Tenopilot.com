@@ -40,6 +40,135 @@ export interface FloorConfig {
   rooms: RoomConfig[];
 }
 
+/**
+ * Canonical Floor Level Extractor
+ * Maps 'Ground Floor', 'GF', '0' -> 0
+ * '1st Floor', '1ST FLOOR', 'Floor 01', 'Floor 1', 'FL 01', '1' -> 1
+ * '2nd Floor', 'Floor 02', '2' -> 2, etc.
+ * Supports negative levels for Basements: 'Basement 1', 'B1' -> -1
+ */
+export function extractCanonicalFloorLevel(floorName: string): number {
+  const clean = (floorName || '').trim().toLowerCase();
+  if (clean.includes('ground') || /\b(?:gf|gnd|g\b)/.test(clean)) {
+    return 0;
+  }
+  if (clean.includes('basement') || /\b(?:b|b1|b2|cellar)\b/.test(clean)) {
+    if (clean.includes('2') || clean.includes('b2')) return -2;
+    return -1;
+  }
+  const ordinalMatch = clean.match(/(\d+)(?:st|nd|rd|th)/);
+  if (ordinalMatch) {
+    return parseInt(ordinalMatch[1], 10);
+  }
+  const floorNumMatch = clean.match(/(?:floor|fl|level)\s*0*(\d+)/i) || clean.match(/^f0*(\d+)/i);
+  if (floorNumMatch) {
+    return parseInt(floorNumMatch[1], 10);
+  }
+  const numMatch = clean.match(/\d+/);
+  if (numMatch) {
+    return parseInt(numMatch[0], 10);
+  }
+  return 1;
+}
+
+/**
+ * Natural Alphanumeric Room Sorter
+ * Orders rooms logically: 101, 102, 103, 104, 105, 106, 107, 108...
+ * Handles blocks: A-101, A-102, B-101...
+ */
+export function compareRoomNumbers(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+}
+
+/**
+ * 🏢 Building Structure Normalizer & Consolidator:
+ * 1. Consolidates duplicate floors representing the same physical level (e.g. '1ST FLOOR' & 'Floor 01').
+ * 2. Merges rooms across duplicate floor fragments without losing beds.
+ * 3. Sorts rooms inside every floor in natural ascending order (101, 102, 103, 104... at the top!).
+ * 4. Sorts all floors in the building in natural vertical order (Ground -> 1st -> 2nd -> ... -> 7th).
+ */
+export function normalizeAndSortBuildingStructure(floors: FloorConfig[]): FloorConfig[] {
+  if (!Array.isArray(floors) || floors.length === 0) return [];
+
+  const floorMap = new Map<string, FloorConfig>();
+
+  floors.forEach((fl) => {
+    const level = extractCanonicalFloorLevel(fl.floorName);
+    const blockMatch = fl.floorName.match(/^([A-Za-z0-9\s]+)\s*-\s*/i);
+    const block = blockMatch ? blockMatch[1].trim().toLowerCase() : 'main';
+    const key = `${block}_${level}`;
+
+    const existing = floorMap.get(key);
+    if (!existing) {
+      floorMap.set(key, {
+        ...fl,
+        rooms: [...(fl.rooms || [])],
+      });
+    } else {
+      // 🌟 CONSOLIDATE DUPLICATE FLOOR FRAGMENTS:
+      const roomMap = new Map<string, RoomConfig>();
+      existing.rooms.forEach((r) => roomMap.set(r.roomNumber.toUpperCase().trim(), r));
+
+      (fl.rooms || []).forEach((incomingRoom) => {
+        const rmKey = incomingRoom.roomNumber.toUpperCase().trim();
+        const existingRoom = roomMap.get(rmKey);
+        if (!existingRoom) {
+          roomMap.set(rmKey, incomingRoom);
+        } else {
+          const bedCodes = new Set(existingRoom.beds.map((b) => b.bedCode.toUpperCase().trim()));
+          incomingRoom.beds.forEach((b) => {
+            if (!bedCodes.has(b.bedCode.toUpperCase().trim())) {
+              existingRoom.beds.push(b);
+              bedCodes.add(b.bedCode.toUpperCase().trim());
+            }
+          });
+          existingRoom.sharingType = Math.max(existingRoom.sharingType, existingRoom.beds.length);
+          existingRoom.specialFeatureTag =
+            existingRoom.sharingType === 1 ? 'Private Single' : `${existingRoom.sharingType}-Sharing Suite`;
+          if (!existingRoom.customRentAmount && incomingRoom.customRentAmount) {
+            existingRoom.customRentAmount = incomingRoom.customRentAmount;
+          }
+        }
+      });
+
+      existing.rooms = Array.from(roomMap.values());
+      if (fl.floorName.includes('ST') || fl.floorName.includes('ND') || fl.floorName.includes('RD') || fl.floorName.includes('TH')) {
+        existing.floorName = fl.floorName;
+      }
+      if (fl.floorSubtitle && !existing.floorSubtitle) {
+        existing.floorSubtitle = fl.floorSubtitle;
+      }
+    }
+  });
+
+  const consolidated = Array.from(floorMap.values());
+
+  // 1. Sort rooms inside each floor naturally (101, 102, 103, 104, 105, 106, 107...)
+  consolidated.forEach((fl) => {
+    fl.rooms.sort((a, b) => compareRoomNumbers(a.roomNumber, b.roomNumber));
+    fl.totalBeds = fl.rooms.reduce((acc, r) => acc + (r.beds ? r.beds.length : 0), 0);
+  });
+
+  // 2. Sort floors vertically (Basement -> Ground -> 1st -> 2nd -> ... -> 7th)
+  consolidated.sort((a, b) => {
+    const blockMatchA = a.floorName.match(/^([A-Za-z0-9\s]+)\s*-\s*/i);
+    const blockA = blockMatchA ? blockMatchA[1].trim().toLowerCase() : 'main';
+    const blockMatchB = b.floorName.match(/^([A-Za-z0-9\s]+)\s*-\s*/i);
+    const blockB = blockMatchB ? blockMatchB[1].trim().toLowerCase() : 'main';
+
+    if (blockA !== blockB) {
+      return blockA.localeCompare(blockB);
+    }
+
+    const levelA = extractCanonicalFloorLevel(a.floorName);
+    const levelB = extractCanonicalFloorLevel(b.floorName);
+    return levelA - levelB;
+  });
+
+  return consolidated;
+}
+
+
 // In-Memory Cloud Firestore Real-time Reactive Map: Map<propertyId, FloorConfig[]>
 const PROPERTY_LAYOUT_MAP = new Map<string, FloorConfig[]>();
 const ACTIVE_UNSUBSCRIBES = new Map<string, () => void>();
@@ -90,7 +219,8 @@ export const propertyStore = {
           if (snapshot.exists()) {
             const data = snapshot.data()?.floors as FloorConfig[];
             if (Array.isArray(data)) {
-              PROPERTY_LAYOUT_MAP.set(propertyId, data);
+              const normalized = normalizeAndSortBuildingStructure(data);
+              PROPERTY_LAYOUT_MAP.set(propertyId, normalized);
               if (typeof window !== "undefined") {
                 try {
                   localStorage.setItem(`tenopilot_layout_${propertyId}`, JSON.stringify(data));
@@ -121,7 +251,8 @@ export const propertyStore = {
     
 
     if (PROPERTY_LAYOUT_MAP.has(propertyId)) {
-      return PROPERTY_LAYOUT_MAP.get(propertyId)!;
+      const current = PROPERTY_LAYOUT_MAP.get(propertyId)!;
+      return normalizeAndSortBuildingStructure(current);
     }
 
     try {
@@ -144,7 +275,8 @@ export const propertyStore = {
     if (!propertyId) return [];
     
     // Update local reactive map & storage immediately for instantaneous UI feedback
-    PROPERTY_LAYOUT_MAP.set(propertyId, newStructure);
+    const normalized = normalizeAndSortBuildingStructure(newStructure);
+    PROPERTY_LAYOUT_MAP.set(propertyId, normalized);
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem(`tenopilot_layout_${propertyId}`, JSON.stringify(newStructure));
@@ -155,7 +287,7 @@ export const propertyStore = {
     if (typeof window !== "undefined" && db) {
       try {
         const docRef = doc(db, `properties/${propertyId}/layout/structure`);
-        const sanitizedFloors = sanitizeForFirestore(newStructure);
+        const sanitizedFloors = sanitizeForFirestore(normalized);
         await setDoc(docRef, {
           floors: sanitizedFloors,
           updatedAt: new Date().toISOString(),
@@ -165,7 +297,7 @@ export const propertyStore = {
       }
     }
 
-    return newStructure;
+    return normalized;
   },
 
   // Helper to extract all unique room numbers for filter dropdowns
