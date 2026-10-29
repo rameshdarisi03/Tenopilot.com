@@ -131,29 +131,38 @@ export default function StaffManagementPage() {
   })();
 
   useEffect(() => {
+    let savedSession: any = {};
+    if (typeof window !== "undefined") {
+      try {
+        savedSession = JSON.parse(localStorage.getItem("tenopilot_saved_session") || "{}");
+      } catch {}
+    }
+
+    const userEmail = (profile?.email || savedSession?.email || "").toLowerCase().trim();
+    const rawPhone = profile?.phone || savedSession?.phone || "";
+    const userPhone = rawPhone.replace(/\D/g, "").slice(-10);
+    const userOrgId = profile?.organizationId || savedSession?.organizationId || "";
+    const userMasterUid = profile?.uid || savedSession?.uid || "";
+    const isPlatformFounder = userEmail === "rameshdarisi03@gmail.com";
+
     // Initialize Real-time Firestore Portfolio Listener
-    // If user is Property Admin or has organization owner, listen using appropriate owner email if known
-    portfolioStore.initFirebaseListener(profile?.email);
+    if (userEmail) {
+      portfolioStore.initFirebaseListener(userEmail);
+    }
+
+    let refreshStaffFn: (currentProps?: { id: string; name: string }[]) => Promise<void>;
 
     const refreshProperties = async () => {
-      let savedSession: any = {};
-      if (typeof window !== "undefined") {
-        try {
-          savedSession = JSON.parse(localStorage.getItem("tenopilot_saved_session") || "{}");
-        } catch {}
-      }
-
       const userRole = staffStore.getActiveRole() || profile?.role || savedSession.role || "master_admin";
       const isMasterAdmin = userRole === "master_admin";
 
       let propList: { id: string; name: string }[] = [];
 
       // If user is Property Admin or Receptionist, their allowed building is strictly their assigned property
-      const currentEmail = profile?.email || savedSession.email || "";
       let adminStaffDoc: any = null;
-      if (currentEmail) {
+      if (userEmail) {
         try {
-          const sSnap = await getDoc(doc(db, "staff_accounts", currentEmail.toLowerCase()));
+          const sSnap = await getDoc(doc(db, "staff_accounts", userEmail));
           if (sSnap.exists()) {
             adminStaffDoc = sSnap.data();
           }
@@ -163,6 +172,10 @@ export default function StaffManagementPage() {
       if (adminStaffDoc?.ownerEmail) {
         portfolioStore.initFirebaseListener(adminStaffDoc.ownerEmail);
       }
+
+      const effectiveOrgId = userOrgId || adminStaffDoc?.organizationId || adminStaffDoc?.orgId || "";
+      const effectiveOwnerEmail = (adminStaffDoc?.ownerEmail || (isMasterAdmin ? userEmail : "")).toLowerCase().trim();
+      const effectiveOwnerPhone = (adminStaffDoc?.ownerPhone || (isMasterAdmin ? userPhone : "")).replace(/\D/g, "").slice(-10);
 
       const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
       const queryPropId = urlParams?.get("propertyId") || "";
@@ -176,6 +189,12 @@ export default function StaffManagementPage() {
         profile?.assignedPropertyId ||
         savedSession?.assignedPropertyId ||
         "";
+
+      const userAssignedIds: string[] = [
+        ...(Array.isArray(profile?.assignedPropertyIds) ? profile.assignedPropertyIds : []),
+        ...(Array.isArray(savedSession?.assignedPropertyIds) ? savedSession.assignedPropertyIds : []),
+        ...(Array.isArray(adminStaffDoc?.assignedPropertyIds) ? adminStaffDoc.assignedPropertyIds : []),
+      ].filter(Boolean);
 
       let assignedPropName = "";
       if (queryPropId) {
@@ -219,27 +238,41 @@ export default function StaffManagementPage() {
         assignedPropName = "Assigned Building";
       }
 
-      if (!isMasterAdmin && assignedPropId && assignedPropId !== "sunshine-pg") {
+      if (!isMasterAdmin && assignedPropId && assignedPropId !== "sunshine-pg" && userAssignedIds.length <= 1) {
         // Property Admin scope: strictly their assigned building
         propList = [{ id: assignedPropId, name: assignedPropName }];
       } else {
         const directPropsMap = new Map<string, string>();
+
+        // 1. Live portfolio store (strictly filtered by ownership/assignment so cached foreign properties never bleed)
         const liveProps = portfolioStore.getProperties();
         liveProps.forEach((p) => {
-          if (p.id && p.id !== "sunshine-pg" && p.name !== "Sunshine Luxury PG" && p.name !== "All Properties" && p.id !== "*") {
+          if (!p.id || p.id === "sunshine-pg" || p.name === "Sunshine Luxury PG" || p.name === "All Properties" || p.id === "*") return;
+          const pOwnerEmail = (p.ownerEmail || "").toLowerCase().trim();
+          const isOwnerMatch = Boolean(effectiveOwnerEmail && pOwnerEmail && pOwnerEmail === effectiveOwnerEmail);
+          const isAssigned = Boolean((assignedPropId && p.id === assignedPropId) || userAssignedIds.includes(p.id));
+          if (isPlatformFounder || isOwnerMatch || isAssigned) {
             directPropsMap.set(p.id, p.name);
           }
         });
 
-        // 🛡️ Dynamic Multi-Property Scanner: directly query portfolio_properties & properties in Firestore
+        // 2. Dynamic Multi-Property Scanner: directly query portfolio_properties & properties in Firestore
+        // STRICTLY partitioned by organization, owner credentials, or assigned property IDs
         if (db) {
           try {
             const ppSnap = await getDocs(collection(db, "portfolio_properties"));
             ppSnap.docs.forEach((d) => {
               const data = d.data();
-              const orgMatch = Boolean(profile?.organizationId && data.organizationId === profile.organizationId);
-              const emailMatch = Boolean(profile?.email && data.ownerEmail?.toLowerCase() === profile.email.toLowerCase());
-              if (orgMatch || emailMatch || isMasterAdmin) {
+              const dOwnerEmail = (data.ownerEmail || "").toLowerCase().trim();
+              const dOwnerPhone = (data.ownerPhone || "").replace(/\D/g, "").slice(-10);
+
+              const orgMatch = Boolean(effectiveOrgId && data.organizationId && data.organizationId === effectiveOrgId);
+              const emailMatch = Boolean(effectiveOwnerEmail && dOwnerEmail && dOwnerEmail === effectiveOwnerEmail);
+              const phoneMatch = Boolean(effectiveOwnerPhone && dOwnerPhone && dOwnerPhone === effectiveOwnerPhone);
+              const uidMatch = Boolean(userMasterUid && data.masterAdminUid && data.masterAdminUid === userMasterUid);
+              const assignedMatch = Boolean((assignedPropId && d.id === assignedPropId) || userAssignedIds.includes(d.id));
+
+              if (isPlatformFounder || orgMatch || emailMatch || phoneMatch || uidMatch || assignedMatch) {
                 const name = data.name || data.propertyName || d.id;
                 if (name && name !== "All Properties" && d.id !== "sunshine-pg") {
                   directPropsMap.set(d.id, name);
@@ -250,9 +283,16 @@ export default function StaffManagementPage() {
             const pSnap = await getDocs(collection(db, "properties"));
             pSnap.docs.forEach((d) => {
               const data = d.data();
-              const orgMatch = Boolean(profile?.organizationId && data.organizationId === profile.organizationId);
-              const emailMatch = Boolean(profile?.email && data.ownerEmail?.toLowerCase() === profile.email.toLowerCase());
-              if (orgMatch || emailMatch || isMasterAdmin) {
+              const dOwnerEmail = (data.ownerEmail || "").toLowerCase().trim();
+              const dOwnerPhone = (data.ownerPhone || "").replace(/\D/g, "").slice(-10);
+
+              const orgMatch = Boolean(effectiveOrgId && data.organizationId && data.organizationId === effectiveOrgId);
+              const emailMatch = Boolean(effectiveOwnerEmail && dOwnerEmail && dOwnerEmail === effectiveOwnerEmail);
+              const phoneMatch = Boolean(effectiveOwnerPhone && dOwnerPhone && dOwnerPhone === effectiveOwnerPhone);
+              const uidMatch = Boolean(userMasterUid && data.masterAdminUid && data.masterAdminUid === userMasterUid);
+              const assignedMatch = Boolean((assignedPropId && d.id === assignedPropId) || userAssignedIds.includes(d.id));
+
+              if (isPlatformFounder || orgMatch || emailMatch || phoneMatch || uidMatch || assignedMatch) {
                 const name = data.name || data.propertyName || d.id;
                 if (name && name !== "All Properties" && d.id !== "sunshine-pg") {
                   directPropsMap.set(d.id, name);
@@ -264,11 +304,11 @@ export default function StaffManagementPage() {
           }
         }
 
-        propList = Array.from(directPropsMap.entries()).map(([id, name]) => ({ id, name }));
-
-        if (propList.length === 0 && assignedPropId && assignedPropId !== "sunshine-pg") {
-          propList = [{ id: assignedPropId, name: assignedPropName }];
+        if (directPropsMap.size === 0 && assignedPropId && assignedPropId !== "sunshine-pg") {
+          directPropsMap.set(assignedPropId, assignedPropName);
         }
+
+        propList = Array.from(directPropsMap.entries()).map(([id, name]) => ({ id, name }));
       }
 
       setProperties(propList);
@@ -281,10 +321,11 @@ export default function StaffManagementPage() {
             : propList[0].id
         );
       }
-    };
 
-    refreshProperties();
-    const unsubPortfolio = portfolioStore.subscribe(refreshProperties);
+      if (refreshStaffFn) {
+        refreshStaffFn(propList);
+      }
+    };
 
     const currentRole = staffStore.getActiveRole();
     setActiveRole(currentRole);
@@ -292,12 +333,6 @@ export default function StaffManagementPage() {
     // 🔒 If Receptionist tries to access staff management, immediately redirect to their assigned building
     if (currentRole === "receptionist") {
       const allStaff = staffStore.getAllGlobalStaff();
-      let userEmail = "";
-      if (typeof window !== "undefined") {
-        try {
-          userEmail = JSON.parse(localStorage.getItem("tenopilot_saved_session") || "{}")?.email || "";
-        } catch {}
-      }
       const match = allStaff.find((s) => s.email.toLowerCase() === userEmail.toLowerCase());
       const targetProp = match?.assignedPropertyId || profile?.assignedPropertyId || "sunshine-pg";
       router.replace(`/p/${targetProp}/overview`);
@@ -311,31 +346,97 @@ export default function StaffManagementPage() {
       setRole("admin");
     }
 
-    const refreshStaff = async () => {
+    refreshStaffFn = async (currentProps: { id: string; name: string }[] = properties) => {
       const all = staffStore.getAllGlobalStaff();
       try {
         const staffDocs = await getDocs(collection(db, "staff_accounts"));
         const saMap = new Map<string, any>();
+        const firestoreStaff: StaffMember[] = [];
+
         staffDocs.forEach((d) => {
-          saMap.set(d.id.toLowerCase(), d.data());
+          const sData = d.data();
+          saMap.set(d.id.toLowerCase(), sData);
+          if (sData.email || sData.name) {
+            firestoreStaff.push({
+              id: sData.id || `staff-${d.id}`,
+              name: sData.name || "Staff Member",
+              email: sData.email || d.id,
+              phone: sData.phone || "",
+              phoneCountryCode: sData.phoneCountryCode || "+91",
+              role: sData.role || "admin",
+              assignedPropertyId: sData.assignedPropertyId || "",
+              assignedPropertyIds: sData.assignedPropertyIds || [],
+              propertyName: sData.propertyName || "Assigned PG",
+              status: sData.status || "Active",
+              joinedDate: sData.joinedDate || "Active",
+              securityPin: sData.securityPin,
+              hasSetPin: sData.hasSetPin,
+              organizationId: sData.organizationId,
+              ownerEmail: sData.ownerEmail,
+              ownerPhone: sData.ownerPhone,
+              masterAdminUid: sData.masterAdminUid,
+            });
+          }
         });
 
-        const merged = all.map((s) => {
-          const saData = saMap.get(s.email.toLowerCase());
-          return {
+        const combinedMap = new Map<string, StaffMember>();
+        all.forEach((s) => {
+          const key = (s.email || s.phone || s.id).toLowerCase();
+          const saData = saMap.get(s.email?.toLowerCase());
+          combinedMap.set(key, {
             ...s,
             phone: saData?.phone || s.phone,
             phoneCountryCode: saData?.phoneCountryCode || s.phoneCountryCode || "+91",
-          };
+            organizationId: saData?.organizationId || s.organizationId,
+            ownerEmail: saData?.ownerEmail || s.ownerEmail,
+            ownerPhone: saData?.ownerPhone || s.ownerPhone,
+            masterAdminUid: saData?.masterAdminUid || s.masterAdminUid,
+            assignedPropertyId: saData?.assignedPropertyId || s.assignedPropertyId,
+            assignedPropertyIds: saData?.assignedPropertyIds || s.assignedPropertyIds,
+          });
         });
-        setStaffList(merged);
-      } catch {
+
+        firestoreStaff.forEach((fs) => {
+          const key = (fs.email || fs.phone || fs.id).toLowerCase();
+          if (!combinedMap.has(key)) {
+            combinedMap.set(key, fs);
+          }
+        });
+
+        const allowedPropIds = new Set(currentProps.map((p) => p.id));
+        const activePropId = profile?.assignedPropertyId || savedSession?.assignedPropertyId;
+        if (activePropId) allowedPropIds.add(activePropId);
+
+        const scopedStaff = Array.from(combinedMap.values()).filter((s) => {
+          if (isPlatformFounder) return true;
+          if (userEmail && s.email?.toLowerCase().trim() === userEmail) return true;
+          if (userPhone && s.phone && s.phone.replace(/\D/g, "").slice(-10) === userPhone) return true;
+
+          const sOwnerEmail = (s.ownerEmail || "").toLowerCase().trim();
+          const sOwnerPhone = (s.ownerPhone || "").replace(/\D/g, "").slice(-10);
+
+          if (userOrgId && s.organizationId && s.organizationId === userOrgId) return true;
+          if (userEmail && sOwnerEmail && sOwnerEmail === userEmail) return true;
+          if (userPhone && sOwnerPhone && sOwnerPhone === userPhone) return true;
+          if (userMasterUid && s.masterAdminUid && s.masterAdminUid === userMasterUid) return true;
+
+          if (s.assignedPropertyId && allowedPropIds.has(s.assignedPropertyId)) return true;
+          if (Array.isArray(s.assignedPropertyIds) && s.assignedPropertyIds.some((pid) => allowedPropIds.has(pid))) return true;
+
+          return false;
+        });
+
+        setStaffList(scopedStaff);
+      } catch (err) {
+        console.warn("Notice in staff refresh:", err);
         setStaffList(all);
       }
     };
 
-    refreshStaff();
-    const unsubscribe = staffStore.subscribe(refreshStaff);
+    refreshProperties();
+    const unsubPortfolio = portfolioStore.subscribe(refreshProperties);
+    refreshStaffFn();
+    const unsubscribe = staffStore.subscribe(() => refreshStaffFn());
 
     return () => {
       unsubPortfolio();
@@ -360,12 +461,18 @@ export default function StaffManagementPage() {
 
     setEmailStatus("checking");
     const timer = setTimeout(async () => {
+      let savedSession: any = {};
+      if (typeof window !== "undefined") {
+        try {
+          savedSession = JSON.parse(localStorage.getItem("tenopilot_saved_session") || "{}");
+        } catch {}
+      }
       try {
         const res = await checkStaffCredentialConflict({
           email: cleanGmail,
-          currentOrgId: profile?.organizationId,
-          currentOwnerEmail: profile?.email,
-          currentMasterUid: profile?.uid,
+          currentOrgId: profile?.organizationId || savedSession?.organizationId,
+          currentOwnerEmail: profile?.email || savedSession?.email,
+          currentMasterUid: profile?.uid || savedSession?.uid,
         });
         if (res.emailConflict) {
           setEmailStatus("conflict");
@@ -400,12 +507,18 @@ export default function StaffManagementPage() {
 
     setPhoneStatus("checking");
     const timer = setTimeout(async () => {
+      let savedSession: any = {};
+      if (typeof window !== "undefined") {
+        try {
+          savedSession = JSON.parse(localStorage.getItem("tenopilot_saved_session") || "{}");
+        } catch {}
+      }
       try {
         const res = await checkStaffCredentialConflict({
           phone: pure10,
-          currentOrgId: profile?.organizationId,
-          currentOwnerEmail: profile?.email,
-          currentMasterUid: profile?.uid,
+          currentOrgId: profile?.organizationId || savedSession?.organizationId,
+          currentOwnerEmail: profile?.email || savedSession?.email,
+          currentMasterUid: profile?.uid || savedSession?.uid,
         });
         if (res.phoneConflict) {
           setPhoneStatus("conflict");
@@ -765,12 +878,19 @@ export default function StaffManagementPage() {
 
     try {
       // Final conflict check right before provisioning
+      let savedSession: any = {};
+      if (typeof window !== "undefined") {
+        try {
+          savedSession = JSON.parse(localStorage.getItem("tenopilot_saved_session") || "{}");
+        } catch {}
+      }
+
       const checkResult = await checkStaffCredentialConflict({
         email: cleanGmail || undefined,
         phone: pure10 || undefined,
-        currentOrgId: profile?.organizationId,
-        currentOwnerEmail: profile?.email,
-        currentMasterUid: profile?.uid,
+        currentOrgId: profile?.organizationId || savedSession?.organizationId,
+        currentOwnerEmail: profile?.email || savedSession?.email,
+        currentMasterUid: profile?.uid || savedSession?.uid,
       });
 
       if (checkResult.emailConflict) {
@@ -812,10 +932,10 @@ export default function StaffManagementPage() {
           : resolvedCurrentPropertyName || selectedProps[0]?.name || "Assigned PG";
 
       // For Property Admins creating Receptionists, inherit the organization's owner attributes
-      let staffOrgId = profile?.organizationId || `org_${profile?.uid || "admin"}`;
-      let staffOwnerEmail = profile?.email || "";
-      let staffOwnerPhone = profile?.phone || "";
-      let staffMasterAdminUid = profile?.uid || "";
+      let staffOrgId = profile?.organizationId || savedSession?.organizationId || `org_${profile?.uid || savedSession?.uid || "admin"}`;
+      let staffOwnerEmail = profile?.email || savedSession?.email || "";
+      let staffOwnerPhone = profile?.phone || savedSession?.phone || "";
+      let staffMasterAdminUid = profile?.uid || savedSession?.uid || "";
 
       if (activeRole === "admin") {
         try {
