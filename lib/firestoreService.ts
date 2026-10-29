@@ -527,3 +527,54 @@ export async function deleteFastTrackDraftFromFirestore(
     return false;
   }
 }
+
+/**
+ * 🏛️ Archive Confirmed FastTrack Migration (Permanent SSOT Roster Archive)
+ * Preserves the confirmed spreadsheet roster so owners can revisit, inspect,
+ * or load their sheet back anytime, even after enrollment.
+ */
+export async function archiveFastTrackMigration(
+  propertyId: string,
+  archiveData: any
+): Promise<boolean> {
+  try {
+    const sanitized = sanitizeForFirestore({
+      ...archiveData,
+      archivedAt: new Date().toISOString(),
+    });
+
+    // 1. Save to last_confirmed snapshot for fast retrieval
+    const lastConfirmedRef = doc(db, "properties", propertyId, "drafts", "fasttrack_last_confirmed");
+    await setDoc(lastConfirmedRef, sanitized, { merge: true });
+
+    // 2. Also keep in staging draft so reopening the editor finds the full sheet ready
+    const draftRef = doc(db, "properties", propertyId, "drafts", "fasttrack");
+    await setDoc(draftRef, sanitized, { merge: true });
+
+    // 3. Append to historical audit log
+    const historyId = `hist_${Date.now()}`;
+    const historyRef = doc(db, "properties", propertyId, "migration_history", historyId);
+    await setDoc(historyRef, sanitized);
+
+    return true;
+  } catch (error) {
+    console.warn("Firestore archive fasttrack migration fallback:", error);
+    return false;
+  }
+}
+
+export async function getLastConfirmedFastTrackSheet(
+  propertyId: string
+): Promise<any | null> {
+  try {
+    const lastConfirmedRef = doc(db, "properties", propertyId, "drafts", "fasttrack_last_confirmed");
+    const snap = await getDoc(lastConfirmedRef);
+    if (snap.exists()) {
+      return snap.data();
+    }
+    return null;
+  } catch (error) {
+    console.warn("Firestore get last confirmed fasttrack sheet fallback:", error);
+    return null;
+  }
+}

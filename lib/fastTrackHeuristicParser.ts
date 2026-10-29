@@ -28,6 +28,7 @@ export interface FastTrackParsedRow {
   stayType?: "Tenant" | "Guest"; // "Tenant" (default) or "Guest"
   isValid: boolean;
   warnings: string[];
+  isVacant?: boolean;
   rawSource?: string;
 }
 
@@ -380,12 +381,42 @@ export function inferRoomBlockAndFloor(roomStr: string): { blockName: string; fl
  * Core Heuristic Parser: Ingests raw clipboard text, CSV string, or matrix
  */
 /**
+ * Checks if a parsed row represents an available/vacant room slot
+ */
+export function isVacantRow(row: Partial<FastTrackParsedRow>): boolean {
+  if (row.isVacant === true) return true;
+  const cleanName = (row.fullName || "").trim().toLowerCase();
+  return (
+    cleanName === "" ||
+    cleanName === "vacant" ||
+    cleanName === "available" ||
+    cleanName === "empty" ||
+    cleanName === "-" ||
+    cleanName === "n/a"
+  );
+}
+
+/**
  * 🔒 Strict Validation Gate for FastTrack Occupant Rows.
  * Requires: Name, 10-Digit Mobile, Room Number, Joining Date, Monthly Rent (> 0), Security Deposit (>= 0).
  * Prior Arrears defaults to 0 if left empty. Workplace & Profession are optional.
+ * 🌟 Vacant/Available bed slots only require Room Number.
  */
 export function validateParsedRow(row: Partial<FastTrackParsedRow>): { isValid: boolean; warnings: string[] } {
   const warnings: string[] = [];
+
+  const cleanRoom = (row.roomNumber || "").trim();
+  if (!cleanRoom) {
+    warnings.push("Room number is required");
+  }
+
+  // 🌟 If this is a Vacant/Available Bed slot (no occupant yet), only Room Number is mandatory
+  if (isVacantRow(row)) {
+    return {
+      isValid: warnings.length === 0,
+      warnings,
+    };
+  }
 
   const cleanName = (row.fullName || "").trim();
   if (!cleanName) {
@@ -395,11 +426,6 @@ export function validateParsedRow(row: Partial<FastTrackParsedRow>): { isValid: 
   const cleanPhone = (row.phone || "").replace(/\D/g, "");
   if (!cleanPhone || cleanPhone.length !== 10 || !/^[6-9]/.test(cleanPhone)) {
     warnings.push("Valid 10-digit mobile is required");
-  }
-
-  const cleanRoom = (row.roomNumber || "").trim();
-  if (!cleanRoom) {
-    warnings.push("Room number is required");
   }
 
   if (!row.joiningDate || isNaN(new Date(row.joiningDate).getTime())) {

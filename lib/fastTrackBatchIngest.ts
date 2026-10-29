@@ -7,7 +7,7 @@ import { Occupant, occupantStore, PaymentHistoryItem } from "@/constants/mockOcc
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { autoProvisionBuildingFromRoster } from "./autoBuildingProvisioner";
-import { FastTrackParsedRow, validateParsedRow } from "./fastTrackHeuristicParser";
+import { FastTrackParsedRow, validateParsedRow, isVacantRow } from "./fastTrackHeuristicParser";
 import { saveOccupantToFirestore } from "./firestoreService";
 import { getEffectiveTenantLimit, evaluateSubscription } from "./subscriptionEngine";
 import { generateReceiptNumber } from "./invoiceNumberEngine";
@@ -158,6 +158,11 @@ export async function executeFastTrackBatchIngest(
     const bedLetter = String.fromCharCode(64 + Math.min(currentBedNum, 26)); // A, B, C...
     const finalBedCode = row.bedCode || `Bed ${bedLetter}`;
 
+    // Skip creating occupant for vacant / available beds
+    if (isVacantRow(row)) {
+      return;
+    }
+
     const occupantId = `occ_ft_${propertyId}_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 6)}`;
     const rent = Number(row.rentAmount) || 0;
     const deposit = Number(row.securityDeposit) >= 0 ? Number(row.securityDeposit) : 0;
@@ -291,16 +296,62 @@ export async function executeFastTrackBatchIngest(
     newOccupants.push(occ);
   });
 
-  // 4. Update Occupant Store & Cloud Firestore
-  const mergedOccupants = [...existingOccupants, ...newOccupants];
-  occupantStore.updateOccupants(mergedOccupants, propertyId);
+  // 4. Smart De-duplication & Update Occupant Store & Cloud Firestore
+  const mergedOccupants: Occupant[] = [...existingOccupants];
 
-  // Async persist each to Cloud Firestore
-  newOccupants.forEach((occ) => {
-    saveOccupantToFirestore(propertyId, occ).catch((err) =>
-      console.warn(`Firestore background save notice for ${occ.name}:`, err)
-    );
+  newOccupants.forEach((newOcc) => {
+    const cleanNewPhone = (newOcc.phone || "").replace(/\D/g, "").slice(-10);
+    const newNormName = (newOcc.name || "").trim().toLowerCase();
+    const newRoom = (newOcc.roomNumber || "").trim().toUpperCase();
+    const newBed = (newOcc.bedCode || "").trim().toUpperCase();
+
+    const existingIndex = mergedOccupants.findIndex((ex) => {
+      const cleanExPhone = (ex.phone || "").replace(/\D/g, "").slice(-10);
+      const exNormName = (ex.name || "").trim().toLowerCase();
+      const exRoom = (ex.roomNumber || "").trim().toUpperCase();
+      const exBed = (ex.bedCode || "").trim().toUpperCase();
+
+      // Case 1: Matching valid phone number (not dummy 9876543210)
+      if (cleanNewPhone.length === 10 && cleanNewPhone !== "9876543210" && cleanExPhone === cleanNewPhone) {
+        return true;
+      }
+      // Case 2: Matching Room + Bed Code
+      if (newRoom && exRoom === newRoom && newBed && exBed === newBed) {
+        return true;
+      }
+      // Case 3: Matching Room + Name
+      if (newRoom && exRoom === newRoom && (exNormName === newNormName || exNormName.includes(newNormName) || newNormName.includes(exNormName))) {
+        return true;
+      }
+      return false;
+    });
+
+    if (existingIndex >= 0) {
+      // Merge into existing occupant to prevent duplicates
+      const ex = mergedOccupants[existingIndex];
+      mergedOccupants[existingIndex] = {
+        ...ex,
+        roomNumber: newOcc.roomNumber || ex.roomNumber,
+        bedCode: newOcc.bedCode || ex.bedCode,
+        rentAmount: newOcc.rentAmount || ex.rentAmount,
+        securityDeposit: newOcc.securityDeposit ?? ex.securityDeposit,
+        workplace: newOcc.workplace || ex.workplace,
+        occupation: newOcc.occupation || ex.occupation,
+        purposeOfVisit: newOcc.purposeOfVisit || ex.purposeOfVisit,
+      };
+      saveOccupantToFirestore(propertyId, mergedOccupants[existingIndex]).catch((err) =>
+        console.warn(`Firestore background update notice for ${ex.name}:`, err)
+      );
+    } else {
+      // Brand new occupant
+      mergedOccupants.push(newOcc);
+      saveOccupantToFirestore(propertyId, newOcc).catch((err) =>
+        console.warn(`Firestore background save notice for ${newOcc.name}:`, err)
+      );
+    }
   });
+
+  occupantStore.updateOccupants(mergedOccupants, propertyId);
 
   // 5. Synchronize Room Bed Occupancies in Property Layout Store (Fuzzy Slot Index Matching)
   const currentStructure = propertyStore.getStructure(propertyId);

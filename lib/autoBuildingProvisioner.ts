@@ -4,7 +4,7 @@
  */
 
 import { FloorConfig, RoomConfig, BedSlotConfig, propertyStore } from "@/constants/propertyLayoutStore";
-import { FastTrackParsedRow, inferRoomBlockAndFloor } from "./fastTrackHeuristicParser";
+import { FastTrackParsedRow, inferRoomBlockAndFloor, isVacantRow } from "./fastTrackHeuristicParser";
 
 export function autoProvisionBuildingFromRoster(
   propertyId: string,
@@ -73,11 +73,12 @@ export function autoProvisionBuildingFromRoster(
       for (let b = 0; b < capacity; b++) {
         const bedLetter = String.fromCharCode(65 + b); // A, B, C, D...
         const occupant = occupantsInRoom[b];
+        const isVacant = !occupant || isVacantRow(occupant);
 
         beds.push({
           id: `bed_${rm.toLowerCase()}_${bedLetter.toLowerCase()}_${Date.now()}_${b}`,
           bedCode: `Bed ${bedLetter}`,
-          status: occupant ? "Occupied" : "Available",
+          status: isVacant ? "Available" : "Occupied",
         });
         totalBeds++;
       }
@@ -130,10 +131,12 @@ export function autoProvisionBuildingFromRoster(
             const currentCount = targetRoom.beds.length;
             for (let i = currentCount; i < neededBeds; i++) {
               const bedLetter = String.fromCharCode(65 + i);
+              const occ = occupantsInRoom[i];
+              const isVacant = !occ || isVacantRow(occ);
               targetRoom.beds.push({
                 id: `bed_${rm.toLowerCase()}_${bedLetter.toLowerCase()}_${Date.now()}_${i}`,
                 bedCode: `Bed ${bedLetter}`,
-                status: "Occupied",
+                status: isVacant ? "Available" : "Occupied",
               });
             }
             targetRoom.sharingType = targetRoom.beds.length;
@@ -163,14 +166,17 @@ export function autoProvisionBuildingFromRoster(
           merged.push(targetFloor);
         }
 
-        const capacity = Math.max(occupantsInRoom.length, 2);
+        const explicitSharing = occupantsInRoom.find((o) => o.sharingType && o.sharingType > 0)?.sharingType;
+        const capacity = Math.max(occupantsInRoom.length, explicitSharing || 2);
         const beds: BedSlotConfig[] = [];
         for (let b = 0; b < capacity; b++) {
           const bedLetter = String.fromCharCode(65 + b);
+          const occ = occupantsInRoom[b];
+          const isVacant = !occ || isVacantRow(occ);
           beds.push({
             id: `bed_${rm.toLowerCase()}_${bedLetter.toLowerCase()}_${Date.now()}_${b}`,
             bedCode: `Bed ${bedLetter}`,
-            status: occupantsInRoom[b] ? "Occupied" : "Available",
+            status: isVacant ? "Available" : "Occupied",
           });
         }
 

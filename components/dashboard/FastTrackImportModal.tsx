@@ -46,12 +46,15 @@ import {
   reconcileRoomSharingAndBeds,
   validateParsedRow,
   normalizeIndianPhoneNumber,
+  isVacantRow,
 } from "@/lib/fastTrackHeuristicParser";
 import { executeFastTrackBatchIngest, BatchIngestResult } from "@/lib/fastTrackBatchIngest";
 import {
   saveFastTrackDraftToFirestore,
   getFastTrackDraftFromFirestore,
   deleteFastTrackDraftFromFirestore,
+  archiveFastTrackMigration,
+  getLastConfirmedFastTrackSheet,
 } from "@/lib/firestoreService";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { buildWhatsAppUrl } from "@/utils/security";
@@ -644,6 +647,160 @@ export function FastTrackImportModal({
     }
   };
 
+  // 📋 Reconstruct / Load Full Sheet from Live Property (Layout & Residents)
+  const [isLoadingLiveRoster, setIsLoadingLiveRoster] = useState(false);
+
+  const handleLoadLivePropertyIntoSheet = async () => {
+    setIsLoadingLiveRoster(true);
+    try {
+      // 1. First, check if an archived confirmed sheet exists
+      const archived = await getLastConfirmedFastTrackSheet(propertyId);
+      if (archived && Array.isArray(archived.rows) && archived.rows.length > 0) {
+        setEditableRows(archived.rows);
+        setSavedDraft(archived);
+        if (archived.dateFormatMode) setDateFormatMode(archived.dateFormatMode);
+        setStep("REVIEW");
+        setIsLoadingLiveRoster(false);
+        return;
+      }
+
+      // 2. Otherwise reverse-reconstruct dynamically from live structure and occupants
+      const liveOccupants = occupantStore.getOccupants(propertyId) || [];
+      const liveStructure = propertyStore.getStructure(propertyId) || [];
+
+      const reconstructedRows: FastTrackParsedRow[] = [];
+      const usedOccupantIds = new Set<string>();
+
+      if (liveStructure.length > 0) {
+        liveStructure.forEach((floor) => {
+          floor.rooms.forEach((room) => {
+            const roomOccupants = liveOccupants.filter(
+              (o) =>
+                (o.roomNumber || "").trim().toUpperCase() === room.roomNumber.trim().toUpperCase() &&
+                o.lifecycleStatus !== "Past"
+            );
+
+            room.beds.forEach((bed, bIdx) => {
+              const bedLetter = bed.bedCode
+                ? bed.bedCode.replace(/^Bed\s*/i, "").trim()
+                : String.fromCharCode(65 + bIdx);
+
+              // Match occupant by bedCode or slot index
+              const occ =
+                roomOccupants.find(
+                  (o) =>
+                    (o.bedCode || "").toUpperCase().trim() ===
+                    (bed.bedCode || `Bed ${bedLetter}`).toUpperCase().trim()
+                ) || roomOccupants[bIdx];
+
+              if (occ) {
+                usedOccupantIds.add(occ.id);
+                reconstructedRows.push({
+                  id: `ft_live_${occ.id}`,
+                  fullName: occ.name,
+                  phone: occ.phone || "",
+                  roomNumber: room.roomNumber,
+                  bedCode: occ.bedCode || `Bed ${bedLetter}`,
+                  sharingType: room.sharingType || room.beds.length || 2,
+                  sharingLabel: `${room.sharingType || room.beds.length || 2}-Sharing`,
+                  rentAmount: occ.rentAmount || room.customRentAmount || 0,
+                  securityDeposit: occ.securityDeposit || 0,
+                  joiningDate: occ.joiningDate || new Date().toISOString().split("T")[0],
+                  paymentMode: "UPI",
+                  isCurrentMonthRentPaid: occ.paymentStatus === "Paid",
+                  isSecurityDepositPaid: occ.depositStatus === "PAID",
+                  stayType: occ.stayType === "Guest" ? "Guest" : "Tenant",
+                  workplace: occ.workplace || "",
+                  occupation: occ.occupation || "",
+                  purposeOfVisit: occ.purposeOfVisit || "",
+                  isVacant: false,
+                  isValid: true,
+                  warnings: [],
+                });
+              } else {
+                // Vacant / available bed
+                reconstructedRows.push({
+                  id: `ft_vacant_${room.roomNumber}_${bedLetter}_${bIdx}`,
+                  fullName: "",
+                  phone: "",
+                  roomNumber: room.roomNumber,
+                  bedCode: `Bed ${bedLetter}`,
+                  sharingType: room.sharingType || room.beds.length || 2,
+                  sharingLabel: `${room.sharingType || room.beds.length || 2}-Sharing`,
+                  rentAmount: room.customRentAmount || 0,
+                  securityDeposit: 0,
+                  joiningDate: new Date().toISOString().split("T")[0],
+                  paymentMode: "UPI",
+                  isCurrentMonthRentPaid: false,
+                  isSecurityDepositPaid: false,
+                  stayType: "Tenant",
+                  workplace: "",
+                  occupation: "",
+                  purposeOfVisit: "",
+                  isVacant: true,
+                  isValid: true,
+                  warnings: [],
+                });
+              }
+            });
+          });
+        });
+      }
+
+      // Append any live occupants who weren't in the structure
+      liveOccupants.forEach((occ, oIdx) => {
+        if (occ.lifecycleStatus !== "Past" && !usedOccupantIds.has(occ.id)) {
+          reconstructedRows.push({
+            id: `ft_live_${occ.id}`,
+            fullName: occ.name,
+            phone: occ.phone || "",
+            roomNumber: occ.roomNumber || "101",
+            bedCode: occ.bedCode || "Bed A",
+            sharingType: 2,
+            sharingLabel: "2-Sharing",
+            rentAmount: occ.rentAmount || 0,
+            securityDeposit: occ.securityDeposit || 0,
+            joiningDate: occ.joiningDate || new Date().toISOString().split("T")[0],
+            paymentMode: "UPI",
+            isCurrentMonthRentPaid: occ.paymentStatus === "Paid",
+            isSecurityDepositPaid: occ.depositStatus === "PAID",
+            stayType: occ.stayType === "Guest" ? "Guest" : "Tenant",
+            workplace: occ.workplace || "",
+            occupation: occ.occupation || "",
+            purposeOfVisit: occ.purposeOfVisit || "",
+            isVacant: false,
+            isValid: true,
+            warnings: [],
+          });
+        }
+      });
+
+      if (reconstructedRows.length === 0) {
+        for (let i = 0; i < 5; i++) {
+          reconstructedRows.push(createBlankManualRow(i));
+        }
+      }
+
+      setEditableRows(reconstructedRows);
+      const draftPayload = {
+        rows: reconstructedRows,
+        updatedAt: new Date().toISOString(),
+        dateFormatMode,
+      };
+      setSavedDraft(draftPayload);
+      try {
+        localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftPayload));
+      } catch {}
+      await saveFastTrackDraftToFirestore(propertyId, draftPayload);
+      setStep("REVIEW");
+    } catch (err: any) {
+      console.error("Could not load live property into sheet:", err);
+      alert(`Could not load live property into sheet: ${err.message}`);
+    } finally {
+      setIsLoadingLiveRoster(false);
+    }
+  };
+
   // Discard saved draft from both Firestore & localStorage
   const handleClearDraft = async () => {
     try {
@@ -675,13 +832,9 @@ export function FastTrackImportModal({
     occupation: "",
     purposeOfVisit: "",
     stayType: "Tenant",
-    isValid: false,
-    warnings: [
-      "Tenant Name is required",
-      "Valid 10-digit mobile is required",
-      "Room number is required",
-      "Monthly rent must be greater than 0",
-    ],
+    isVacant: true,
+    isValid: !!roomNumber.trim(),
+    warnings: roomNumber.trim() ? [] : ["Room number is required"],
     rawSource: "Manual Spreadsheet Grid",
   });
 
@@ -860,16 +1013,27 @@ export function FastTrackImportModal({
       }
 
       // 2. Fetch persistent Cloud Firestore draft (survives logout & device switch)
-      getFastTrackDraftFromFirestore(propertyId).then((cloudDraft) => {
-        if (cloudDraft && Array.isArray(cloudDraft.rows) && cloudDraft.rows.length > 0) {
-          setSavedDraft(cloudDraft);
-          try {
-            localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(cloudDraft));
-          } catch {}
-        }
-      }).catch((err) => {
-        console.warn("Could not fetch cloud draft:", err);
-      });
+      getFastTrackDraftFromFirestore(propertyId)
+        .then(async (cloudDraft) => {
+          if (cloudDraft && Array.isArray(cloudDraft.rows) && cloudDraft.rows.length > 0) {
+            setSavedDraft(cloudDraft);
+            try {
+              localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(cloudDraft));
+            } catch {}
+          } else {
+            // Check if there is an archived last confirmed sheet
+            const lastConfirmed = await getLastConfirmedFastTrackSheet(propertyId);
+            if (lastConfirmed && Array.isArray(lastConfirmed.rows) && lastConfirmed.rows.length > 0) {
+              setSavedDraft(lastConfirmed);
+              try {
+                localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(lastConfirmed));
+              } catch {}
+            }
+          }
+        })
+        .catch((err) => {
+          console.warn("Could not fetch cloud draft:", err);
+        });
 
       setHasAttemptedEnroll(false);
       setStep("INPUT");
@@ -1388,7 +1552,27 @@ export function FastTrackImportModal({
 
       setIngestResult(result);
       setStep("SUCCESS");
-      handleClearDraft();
+
+      // 🏛️ Archive confirmed migration sheet permanently (Never delete or lose data)
+      const archivePayload = {
+        rows: editableRows,
+        updatedAt: new Date().toISOString(),
+        confirmedAt: new Date().toISOString(),
+        dateFormatMode,
+        totalRows: editableRows.length,
+        stats: {
+          totalRows: editableRows.length,
+          totalRent: editableRows.reduce((acc, r) => acc + (Number(r.rentAmount) || 0), 0),
+        },
+        source: fileName || "Interactive Spreadsheet",
+      };
+      archiveFastTrackMigration(propertyId, archivePayload).catch((e) =>
+        console.warn("Could not archive confirmed migration:", e)
+      );
+      setSavedDraft(archivePayload);
+      try {
+        localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(archivePayload));
+      } catch {}
 
       // Check if any enrolled tenants have a current month rent payment marked as paid
       const rentPaidTenants = (result.occupants || []).filter(
@@ -1585,6 +1769,16 @@ export function FastTrackImportModal({
 
           <div className="flex items-center gap-2">
             <button
+              type="button"
+              onClick={handleLoadLivePropertyIntoSheet}
+              disabled={isLoadingLiveRoster}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
+              title="Open full interactive spreadsheet from live property rooms and residents"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingLiveRoster ? "animate-spin text-emerald-600" : "text-emerald-600"}`} />
+              <span className="hidden sm:inline">Load Live Roster Sheet</span>
+            </button>
+            <button
               onClick={() => setIsMaximized(!isMaximized)}
               className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
               title={isMaximized ? "Restore size" : "Maximize view"}
@@ -1643,6 +1837,50 @@ export function FastTrackImportModal({
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* 📋 RECONSTRUCT / LOAD LIVE ROSTER CARD */}
+            {(!savedDraft || !savedDraft.rows || savedDraft.rows.length === 0) && (
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50/80 via-teal-50/60 to-cyan-50/80 border-2 border-emerald-300 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                    <FileSpreadsheet className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-serif font-bold text-sm text-emerald-950">
+                        Live Property Roster Ready
+                      </span>
+                      <span className="bg-emerald-200/90 text-emerald-900 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-300">
+                        1-Click Restore
+                      </span>
+                    </div>
+                    <p className="text-xs text-emerald-800 mt-0.5">
+                      Need your saved sheet back? Reconstruct and edit your live rooms, beds, and residents in the full spreadsheet anytime.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleLoadLivePropertyIntoSheet}
+                  disabled={isLoadingLiveRoster}
+                  className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-md shadow-emerald-700/20 cursor-pointer flex items-center justify-center gap-1.5 transition-all active:scale-95 shrink-0"
+                >
+                  {isLoadingLiveRoster ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Loading Live Roster...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                      <span>Open Live Property Sheet</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </>
+                  )}
+                </button>
               </div>
             )}
 
@@ -3223,7 +3461,7 @@ Anil Verma   9812345678   Room 103   12000"
               </div>
 
               <div className="flex items-center gap-2">
-                {savedDraft && Array.isArray(savedDraft.rows) && savedDraft.rows.length > 0 && (
+                {savedDraft && Array.isArray(savedDraft.rows) && savedDraft.rows.length > 0 ? (
                   <button
                     type="button"
                     onClick={handleResumeDraft}
@@ -3231,6 +3469,20 @@ Anil Verma   9812345678   Room 103   12000"
                   >
                     <FolderOpen className="w-4 h-4" />
                     <span>Open Saved Draft ({savedDraft.rows.length})</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleLoadLivePropertyIntoSheet}
+                    disabled={isLoadingLiveRoster}
+                    className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  >
+                    {isLoadingLiveRoster ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <FileSpreadsheet className="w-4 h-4" />
+                    )}
+                    <span>Open Live Sheet</span>
                   </button>
                 )}
                 <button
