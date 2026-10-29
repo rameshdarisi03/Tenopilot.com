@@ -956,7 +956,23 @@ export default function IndividualTenantProfilePage({
     let waError: string | null = null;
     let emailSuccess = false;
     let emailError: string | null = null;
-    const destEmail = occupantState.email || `${occupantState.phone.replace(/\D/g, "")}@example-tenant.com`;
+    const rawEmail = (occupantState.email || "").trim().toLowerCase();
+    const hasRealEmail = Boolean(
+      rawEmail &&
+      rawEmail.includes("@") &&
+      !rawEmail.includes("resident.tenopilot.com") &&
+      !rawEmail.includes("example.com") &&
+      !rawEmail.includes("tenopilot.auth") &&
+      !rawEmail.startsWith("phone_")
+    );
+    const destEmail = hasRealEmail ? rawEmail : "";
+
+    if (channel === "EMAIL" && !destEmail) {
+      setIsDispatchingReceipt(false);
+      setActiveDispatchTarget(null);
+      triggerToast("⚠️ This resident does not have a registered email address. Please send via WhatsApp or add their email.", "error");
+      return;
+    }
 
     // 1. WhatsApp Receipt
     if (channel === "WHATSAPP" || channel === "BOTH") {
@@ -1005,8 +1021,8 @@ export default function IndividualTenantProfilePage({
       }
     }
 
-    // 2. Email Receipt (Zoho CPaaS Transactional with Attached PDF)
-    if (channel === "EMAIL" || channel === "BOTH") {
+    // 2. Email Receipt (Amazon SES Transactional with Attached PDF)
+    if ((channel === "EMAIL" || channel === "BOTH") && destEmail) {
       try {
         const res = await fetch("/api/email/send", {
           method: "POST",
@@ -2867,9 +2883,17 @@ export default function IndividualTenantProfilePage({
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-gray-500 font-medium">Email</span>
-                    <span className="font-bold text-gray-900 flex items-center gap-1">
-                      <Mail className="w-3.5 h-3.5 text-[#c2652a]" /> {occupantState.email}
-                    </span>
+                    {occupantState.email &&
+                    !occupantState.email.includes("resident.tenopilot.com") &&
+                    !occupantState.email.includes("example.com") &&
+                    !occupantState.email.includes("tenopilot.auth") &&
+                    !occupantState.email.startsWith("phone_") ? (
+                      <span className="font-bold text-gray-900 flex items-center gap-1">
+                        <Mail className="w-3.5 h-3.5 text-[#c2652a]" /> {occupantState.email}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 font-normal italic text-xs">Not Provided</span>
+                    )}
                   </div>
                   {occupantState.occupation && (
                     <div className="flex justify-between pt-1 border-t border-gray-100">

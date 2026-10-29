@@ -9,6 +9,7 @@ export interface FastTrackParsedRow {
   id: string;
   fullName: string;
   phone: string;
+  email?: string;
   roomNumber: string;
   bedCode?: string;
   sharingType?: number;
@@ -49,6 +50,7 @@ export interface FastTrackParseResult {
     dateIndex: number;
     bedIndex: number;
     sharingIndex: number;
+    emailIndex?: number;
   };
   inferredFloors: string[];
   inferredRooms: { roomNumber: string; occupantCount: number; sharingCapacity?: number; blockName?: string; floorName?: string }[];
@@ -550,11 +552,13 @@ export function parseRawSpreadsheetText(
     sharing: new Array(maxCols).fill(0),
     rentPaid: new Array(maxCols).fill(0),
     arrears: new Array(maxCols).fill(0),
+    email: new Array(maxCols).fill(0),
   };
 
   const nameKeywords = /\b(?:full\s*name|tenant\s*name|resident\s*name|student\s*name|customer\s*name|occupant\s*name|member\s*name|name|tenant|resident|student|candidate|boy|girl|member|cust|occupant)\b/i;
   const roomKeywords = /\b(?:room\s*number|room\s*no|room\s*#|room_num|unit\s*no|flat\s*no|kholi\s*no|suite\s*no|room|kholi|flat|unit|rm|r\.no|r\s*no)\b/i;
   const phoneKeywords = /\b(?:mobile\s*number|mobile\s*no|phone\s*number|phone\s*no|contact\s*number|contact\s*no|whatsapp\s*no|cell\s*no|mobile|phone|contact|cell|whatsapp|wp|mob|tel)\b/i;
+  const emailKeywords = /\b(?:email|e-mail|mail|gmail|email\s*id|mail\s*id)\b/i;
   const rentPaidKeywords = /\b(?:rent\s*paid|is_paid|paid\?|rent\s*status|payment\s*status|paid\s*status|current\s*rent\s*paid)\b/i;
   const rentKeywords = /\b(?:monthly\s*rent|rent\s*amount|monthly\s*fee|tariff\s*amount|tariff|bhadha|rent|monthly)\b/i;
   const depositKeywords = /\b(?:security\s*deposit|advance\s*amount|caution\s*deposit|deposit\s*amount|token\s*amount|deposit|advance|security|caution|token|adv|dep|sec\s*dep)\b/i;
@@ -574,6 +578,7 @@ export function parseRawSpreadsheetText(
       if (nameKeywords.test(c)) matchedKeywords++;
       if (roomKeywords.test(c)) matchedKeywords++;
       if (phoneKeywords.test(c)) matchedKeywords++;
+      if (emailKeywords.test(c)) matchedKeywords++;
       if (rentPaidKeywords.test(c)) matchedKeywords++;
       else if (rentKeywords.test(c)) matchedKeywords++;
       if (depositKeywords.test(c)) matchedKeywords++;
@@ -592,6 +597,7 @@ export function parseRawSpreadsheetText(
   // If header row found, evaluate header text directly
   let nameCol = -1;
   let phoneCol = -1;
+  let emailCol = -1;
   let roomCol = -1;
   let rentCol = -1;
   let depositCol = -1;
@@ -612,6 +618,7 @@ export function parseRawSpreadsheetText(
       else if (rentKeywords.test(c)) rentCol = idx;
       else if (roomKeywords.test(c)) roomCol = idx;
       else if (phoneKeywords.test(c)) phoneCol = idx;
+      else if (emailKeywords.test(c)) emailCol = idx;
       else if (sharingKeywords.test(c)) sharingCol = idx;
       else if (dateKeywords.test(c)) dateCol = idx;
       else if (bedKeywords.test(c)) bedCol = idx;
@@ -669,6 +676,11 @@ export function parseRawSpreadsheetText(
         colScores.rentPaid[colIdx] += 4;
       }
 
+      // Check email pattern
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+        colScores.email[colIdx] += 6;
+      }
+
       // Check name pattern (letters, 1 to 4 words, no pure digits)
       if (/^[A-Za-z\s.'()-]{3,40}$/.test(val) && !/^(room|floor|bed|rent|advance|paid|unpaid|cash|upi|gpay|kholi|single|double|triple|yes|no)$/i.test(val)) {
         colScores.name[colIdx] += 1;
@@ -685,6 +697,7 @@ export function parseRawSpreadsheetText(
   if (depositCol === -1) depositCol = getBestColumnIndex(colScores.deposit, [phoneCol, roomCol, nameCol, rentCol, sharingCol, rentPaidCol, arrearsCol]);
   if (dateCol === -1) dateCol = getBestColumnIndex(colScores.date, [phoneCol, roomCol, nameCol, rentCol, depositCol, sharingCol, rentPaidCol, arrearsCol]);
   if (rentPaidCol === -1) rentPaidCol = getBestColumnIndex(colScores.rentPaid, [phoneCol, roomCol, nameCol, rentCol, depositCol, sharingCol, dateCol, arrearsCol]);
+  if (emailCol === -1) emailCol = getBestColumnIndex(colScores.email, [phoneCol, roomCol, nameCol, rentCol, depositCol, sharingCol, dateCol, arrearsCol, rentPaidCol]);
 
   // Fallback defaults if still unbound
   if (nameCol === -1) nameCol = 0;
@@ -700,6 +713,7 @@ export function parseRawSpreadsheetText(
     const rawLine = row.join(" | ");
     let rawName = (row[nameCol] || "").trim();
     let rawPhone = (row[phoneCol] || "").trim();
+    let rawEmail = emailCol !== -1 ? (row[emailCol] || "").trim() : "";
     let rawRoom = (row[roomCol] || "").trim();
     let rawSharing = sharingCol !== -1 ? (row[sharingCol] || "").trim() : "";
     let rawRent = rentCol !== -1 ? (row[rentCol] || "").trim() : "";
@@ -760,6 +774,7 @@ export function parseRawSpreadsheetText(
     const isPaid = /^(?:yes|true|paid|cleared|done)$/i.test(rawRentPaid);
     const isDepositPaid = true; // Default deposit paid for migrated tenants
     const arrearsNum = parseIndianCurrencyAmount(rawArrears, 0);
+    const cleanEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) ? rawEmail.toLowerCase() : "";
 
     const effectiveSharing = parsedSharing.count > 0 ? parsedSharing.count : (roomSharingMap.get(cleanRoom) || currentCountInRoom);
     const effectiveSharingLabel = parsedSharing.label || (effectiveSharing === 1 ? "Single Room" : `${effectiveSharing}-Sharing`);
@@ -768,6 +783,7 @@ export function parseRawSpreadsheetText(
       id: `ft_row_${Date.now()}_${rowIdx}`,
       fullName: cleanName,
       phone: cleanPhone,
+      email: cleanEmail,
       roomNumber: cleanRoom,
       bedCode: cleanBed,
       sharingType: effectiveSharing,
@@ -838,6 +854,7 @@ export function parseRawSpreadsheetText(
       dateIndex: dateCol,
       bedIndex: bedCol,
       sharingIndex: sharingCol,
+      emailIndex: emailCol,
     },
     inferredFloors: Array.from(inferredFloorsSet).sort(),
     inferredRooms: uniqueRooms,

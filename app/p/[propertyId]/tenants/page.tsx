@@ -815,7 +815,22 @@ export default function TenantsDirectoryPage({
       const rentPart = occStmt.remainingRentDue > 0 ? occStmt.remainingRentDue : occ.rentAmount;
       const parkingPart = occStmt.remainingParkingDue;
       const breakupNote = parkingPart > 0 ? `${rentPart} rent + ${parkingPart} parking fee` : undefined;
-      const destEmail = occ.email || `${occ.phone.replace(/\D/g, "")}@example-tenant.com`;
+
+      const rawEmail = (occ.email || "").trim().toLowerCase();
+      const hasRealEmail = Boolean(
+        rawEmail &&
+        rawEmail.includes("@") &&
+        !rawEmail.includes("resident.tenopilot.com") &&
+        !rawEmail.includes("example.com") &&
+        !rawEmail.includes("example-tenant.com") &&
+        !rawEmail.includes("tenopilot.auth") &&
+        !rawEmail.startsWith("phone_")
+      );
+      if (!hasRealEmail) {
+        // Safely skip email dispatch for tenants without registered email
+        continue;
+      }
+      const destEmail = rawEmail;
       try {
         const emailRes = await fetch("/api/email/send", {
           method: "POST",
@@ -1118,7 +1133,22 @@ export default function TenantsDirectoryPage({
       const rentPart = occStmt.remainingRentDue > 0 ? occStmt.remainingRentDue : occ.rentAmount;
       const parkingPart = occStmt.remainingParkingDue;
       const breakupNote = parkingPart > 0 ? `${rentPart} rent + ${parkingPart} parking fee` : undefined;
-      const destEmail = occ.email || `${occ.phone.replace(/\D/g, "")}@example-tenant.com`;
+
+      const rawEmail = (occ.email || "").trim().toLowerCase();
+      const hasRealEmail = Boolean(
+        rawEmail &&
+        rawEmail.includes("@") &&
+        !rawEmail.includes("resident.tenopilot.com") &&
+        !rawEmail.includes("example.com") &&
+        !rawEmail.includes("example-tenant.com") &&
+        !rawEmail.includes("tenopilot.auth") &&
+        !rawEmail.startsWith("phone_")
+      );
+      if (!hasRealEmail) {
+        // Safely skip email dispatch for tenants without registered email
+        continue;
+      }
+      const destEmail = rawEmail;
         try {
           const emailRes = await fetch("/api/email/send", {
             method: "POST",
@@ -4333,7 +4363,12 @@ Scroll vertically to browse all residents without pagination limits
                                         ⏳ Due
                                       </span>
                                     )}
-                                    {occ.email && (
+                                    {occ.email &&
+                                      !occ.email.includes("resident.tenopilot.com") &&
+                                      !occ.email.includes("example.com") &&
+                                      !occ.email.includes("example-tenant.com") &&
+                                      !occ.email.includes("tenopilot.auth") &&
+                                      !occ.email.startsWith("phone_") && (
                                       <span className="px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-mono truncate max-w-[130px]">
                                         ✉️ {occ.email}
                                       </span>

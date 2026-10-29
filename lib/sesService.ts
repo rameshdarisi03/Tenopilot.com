@@ -1083,6 +1083,28 @@ function getSESClient(region?: string, accessKeyId?: string, secretAccessKey?: s
  * Supports custom credentials, reply-to routing, and zero-config simulation mode.
  */
 export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResult> {
+  const cleanRecipientEmail = (payload.toEmail || "").trim().toLowerCase();
+  const isSyntheticEmail =
+    !cleanRecipientEmail ||
+    !cleanRecipientEmail.includes("@") ||
+    cleanRecipientEmail.includes("@resident.tenopilot.com") ||
+    cleanRecipientEmail.includes("@example.com") ||
+    cleanRecipientEmail.includes("@example-tenant.com") ||
+    cleanRecipientEmail.includes("tenopilot.auth") ||
+    cleanRecipientEmail.startsWith("phone_");
+
+  if (isSyntheticEmail) {
+    return {
+      success: false,
+      messageId: `skipped_synthetic_${Date.now()}`,
+      mode: "SIMULATOR_SANDBOX",
+      recipientEmail: payload.toEmail,
+      recipientName: payload.recipientName || "Resident",
+      error: "Recipient has no authentic email address registered. Dispatch safely skipped.",
+      timestamp: new Date().toISOString(),
+    };
+  }
+
   const { subject, html, text } = generateEmailContent(payload);
   const pName = payload.propertyName || "TenoPilot PG";
   const p = payload.params || {};

@@ -1640,7 +1640,16 @@ export function FastTrackImportModal({
       if (!rentReceipt) continue;
 
       const cleanReceiptNo = rentReceipt.receiptNo || `REC-RENT-${Date.now().toString().slice(-4)}-${i + 1}`;
-      const destEmail = occ.email || `${occ.phone?.replace(/\D/g, "") || "resident"}@example.com`;
+      const rawEmail = (occ.email || "").trim().toLowerCase();
+      const hasRealEmail = Boolean(
+        rawEmail &&
+        rawEmail.includes("@") &&
+        !rawEmail.includes("resident.tenopilot.com") &&
+        !rawEmail.includes("example.com") &&
+        !rawEmail.includes("tenopilot.auth") &&
+        !rawEmail.startsWith("phone_")
+      );
+      const destEmail = hasRealEmail ? rawEmail : "";
 
       // 1. WhatsApp Dispatch
       if (dispatchViaWhatsApp && occ.phone) {
@@ -1688,8 +1697,8 @@ export function FastTrackImportModal({
         }
       }
 
-      // 2. Email Dispatch
-      if (dispatchViaEmail) {
+      // 2. Email Dispatch (Only sent if resident has an authentic email)
+      if (dispatchViaEmail && destEmail) {
         try {
           const res = await fetch("/api/email/send", {
             method: "POST",
