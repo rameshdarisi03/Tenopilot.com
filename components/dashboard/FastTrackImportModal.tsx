@@ -142,6 +142,7 @@ export function FastTrackImportModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isMaximized, setIsMaximized] = useState<boolean>(false);
   const [dateFormatMode, setDateFormatMode] = useState<"DD-MMM-YYYY" | "DD/MM/YYYY" | "YYYY-MM-DD">("DD-MMM-YYYY");
+  const [activeFocusedRow, setActiveFocusedRow] = useState<number | null>(null);
 
   // 🔒 Master Controls Capacity Enforcement & Customer Decision Guidance
   const { profile } = useAuth();
@@ -3018,21 +3019,45 @@ Anil Verma   9812345678   Room 103   12000"
 
             {/* Editable Data Table */}
             <div className="border border-gray-200 rounded-2xl overflow-hidden shadow-2xs bg-white">
+              {activeFocusedRow !== null && editableRows[activeFocusedRow] && (
+                <div className="flex items-center justify-between px-3.5 py-1.5 bg-amber-50 border-b border-amber-200 text-amber-950 text-xs font-semibold animate-in fade-in">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-[#c2652a] flex items-center gap-1">
+                      <span className="inline-block w-2 h-2 rounded-full bg-[#c2652a] animate-pulse" />
+                      Editing:
+                    </span>
+                    <span className="font-mono font-black bg-white px-2 py-0.5 rounded-md border border-amber-300 text-xs text-amber-950 shadow-2xs">
+                      Room {editableRows[activeFocusedRow].roomNumber || "—"}
+                    </span>
+                    <span className="font-bold text-gray-900">
+                      {editableRows[activeFocusedRow].fullName || "Unnamed Resident"}
+                    </span>
+                    {editableRows[activeFocusedRow].bedCode && (
+                      <span className="text-[11px] font-mono font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                        {editableRows[activeFocusedRow].bedCode}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-amber-800 font-medium hidden sm:inline">
+                    Row #{activeFocusedRow + 1} of {editableRows.length}
+                  </span>
+                </div>
+              )}
               <div className="overflow-x-auto overflow-y-auto max-h-[52vh] sm:max-h-[58vh]">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="bg-gray-100/90 backdrop-blur-xs sticky top-0 z-10 text-[11px] font-bold text-gray-700 border-b border-gray-200">
                     <tr>
-                      <th className="py-2.5 px-3">#</th>
-                      <th className="py-2.5 px-3 min-w-[180px]">
+                      <th className="py-2.5 px-2.5 w-10 min-w-[40px] max-w-[40px] text-center font-mono sticky left-0 top-0 z-30 bg-gray-100">#</th>
+                      <th className="py-2.5 px-2.5 min-w-[76px] max-w-[76px] text-center sticky left-10 top-0 z-30 bg-gray-100">
+                        <span>Room</span> <span className="text-rose-500 font-extrabold">*</span>
+                      </th>
+                      <th className="py-2.5 px-3 min-w-[170px] sticky left-[116px] top-0 z-30 bg-gray-100 border-r border-gray-300 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.08)]">
                         <span>Tenant Name</span> <span className="text-rose-500 font-extrabold">*</span>
                       </th>
+                      <th className="py-2.5 px-3 min-w-[85px] text-center">Bed Slot</th>
                       <th className="py-2.5 px-3 min-w-[130px]">
                         <span>10-Digit Mobile</span> <span className="text-rose-500 font-extrabold">*</span>
                       </th>
-                      <th className="py-2.5 px-3 min-w-[85px] text-center">
-                        <span>Room</span> <span className="text-rose-500 font-extrabold">*</span>
-                      </th>
-                      <th className="py-2.5 px-3 min-w-[90px] text-center">Bed Slot</th>
                       <th className="py-2.5 px-3 min-w-[105px] text-center">Sharing</th>
                       <th className="py-2.5 px-3 min-w-[140px]">
                         <span>Workplace</span> <span className="text-gray-400 font-normal text-[10px]">(Optional)</span>
@@ -3087,23 +3112,62 @@ Anil Verma   9812345678   Room 103   12000"
                       const isDepositInvalid = showRowErrors && (row.securityDeposit === undefined || row.securityDeposit === null || isNaN(row.securityDeposit) || Number(row.securityDeposit) < 0);
                       const isDateMissing = showRowErrors && !row.joiningDate;
 
+                      const isFocused = activeFocusedRow === idx;
+                      const stickyBg = isDuplicateInTable
+                        ? "bg-rose-50"
+                        : (!row.isValid && hasAttemptedEnroll)
+                        ? "bg-rose-50/60"
+                        : isFocused
+                        ? "bg-amber-50"
+                        : "bg-white group-hover:bg-gray-50";
+
+                      const rowHoverTitle = `Room ${row.roomNumber || "?"}${row.bedCode ? ` (${row.bedCode})` : ""} • ${row.fullName || "Unnamed Resident"}`;
+
                       return (
                         <tr
                           key={row.id}
-                          className={
+                          className={`group transition-colors ${
                             isDuplicateInTable
                               ? "bg-rose-50/80 border-l-4 border-l-rose-500"
                               : (!row.isValid && hasAttemptedEnroll)
                               ? "bg-rose-50/20 border-l-3 border-l-rose-400"
+                              : isFocused
+                              ? "bg-amber-50/60 border-l-4 border-l-[#c2652a]"
                               : "hover:bg-gray-50/50"
-                          }
+                          }`}
                         >
-                          <td className="py-2 px-3 font-mono text-gray-400">{idx + 1}</td>
-                          <td className="py-2 px-3">
+                          {/* 1. Row Index (#) - Sticky Left 0 */}
+                          <td className={`py-2 px-2.5 font-mono text-gray-400 text-center sticky left-0 z-20 ${stickyBg}`}>
+                            {idx + 1}
+                          </td>
+
+                          {/* 2. Room Number - Sticky Left 40px */}
+                          <td className={`py-2 px-2 text-center sticky left-10 z-20 ${stickyBg}`}>
+                            <input
+                              type="text"
+                              value={row.roomNumber}
+                              onFocus={() => setActiveFocusedRow(idx)}
+                              onBlur={() => setActiveFocusedRow(null)}
+                              title={rowHoverTitle}
+                              onChange={(e) => updateRowField(idx, "roomNumber", e.target.value.toUpperCase())}
+                              placeholder="Room *"
+                              className={`w-16 px-1.5 py-1.5 rounded-lg border font-mono font-bold text-xs text-center focus:ring-1 focus:ring-[#c2652a] ${
+                                isRoomMissing
+                                  ? "border-rose-300 bg-rose-50/60 text-rose-900 placeholder:text-rose-400 ring-1 ring-rose-200"
+                                  : "border-gray-200 text-gray-900 bg-white"
+                              }`}
+                            />
+                          </td>
+
+                          {/* 3. Tenant Name - Sticky Left 116px (with shadow divider) */}
+                          <td className={`py-2 px-3 sticky left-[116px] z-20 border-r border-gray-300 shadow-[3px_0_6px_-2px_rgba(0,0,0,0.08)] ${stickyBg}`}>
                             <div className="space-y-1">
                               <input
                                 type="text"
                                 value={row.fullName}
+                                onFocus={() => setActiveFocusedRow(idx)}
+                                onBlur={() => setActiveFocusedRow(null)}
+                                title={rowHoverTitle}
                                 onChange={(e) => updateRowField(idx, "fullName", e.target.value)}
                                 placeholder="Tenant Name *"
                                 className={`w-full px-2.5 py-1.5 rounded-lg border font-semibold text-xs focus:ring-1 focus:ring-[#c2652a] ${
@@ -3111,7 +3175,7 @@ Anil Verma   9812345678   Room 103   12000"
                                     ? "border-rose-400 bg-rose-50 text-rose-950 font-bold"
                                     : isNameMissing
                                     ? "border-rose-300 bg-rose-50/60 text-gray-900 placeholder:text-rose-400 ring-1 ring-rose-200"
-                                    : "border-gray-200 text-gray-900"
+                                    : "border-gray-200 text-gray-900 bg-white"
                                 }`}
                               />
                               {isDuplicateInTable && (
@@ -3121,12 +3185,31 @@ Anil Verma   9812345678   Room 103   12000"
                               )}
                             </div>
                           </td>
+
+                          {/* 4. Bed Slot */}
+                          <td className="py-2 px-3 text-center">
+                            <input
+                              type="text"
+                              value={row.bedCode || "Bed A"}
+                              onFocus={() => setActiveFocusedRow(idx)}
+                              onBlur={() => setActiveFocusedRow(null)}
+                              title={rowHoverTitle}
+                              onChange={(e) => updateRowField(idx, "bedCode", e.target.value)}
+                              placeholder="Bed A"
+                              className="w-20 px-2 py-1.5 rounded-lg border border-purple-200/90 bg-purple-50/60 font-mono font-bold text-purple-800 text-xs text-center focus:ring-1 focus:ring-[#c2652a] focus:bg-white"
+                            />
+                          </td>
+
+                          {/* 5. 10-Digit Mobile */}
                           <td className="py-2 px-3">
                             <input
                               type="text"
                               inputMode="numeric"
                               maxLength={16}
                               value={row.phone || ""}
+                              onFocus={() => setActiveFocusedRow(idx)}
+                              onBlur={() => setActiveFocusedRow(null)}
+                              title={rowHoverTitle}
                               onPaste={(e) => {
                                 e.preventDefault();
                                 const pasted = e.clipboardData.getData("text");
@@ -3148,218 +3231,245 @@ Anil Verma   9812345678   Room 103   12000"
                               }`}
                             />
                           </td>
-                        <td className="py-2 px-3 text-center">
-                          <input
-                            type="text"
-                            value={row.roomNumber}
-                            onChange={(e) => updateRowField(idx, "roomNumber", e.target.value.toUpperCase())}
-                            placeholder="Room *"
-                            className={`w-18 px-2 py-1.5 rounded-lg border font-mono font-bold text-xs text-center focus:ring-1 focus:ring-[#c2652a] ${
-                              isRoomMissing
-                                ? "border-rose-300 bg-rose-50/60 text-rose-900 placeholder:text-rose-400 ring-1 ring-rose-200"
-                                : "border-gray-200 text-gray-900"
-                            }`}
-                          />
-                        </td>
-                        <td className="py-2 px-3 text-center">
-                          <input
-                            type="text"
-                            value={row.bedCode || "Bed A"}
-                            onChange={(e) => updateRowField(idx, "bedCode", e.target.value)}
-                            placeholder="Bed A"
-                            title="Bed Slot Identifier (Editable)"
-                            className="w-20 px-2 py-1.5 rounded-lg border border-purple-200/90 bg-purple-50/60 font-mono font-bold text-purple-800 text-xs text-center focus:ring-1 focus:ring-[#c2652a] focus:bg-white"
-                          />
-                        </td>
-                        <td className="py-2 px-3 text-center">
-                          <select
-                            value={row.sharingType || 2}
-                            onChange={(e) => {
-                              const count = Number(e.target.value);
-                              updateRowField(idx, "sharingType", count);
-                              updateRowField(idx, "sharingLabel", count === 1 ? "Single Room" : `${count}-Sharing`);
-                              const tier = dynamicSharingTiers.find((t) => t.sharingCount === count);
-                              if (tier && typeof tier.amount === "number" && tier.amount > 0) {
-                                updateRowField(idx, "rentAmount", tier.amount);
-                              }
-                            }}
-                            title="Room Sharing Capacity (Auto-selected or Editable)"
-                            className="px-2 py-1.5 rounded-lg border border-blue-200/90 bg-blue-50/60 font-semibold text-blue-800 text-xs focus:ring-1 focus:ring-[#c2652a] focus:bg-white cursor-pointer"
-                          >
-                            <option value={1}>Single</option>
-                            <option value={2}>2-Sharing</option>
-                            <option value={3}>3-Sharing</option>
-                            <option value={4}>4-Sharing</option>
-                            <option value={5}>5-Sharing</option>
-                            <option value={6}>6-Sharing</option>
-                            {dynamicSharingTiers
-                              .filter((t) => t.sharingCount > 6)
-                              .map((t) => (
-                                <option key={t.sharingCount} value={t.sharingCount}>
-                                  {t.label}
-                                </option>
-                              ))}
-                          </select>
-                        </td>
-                        <td className="py-2 px-3">
-                          <input
-                            type="text"
-                            value={row.workplace || ""}
-                            onChange={(e) => updateRowField(idx, "workplace", e.target.value)}
-                            placeholder="e.g. Infosys / Christ Univ"
-                            title="Company, Workplace or College (Optional)"
-                            className="w-36 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-gray-50/40 text-xs font-medium text-gray-900 focus:ring-1 focus:ring-[#c2652a] focus:bg-white placeholder:text-gray-400"
-                          />
-                        </td>
-                        <td className="py-2 px-3">
-                          <input
-                            type="text"
-                            value={row.occupation || ""}
-                            onChange={(e) => updateRowField(idx, "occupation", e.target.value)}
-                            placeholder="e.g. Software Dev / Student"
-                            title="Profession or Role (Optional)"
-                            className="w-32 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-gray-50/40 text-xs font-medium text-gray-900 focus:ring-1 focus:ring-[#c2652a] focus:bg-white placeholder:text-gray-400"
-                          />
-                        </td>
-                        <td className="py-2 px-3 text-center">
-                          <select
-                            value={row.stayType || "Tenant"}
-                            onChange={(e) => updateRowField(idx, "stayType", e.target.value as any)}
-                            title="Stay Classification"
-                            className={`px-2 py-1.5 rounded-lg border text-xs font-bold cursor-pointer ${
-                              row.stayType === "Guest"
-                                ? "bg-purple-100 border-purple-300 text-purple-900"
-                                : "bg-gray-50 border-gray-200 text-gray-800"
-                            }`}
-                          >
-                            <option value="Tenant">Tenant</option>
-                            <option value="Guest">Guest</option>
-                          </select>
-                        </td>
-                        <td className="py-2 px-3">
-                          <div className={`flex items-center justify-between gap-1.5 bg-white border rounded-lg px-2.5 py-1.5 focus-within:ring-1 focus-within:ring-[#c2652a] transition-all min-w-[145px] ${
-                            isDateMissing ? "border-rose-300 bg-rose-50/60 ring-1 ring-rose-200" : "border-gray-200"
-                          }`}>
-                            <span className="font-mono text-xs font-semibold text-gray-900">
-                              {formatDisplayDate(row.joiningDate)}
-                            </span>
+
+                          {/* 6. Sharing */}
+                          <td className="py-2 px-3 text-center">
+                            <select
+                              value={row.sharingType || 2}
+                              onFocus={() => setActiveFocusedRow(idx)}
+                              onBlur={() => setActiveFocusedRow(null)}
+                              title={rowHoverTitle}
+                              onChange={(e) => {
+                                const count = Number(e.target.value);
+                                updateRowField(idx, "sharingType", count);
+                                updateRowField(idx, "sharingLabel", count === 1 ? "Single Room" : `${count}-Sharing`);
+                                const tier = dynamicSharingTiers.find((t) => t.sharingCount === count);
+                                if (tier && typeof tier.amount === "number" && tier.amount > 0) {
+                                  updateRowField(idx, "rentAmount", tier.amount);
+                                }
+                              }}
+                              className="px-2 py-1.5 rounded-lg border border-blue-200/90 bg-blue-50/60 font-semibold text-blue-800 text-xs focus:ring-1 focus:ring-[#c2652a] focus:bg-white cursor-pointer"
+                            >
+                              <option value={1}>Single</option>
+                              <option value={2}>2-Sharing</option>
+                              <option value={3}>3-Sharing</option>
+                              <option value={4}>4-Sharing</option>
+                              <option value={5}>5-Sharing</option>
+                              <option value={6}>6-Sharing</option>
+                              {dynamicSharingTiers
+                                .filter((t) => t.sharingCount > 6)
+                                .map((t) => (
+                                  <option key={t.sharingCount} value={t.sharingCount}>
+                                    {t.label}
+                                  </option>
+                                ))}
+                            </select>
+                          </td>
+
+                          {/* 7. Workplace */}
+                          <td className="py-2 px-3">
                             <input
-                              type="date"
-                              value={row.joiningDate || new Date().toISOString().split("T")[0]}
-                              onChange={(e) => updateRowField(idx, "joiningDate", e.target.value)}
-                              className="w-5 h-5 opacity-60 hover:opacity-100 cursor-pointer border-0 p-0 bg-transparent shrink-0"
-                              title="Pick joining date"
+                              type="text"
+                              value={row.workplace || ""}
+                              onFocus={() => setActiveFocusedRow(idx)}
+                              onBlur={() => setActiveFocusedRow(null)}
+                              title={rowHoverTitle}
+                              onChange={(e) => updateRowField(idx, "workplace", e.target.value)}
+                              placeholder="e.g. Infosys / Christ Univ"
+                              className="w-36 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-gray-50/40 text-xs font-medium text-gray-900 focus:ring-1 focus:ring-[#c2652a] focus:bg-white placeholder:text-gray-400"
                             />
-                          </div>
-                        </td>
-                        <td className="py-2 px-3">
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={row.rentAmount ? String(row.rentAmount) : ""}
-                            placeholder="Rent *"
-                            onChange={(e) => {
-                              const val = e.target.value.replace(/\D/g, "");
-                              updateRowField(idx, "rentAmount", val === "" ? 0 : parseInt(val, 10));
-                            }}
-                            className={`w-22 px-2 py-1.5 rounded-lg border font-mono font-bold text-xs focus:ring-1 focus:ring-[#c2652a] ${
-                              isRentInvalid
-                                ? "border-rose-300 bg-rose-50/60 text-rose-900 placeholder:text-rose-400 ring-1 ring-rose-200"
-                                : "border-gray-200 text-gray-900"
-                            }`}
-                          />
-                        </td>
-                        <td className="py-2 px-3">
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={row.securityDeposit !== undefined && row.securityDeposit !== null && row.securityDeposit > 0 ? String(row.securityDeposit) : (row.securityDeposit === 0 ? "0" : "")}
-                            placeholder="Deposit *"
-                            onChange={(e) => {
-                              const val = e.target.value.replace(/\D/g, "");
-                              updateRowField(idx, "securityDeposit", val === "" ? 0 : parseInt(val, 10));
-                            }}
-                            className={`w-22 px-2 py-1.5 rounded-lg border font-mono text-xs focus:ring-1 focus:ring-[#c2652a] ${
-                              isDepositInvalid
-                                ? "border-rose-300 bg-rose-50/60 text-rose-900 placeholder:text-rose-400 ring-1 ring-rose-200"
-                                : "border-gray-200 text-gray-700"
-                            }`}
-                          />
-                        </td>
-                        <td className="py-2 px-3 text-center">
-                          <select
-                            value={row.isSecurityDepositPaid !== false ? "YES" : "NO"}
-                            onChange={(e) => {
-                              const isPaid = e.target.value === "YES";
-                              updateRowField(idx, "isSecurityDepositPaid", isPaid);
-                            }}
-                            className={`w-full py-1.5 px-2 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
-                              row.isSecurityDepositPaid !== false
-                                ? "bg-emerald-50 border-emerald-300 text-emerald-800 font-extrabold"
-                                : "bg-amber-50 border-amber-300 text-amber-900 font-extrabold"
-                            }`}
-                          >
-                            <option value="YES">Yes (Paid)</option>
-                            <option value="NO">No (Pending)</option>
-                          </select>
-                        </td>
-                        <td className="py-2 px-3 text-center">
-                          <select
-                            value={row.isCurrentMonthRentPaid ? "YES" : "NO"}
-                            onChange={(e) => {
-                              const isPaid = e.target.value === "YES";
-                              updateRowField(idx, "isCurrentMonthRentPaid", isPaid);
-                            }}
-                            className={`w-full py-1.5 px-2 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
-                              row.isCurrentMonthRentPaid
-                                ? "bg-emerald-50 border-emerald-300 text-emerald-800 font-extrabold"
-                                : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
-                            }`}
-                          >
-                            <option value="NO">No (Due)</option>
-                            <option value="YES">Yes (Paid)</option>
-                          </select>
-                        </td>
-                        <td className="py-2 px-3">
-                          <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg px-2 py-1.5 focus-within:ring-1 focus-within:ring-[#c2652a]">
-                            <span className="text-gray-400 font-mono text-xs">₹</span>
+                          </td>
+
+                          {/* 8. Profession */}
+                          <td className="py-2 px-3">
+                            <input
+                              type="text"
+                              value={row.occupation || ""}
+                              onFocus={() => setActiveFocusedRow(idx)}
+                              onBlur={() => setActiveFocusedRow(null)}
+                              title={rowHoverTitle}
+                              onChange={(e) => updateRowField(idx, "occupation", e.target.value)}
+                              placeholder="e.g. Software Dev / Student"
+                              className="w-32 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-gray-50/40 text-xs font-medium text-gray-900 focus:ring-1 focus:ring-[#c2652a] focus:bg-white placeholder:text-gray-400"
+                            />
+                          </td>
+
+                          {/* 9. Stay Type */}
+                          <td className="py-2 px-3 text-center">
+                            <select
+                              value={row.stayType || "Tenant"}
+                              onFocus={() => setActiveFocusedRow(idx)}
+                              onBlur={() => setActiveFocusedRow(null)}
+                              title={rowHoverTitle}
+                              onChange={(e) => updateRowField(idx, "stayType", e.target.value as any)}
+                              className={`px-2 py-1.5 rounded-lg border text-xs font-bold cursor-pointer ${
+                                row.stayType === "Guest"
+                                  ? "bg-purple-100 border-purple-300 text-purple-900"
+                                  : "bg-gray-50 border-gray-200 text-gray-800"
+                              }`}
+                            >
+                              <option value="Tenant">Tenant</option>
+                              <option value="Guest">Guest</option>
+                            </select>
+                          </td>
+
+                          {/* 10. Joining Date */}
+                          <td className="py-2 px-3">
+                            <div className={`flex items-center justify-between gap-1.5 bg-white border rounded-lg px-2.5 py-1.5 focus-within:ring-1 focus-within:ring-[#c2652a] transition-all min-w-[145px] ${
+                              isDateMissing ? "border-rose-300 bg-rose-50/60 ring-1 ring-rose-200" : "border-gray-200"
+                            }`}>
+                              <span className="font-mono text-xs font-semibold text-gray-900">
+                                {formatDisplayDate(row.joiningDate)}
+                              </span>
+                              <input
+                                type="date"
+                                value={row.joiningDate || new Date().toISOString().split("T")[0]}
+                                onFocus={() => setActiveFocusedRow(idx)}
+                                onBlur={() => setActiveFocusedRow(null)}
+                                title={rowHoverTitle}
+                                onChange={(e) => updateRowField(idx, "joiningDate", e.target.value)}
+                                className="w-5 h-5 opacity-60 hover:opacity-100 cursor-pointer border-0 p-0 bg-transparent shrink-0"
+                              />
+                            </div>
+                          </td>
+
+                          {/* 11. Monthly Rent */}
+                          <td className="py-2 px-3">
                             <input
                               type="text"
                               inputMode="numeric"
-                              value={row.priorArrearsAmount ? String(row.priorArrearsAmount) : ""}
-                              placeholder="0"
+                              value={row.rentAmount ? String(row.rentAmount) : ""}
+                              placeholder="Rent *"
+                              onFocus={() => setActiveFocusedRow(idx)}
+                              onBlur={() => setActiveFocusedRow(null)}
+                              title={rowHoverTitle}
                               onChange={(e) => {
                                 const val = e.target.value.replace(/\D/g, "");
-                                updateRowField(idx, "priorArrearsAmount", val === "" ? 0 : parseInt(val, 10));
+                                updateRowField(idx, "rentAmount", val === "" ? 0 : parseInt(val, 10));
                               }}
-                              className="w-20 font-mono font-bold text-gray-900 text-xs border-0 p-0 focus:ring-0"
+                              className={`w-22 px-2 py-1.5 rounded-lg border font-mono font-bold text-xs focus:ring-1 focus:ring-[#c2652a] ${
+                                isRentInvalid
+                                  ? "border-rose-300 bg-rose-50/60 text-rose-900 placeholder:text-rose-400 ring-1 ring-rose-200"
+                                  : "border-gray-200 text-gray-900"
+                              }`}
                             />
-                          </div>
-                        </td>
-                        <td className="py-2 px-3 text-center">
-                          {(row.isValid || !hasAttemptedEnroll) ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap">
-                              <Check className="w-3 h-3 text-emerald-600" /> Ready
-                            </span>
-                          ) : (
-                            <span
-                              title={row.warnings.join("\n")}
-                              className="inline-flex items-center gap-1 text-rose-800 bg-rose-50 border border-rose-300 px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap cursor-help"
+                          </td>
+
+                          {/* 12. Security Deposit */}
+                          <td className="py-2 px-3">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={row.securityDeposit !== undefined && row.securityDeposit !== null && row.securityDeposit > 0 ? String(row.securityDeposit) : (row.securityDeposit === 0 ? "0" : "")}
+                              placeholder="Deposit *"
+                              onFocus={() => setActiveFocusedRow(idx)}
+                              onBlur={() => setActiveFocusedRow(null)}
+                              title={rowHoverTitle}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, "");
+                                updateRowField(idx, "securityDeposit", val === "" ? 0 : parseInt(val, 10));
+                              }}
+                              className={`w-22 px-2 py-1.5 rounded-lg border font-mono text-xs focus:ring-1 focus:ring-[#c2652a] ${
+                                isDepositInvalid
+                                  ? "border-rose-300 bg-rose-50/60 text-rose-900 placeholder:text-rose-400 ring-1 ring-rose-200"
+                                  : "border-gray-200 text-gray-700"
+                              }`}
+                            />
+                          </td>
+
+                          {/* 13. Deposit Paid YES/NO */}
+                          <td className="py-2 px-3 text-center">
+                            <select
+                              value={row.isSecurityDepositPaid !== false ? "YES" : "NO"}
+                              onFocus={() => setActiveFocusedRow(idx)}
+                              onBlur={() => setActiveFocusedRow(null)}
+                              title={rowHoverTitle}
+                              onChange={(e) => {
+                                const isPaid = e.target.value === "YES";
+                                updateRowField(idx, "isSecurityDepositPaid", isPaid);
+                              }}
+                              className={`w-full py-1.5 px-2 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                                row.isSecurityDepositPaid !== false
+                                  ? "bg-emerald-50 border-emerald-300 text-emerald-800 font-extrabold"
+                                  : "bg-amber-50 border-amber-300 text-amber-900 font-extrabold"
+                              }`}
                             >
-                              <AlertTriangle className="w-3 h-3 text-rose-600" /> Fix Info
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-2 px-3 text-center">
-                          <button
-                            onClick={() => removeRow(idx)}
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
+                              <option value="YES">Yes (Paid)</option>
+                              <option value="NO">No (Pending)</option>
+                            </select>
+                          </td>
+
+                          {/* 14. Rent Paid (This Mo) YES/NO */}
+                          <td className="py-2 px-3 text-center">
+                            <select
+                              value={row.isCurrentMonthRentPaid ? "YES" : "NO"}
+                              onFocus={() => setActiveFocusedRow(idx)}
+                              onBlur={() => setActiveFocusedRow(null)}
+                              title={rowHoverTitle}
+                              onChange={(e) => {
+                                const isPaid = e.target.value === "YES";
+                                updateRowField(idx, "isCurrentMonthRentPaid", isPaid);
+                              }}
+                              className={`w-full py-1.5 px-2 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                                row.isCurrentMonthRentPaid
+                                  ? "bg-emerald-50 border-emerald-300 text-emerald-800 font-extrabold"
+                                  : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
+                              }`}
+                            >
+                              <option value="NO">No (Due)</option>
+                              <option value="YES">Yes (Paid)</option>
+                            </select>
+                          </td>
+
+                          {/* 15. Prior Arrears */}
+                          <td className="py-2 px-3">
+                            <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg px-2 py-1.5 focus-within:ring-1 focus-within:ring-[#c2652a]">
+                              <span className="text-gray-400 font-mono text-xs">₹</span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={row.priorArrearsAmount ? String(row.priorArrearsAmount) : ""}
+                                placeholder="0"
+                                onFocus={() => setActiveFocusedRow(idx)}
+                                onBlur={() => setActiveFocusedRow(null)}
+                                title={rowHoverTitle}
+                                onChange={(e) => {
+                                  const val = e.target.value.replace(/\D/g, "");
+                                  updateRowField(idx, "priorArrearsAmount", val === "" ? 0 : parseInt(val, 10));
+                                }}
+                                className="w-20 font-mono font-bold text-gray-900 text-xs border-0 p-0 focus:ring-0"
+                              />
+                            </div>
+                          </td>
+
+                          {/* 16. Status */}
+                          <td className="py-2 px-3 text-center">
+                            {(row.isValid || !hasAttemptedEnroll) ? (
+                              <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap">
+                                <Check className="w-3 h-3 text-emerald-600" /> Ready
+                              </span>
+                            ) : (
+                              <span
+                                title={row.warnings.join("\n")}
+                                className="inline-flex items-center gap-1 text-rose-800 bg-rose-50 border border-rose-300 px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap cursor-help"
+                              >
+                                <AlertTriangle className="w-3 h-3 text-rose-600" /> Fix Info
+                              </span>
+                            )}
+                          </td>
+
+                          {/* 17. Action Delete */}
+                          <td className="py-2 px-3 text-center">
+                            <button
+                              onClick={() => removeRow(idx)}
+                              title="Delete Row"
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
                   })}
                   </tbody>
                 </table>
