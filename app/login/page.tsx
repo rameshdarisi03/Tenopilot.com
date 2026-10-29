@@ -44,7 +44,7 @@ import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs } fro
 import { db, auth } from "@/lib/firebase";
 import { signOut, onAuthStateChanged } from "firebase/auth";
 
-function getCleanRedirectUrl(fallback: string): string {
+function getCleanRedirectUrl(fallback: string, userAssignedProp?: string, isFounder?: boolean): string {
   if (typeof window === "undefined") return fallback;
   try {
     const urlParams = new URLSearchParams(window.location.search);
@@ -59,6 +59,26 @@ function getCleanRedirectUrl(fallback: string): string {
       !candidate.startsWith("/signup")
     ) {
       sessionStorage.removeItem("tenopilot_post_login_redirect");
+
+      // 🔒 MULTI-TENANT ISOLATION BARRIER:
+      // If candidate targets a specific property /p/[propertyId]/...,
+      // strictly verify that the user is authorized for that building.
+      if (candidate.startsWith("/p/")) {
+        const parts = candidate.split("/");
+        const candidateProp = parts[2];
+        const isPublicDesk = candidate.includes("/public-complaint") || candidate.includes("/self-kyc-checkin");
+        if (
+          !isPublicDesk &&
+          candidateProp &&
+          candidateProp !== userAssignedProp &&
+          candidateProp !== "sunshine-pg" &&
+          !isFounder
+        ) {
+          // Never redirect into another owner's property!
+          return fallback;
+        }
+      }
+
       return candidate;
     }
   } catch {}
@@ -745,7 +765,8 @@ export default function LoginPage() {
         ? "/welcome"
         : (role === "master_admin" ? "/home" : (targetProp ? `/p/${targetProp}/overview` : "/home"));
 
-      const targetPath = hasCompletedOnboarding ? getCleanRedirectUrl(defaultPath) : defaultPath;
+      const isFounder = (targetEmail || "").toLowerCase() === "rameshdarisi03@gmail.com";
+      const targetPath = hasCompletedOnboarding ? getCleanRedirectUrl(defaultPath, targetProp, isFounder) : defaultPath;
 
       router.push(targetPath);
       if (typeof window !== "undefined") {
@@ -976,7 +997,8 @@ export default function LoginPage() {
         ? "/welcome"
         : (role === "master_admin" ? "/home" : (targetProperty ? `/p/${targetProperty}/overview` : "/home"));
 
-      const targetPath = hasCompletedOnboarding ? getCleanRedirectUrl(defaultPath) : defaultPath;
+      const isFounder = (targetEmail || "").toLowerCase() === "rameshdarisi03@gmail.com";
+      const targetPath = hasCompletedOnboarding ? getCleanRedirectUrl(defaultPath, targetProperty, isFounder) : defaultPath;
 
       router.push(targetPath);
       if (typeof window !== "undefined") {
@@ -1306,7 +1328,12 @@ export default function LoginPage() {
                     setAuthStep("PIN_PROMPT");
                     setPinValue("");
                   } else {
-                    router.push(getCleanRedirectUrl(authResult.destination));
+                    const isFounder = (cleanEmail || "").toLowerCase() === "rameshdarisi03@gmail.com";
+                    const isCompleted = !authResult.isNewUser && Boolean(authResult.assignedPropertyId);
+                    const dest = isCompleted
+                      ? getCleanRedirectUrl(authResult.destination, authResult.assignedPropertyId, isFounder)
+                      : "/welcome";
+                    router.push(dest);
                   }
                 }}
               />
@@ -1328,7 +1355,11 @@ export default function LoginPage() {
                     setAuthStep("PIN_PROMPT");
                     setPinValue("");
                   } else {
-                    router.push(getCleanRedirectUrl(authResult.destination));
+                    const isFounder = (authResult.profile?.email || "").toLowerCase() === "rameshdarisi03@gmail.com";
+                    const dest = authResult.profile?.onboardingCompleted
+                      ? getCleanRedirectUrl(authResult.destination, authResult.profile?.assignedPropertyId, isFounder)
+                      : "/welcome";
+                    router.push(dest);
                   }
                 }}
               />

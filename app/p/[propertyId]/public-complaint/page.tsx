@@ -178,6 +178,11 @@ export default function PublicTenantComplaintPage({
   ];
 
   useEffect(() => {
+    // Purge any stale post-login redirects so public portal visits never pollute manager sessions
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("tenopilot_post_login_redirect");
+    }
+
     // Property Settings sync
     propertySettingsStore.initFirebaseListener(propertyId);
     setPropertySettings(propertySettingsStore.getSettings(propertyId));

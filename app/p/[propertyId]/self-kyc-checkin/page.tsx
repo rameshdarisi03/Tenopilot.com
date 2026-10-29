@@ -111,6 +111,9 @@ export default function WalkInSelfKycCheckinPage({
 
   // Real-time synchronization of property layout
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("tenopilot_post_login_redirect");
+    }
     propertyStore.initFirebaseListener(propertyId);
     setStructure(propertyStore.getStructure(propertyId));
     const unsubscribe = propertyStore.subscribe(() => {
