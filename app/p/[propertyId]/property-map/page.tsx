@@ -38,6 +38,7 @@ import {
   Download,
   Lock,
   UserPlus,
+  Search,
 } from "lucide-react";
 
 import { propertySettingsStore } from "@/constants/propertySettings";
@@ -131,6 +132,9 @@ function PropertyMapContent({
     if (f === "hold" || f === "onhold") return "Hold";
     return "ALL";
   });
+
+  // 🔍 Real-Time In-Page Search Bar State (Resident name, room, phone, vehicle plate)
+  const [rawSearchTerm, setRawSearchTerm] = useState<string>("");
 
   // Sync active filter status if URL search params change
   useEffect(() => {
@@ -301,8 +305,10 @@ function PropertyMapContent({
     };
   }, [bedCounts]);
 
-  // Filtered Floors & Rooms according to Floor, Room, and Status Pill selections
+  // Filtered Floors & Rooms according to Floor, Room, Status Pill, and In-Page Search
   const filteredGrid = useMemo(() => {
+    const query = rawSearchTerm.toLowerCase().trim();
+
     return propertyGrid
       .filter((fl) => {
         if (selectedFloor !== "ALL FLOORS" && fl.floorName !== selectedFloor)
@@ -322,11 +328,11 @@ function PropertyMapContent({
               (a.bedCode || "").localeCompare(b.bedCode || "", undefined, { numeric: true, sensitivity: "base" })
             );
             const rmClaimedOccIds = new Set<string>();
+            const roomMatchesQuery = query ? rm.roomNumber.toLowerCase().includes(query) : false;
 
             return {
               ...rm,
               beds: sortedBeds.filter((bd) => {
-                if (activeFilterStatus === "ALL") return true;
                 const timeline = getBedOccupantsTimeline(rm.roomNumber, bd.bedCode, bd, propertyId);
                 let primaryOcc =
                   timeline.activeOccupant ||
@@ -343,38 +349,64 @@ function PropertyMapContent({
                     rmClaimedOccIds.add(primaryOcc.id);
                   }
                 }
-              const rawNext =
-                timeline.nextBooking ||
-                (bd.occupant && bd.occupant.lifecycleStatus === "Booked"
-                  ? bd.occupant
-                  : undefined);
-              const nextOcc =
-                rawNext && primaryOcc && (rawNext.id === primaryOcc.id || rawNext.name?.toLowerCase() === primaryOcc.name?.toLowerCase())
-                  ? undefined
-                  : rawNext;
+                const rawNext =
+                  timeline.nextBooking ||
+                  (bd.occupant && bd.occupant.lifecycleStatus === "Booked"
+                    ? bd.occupant
+                    : undefined);
+                const nextOcc =
+                  rawNext && primaryOcc && (rawNext.id === primaryOcc.id || rawNext.name?.toLowerCase() === primaryOcc.name?.toLowerCase())
+                    ? undefined
+                    : rawNext;
 
-              const effStatus = primaryOcc
-                ? primaryOcc.lifecycleStatus === "Notice"
-                  ? "Vacating"
-                  : primaryOcc.stayType === "Guest"
-                  ? "Guest"
-                  : "Occupied"
-                : nextOcc
-                ? nextOcc.stayType === "Guest"
-                  ? "Guest"
-                  : "Booked"
-                : bd.status === "Hold"
-                ? "Hold"
-                : (bd.status === "Occupied" && !bd.occupant ? "Available" : bd.status === "Booked" ? "Available" : bd.status);
+                const effStatus = primaryOcc
+                  ? primaryOcc.lifecycleStatus === "Notice"
+                    ? "Vacating"
+                    : primaryOcc.stayType === "Guest"
+                    ? "Guest"
+                    : "Occupied"
+                  : nextOcc
+                  ? nextOcc.stayType === "Guest"
+                    ? "Guest"
+                    : "Booked"
+                  : bd.status === "Hold"
+                  ? "Hold"
+                  : (bd.status === "Occupied" && !bd.occupant ? "Available" : bd.status === "Booked" ? "Available" : bd.status);
 
-              return effStatus === activeFilterStatus;
-            }),
-          };
-        })
-        .filter((rm) => rm.beds.length > 0),
+                if (activeFilterStatus !== "ALL" && effStatus !== activeFilterStatus) {
+                  return false;
+                }
+
+                // If no search query, keep bed based on status filter
+                if (!query) return true;
+                // If room number directly matches query, show all beds in room
+                if (roomMatchesQuery) return true;
+
+                // Match occupant attributes (name, phone, vehicle plate, workplace, bedCode)
+                const bdCodeMatch = bd.bedCode?.toLowerCase().includes(query);
+                const primaryMatch = primaryOcc && (
+                  primaryOcc.name?.toLowerCase().includes(query) ||
+                  primaryOcc.phone?.toLowerCase().includes(query) ||
+                  (primaryOcc as any).vehiclePlate?.toLowerCase().includes(query) ||
+                  (primaryOcc as any).vehicleNumber?.toLowerCase().includes(query) ||
+                  (primaryOcc as any).company?.toLowerCase().includes(query) ||
+                  (primaryOcc as any).workplace?.toLowerCase().includes(query)
+                );
+                const nextMatch = nextOcc && (
+                  nextOcc.name?.toLowerCase().includes(query) ||
+                  nextOcc.phone?.toLowerCase().includes(query) ||
+                  (nextOcc as any).vehiclePlate?.toLowerCase().includes(query) ||
+                  (nextOcc as any).vehicleNumber?.toLowerCase().includes(query)
+                );
+
+                return Boolean(bdCodeMatch || primaryMatch || nextMatch);
+              }),
+            };
+          })
+          .filter((rm) => rm.beds.length > 0),
       }))
       .filter((fl) => fl.rooms.length > 0);
-  }, [propertyGrid, selectedFloor, selectedRoom, activeFilterStatus]);
+  }, [propertyGrid, selectedFloor, selectedRoom, activeFilterStatus, rawSearchTerm]);
 
   return (
     <div className="flex min-h-screen bg-[#fcf9f8] text-gray-900 font-sans selection:bg-[#c2652a]/20 selection:text-[#c2652a]">
@@ -667,6 +699,28 @@ function PropertyMapContent({
                 </span>
               </div>
             </div>
+          </div>
+
+          {/* 🔍 Dedicated In-Page Search Bar (Search resident name, room, phone, vehicle plate...) */}
+          <div className="relative max-w-lg w-full">
+            <input
+              type="text"
+              value={rawSearchTerm}
+              onChange={(e) => setRawSearchTerm(e.target.value)}
+              placeholder="Search resident name, room, phone, vehicle plate..."
+              className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 focus:border-[#c2652a] rounded-2xl text-xs sm:text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-[#c2652a]/20 shadow-xs transition-all"
+            />
+            <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
+            {rawSearchTerm && (
+              <button
+                type="button"
+                onClick={() => setRawSearchTerm("")}
+                className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 absolute right-2.5 top-2.5 cursor-pointer"
+                title="Clear search"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           {/* Floors & Rooms Grid Section */}
@@ -1057,8 +1111,24 @@ function PropertyMapContent({
                 )}
               </div>
             ) : (
-              <div className="py-16 text-center text-xs text-gray-500 bg-white rounded-2xl border border-gray-200">
-                No matching beds or rooms found for the selected filter.
+              <div className="py-16 text-center text-xs text-gray-500 bg-white rounded-2xl border border-gray-200 space-y-3 p-6">
+                <Search className="w-8 h-8 text-gray-300 mx-auto" />
+                <p className="font-bold text-gray-700 text-sm">
+                  {rawSearchTerm
+                    ? `No rooms or residents matching "${rawSearchTerm}"`
+                    : "No matching beds or rooms found for the selected filter."}
+                </p>
+                {rawSearchTerm ? (
+                  <button
+                    type="button"
+                    onClick={() => setRawSearchTerm("")}
+                    className="px-4 py-2 rounded-xl bg-[#c2652a] text-white text-xs font-bold hover:bg-[#a8451f] transition-all cursor-pointer shadow-xs inline-flex items-center gap-1.5"
+                  >
+                    <X className="w-3.5 h-3.5" /> Clear Search
+                  </button>
+                ) : (
+                  <p className="text-gray-400 text-xs">Try switching floors or clearing status filters.</p>
+                )}
               </div>
             )}
           </div>
