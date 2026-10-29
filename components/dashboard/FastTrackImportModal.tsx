@@ -685,13 +685,14 @@ export function FastTrackImportModal({
                 ? bed.bedCode.replace(/^Bed\s*/i, "").trim()
                 : String.fromCharCode(65 + bIdx);
 
-              // Match occupant by bedCode or slot index
+              // Match occupant by bedCode without duplicating already-assigned residents
               const occ =
                 roomOccupants.find(
                   (o) =>
+                    !usedOccupantIds.has(o.id) &&
                     (o.bedCode || "").toUpperCase().trim() ===
                     (bed.bedCode || `Bed ${bedLetter}`).toUpperCase().trim()
-                ) || roomOccupants[bIdx];
+                ) || roomOccupants.find((o) => !usedOccupantIds.has(o.id));
 
               if (occ) {
                 usedOccupantIds.add(occ.id);

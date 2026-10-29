@@ -149,14 +149,33 @@ export async function executeFastTrackBatchIngest(
   let totalMonthlyRevenue = 0;
 
   const roomBedCounters = new Map<string, number>();
+  const roomUsedLetters = new Map<string, Set<string>>();
 
   rows.forEach((row, idx) => {
-    const rawRoom = (row.roomNumber || "").toUpperCase().trim();
+    const rawRoom = (row.roomNumber || "").toUpperCase().trim().replace(/^ROOM\s*/i, "");
+    let usedLetters = roomUsedLetters.get(rawRoom);
+    if (!usedLetters) {
+      usedLetters = new Set<string>();
+      roomUsedLetters.set(rawRoom, usedLetters);
+    }
+
     const currentBedNum = (roomBedCounters.get(rawRoom) || 0) + 1;
     roomBedCounters.set(rawRoom, currentBedNum);
 
-    const bedLetter = String.fromCharCode(64 + Math.min(currentBedNum, 26)); // A, B, C...
-    const finalBedCode = row.bedCode || `Bed ${bedLetter}`;
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const candidateMatch = (row.bedCode || "").toUpperCase().match(/[A-Z]/);
+    let assignedLetter = candidateMatch ? candidateMatch[0] : "";
+
+    // Guarantee unique sequential bed code per room
+    if (!assignedLetter || usedLetters.has(assignedLetter)) {
+      let aIdx = 0;
+      while (aIdx < alphabet.length && usedLetters.has(alphabet[aIdx])) {
+        aIdx++;
+      }
+      assignedLetter = aIdx < alphabet.length ? alphabet[aIdx] : String(currentBedNum);
+    }
+    usedLetters.add(assignedLetter);
+    const finalBedCode = `Bed ${assignedLetter}`;
 
     // Skip creating occupant for vacant / available beds
     if (isVacantRow(row)) {
@@ -299,7 +318,7 @@ export async function executeFastTrackBatchIngest(
   // 4. Smart De-duplication & Update Occupant Store & Cloud Firestore
   const mergedOccupants: Occupant[] = [...existingOccupants];
 
-  newOccupants.forEach((newOcc) => {
+  newOccupants.forEach((newOcc, occIdx) => {
     const cleanNewPhone = (newOcc.phone || "").replace(/\D/g, "").slice(-10);
     const newNormName = (newOcc.name || "").trim().toLowerCase();
     const newRoom = (newOcc.roomNumber || "").trim().toUpperCase();
@@ -327,10 +346,93 @@ export async function executeFastTrackBatchIngest(
     });
 
     if (existingIndex >= 0) {
-      // Merge into existing occupant to prevent duplicates
+      // Merge into existing occupant with Dual-Ledger Financial Override
       const ex = mergedOccupants[existingIndex];
+      const updatedHistory = [...(ex.paymentHistory || [])];
+
+      // 🌟 Security Deposit Dual Ledger Reconciliation:
+      let depositStatus = ex.depositStatus || "PENDING";
+      const depReceiptIdx = updatedHistory.findIndex((p) => p.month === "Security Deposit" || p.id.startsWith("pay_dep_"));
+      const finalDepAmount = newOcc.securityDeposit ?? 0;
+      if (newOcc.depositStatus === "PAID") {
+        depositStatus = "PAID";
+        if (depReceiptIdx >= 0) {
+          updatedHistory[depReceiptIdx] = {
+            ...updatedHistory[depReceiptIdx],
+            amount: finalDepAmount,
+            depositAmount: finalDepAmount,
+            rentAmount: 0,
+            status: "PAID",
+          };
+        } else if (finalDepAmount > 0) {
+          const depReceiptNo = generateReceiptNumber(settings, {
+            date: ex.joiningDate || newOcc.joiningDate || now,
+            manualSequence: occIdx * 2 + 1,
+          });
+          updatedHistory.unshift({
+            id: `pay_dep_${Date.now()}_${occIdx}`,
+            month: "Security Deposit",
+            date: ex.joiningDate || newOcc.joiningDate || now.toISOString().split("T")[0],
+            amount: finalDepAmount,
+            depositAmount: finalDepAmount,
+            rentAmount: 0,
+            mode: "UPI",
+            receiptNo: depReceiptNo,
+            status: "PAID",
+          });
+        }
+      } else {
+        // Owner marked Security Deposit as NO / Pending: remove onboarding deposit receipt
+        depositStatus = "PENDING";
+        if (depReceiptIdx >= 0) {
+          updatedHistory.splice(depReceiptIdx, 1);
+        }
+      }
+
+      // 🌟 Rent Dual Ledger Reconciliation:
+      let paymentStatus = ex.paymentStatus;
+      let lastPaidDate = ex.lastPaidDate;
+      const rentReceiptIdx = updatedHistory.findIndex((p) => p.month === currentMonthStr || p.id.startsWith("pay_rent_"));
+      if (newOcc.paymentStatus === "Paid") {
+        paymentStatus = "Paid";
+        lastPaidDate = currentMonthStr;
+        if (rentReceiptIdx >= 0) {
+          updatedHistory[rentReceiptIdx] = {
+            ...updatedHistory[rentReceiptIdx],
+            amount: newOcc.rentAmount,
+            rentAmount: newOcc.rentAmount,
+            depositAmount: 0,
+            status: "PAID",
+          };
+        } else if (newOcc.rentAmount > 0) {
+          const rentReceiptNo = generateReceiptNumber(settings, {
+            date: now,
+            manualSequence: occIdx * 2 + 2,
+          });
+          updatedHistory.push({
+            id: `pay_rent_${Date.now()}_${occIdx}`,
+            month: currentMonthStr,
+            date: now.toISOString().split("T")[0],
+            amount: newOcc.rentAmount,
+            rentAmount: newOcc.rentAmount,
+            depositAmount: 0,
+            mode: newOcc.paymentHistory?.[0]?.mode || "UPI",
+            receiptNo: rentReceiptNo,
+            status: "PAID",
+          });
+        }
+      } else {
+        // Owner marked Rent as NO / Due: remove onboarding rent receipt
+        paymentStatus = newOcc.paymentStatus || "Due";
+        lastPaidDate = "—";
+        if (rentReceiptIdx >= 0) {
+          updatedHistory.splice(rentReceiptIdx, 1);
+        }
+      }
+
       mergedOccupants[existingIndex] = {
         ...ex,
+        name: newOcc.name || ex.name,
         roomNumber: newOcc.roomNumber || ex.roomNumber,
         bedCode: newOcc.bedCode || ex.bedCode,
         rentAmount: newOcc.rentAmount || ex.rentAmount,
@@ -338,6 +440,10 @@ export async function executeFastTrackBatchIngest(
         workplace: newOcc.workplace || ex.workplace,
         occupation: newOcc.occupation || ex.occupation,
         purposeOfVisit: newOcc.purposeOfVisit || ex.purposeOfVisit,
+        depositStatus,
+        paymentStatus,
+        lastPaidDate,
+        paymentHistory: updatedHistory,
       };
       saveOccupantToFirestore(propertyId, mergedOccupants[existingIndex]).catch((err) =>
         console.warn(`Firestore background update notice for ${ex.name}:`, err)
@@ -353,7 +459,7 @@ export async function executeFastTrackBatchIngest(
 
   occupantStore.updateOccupants(mergedOccupants, propertyId);
 
-  // 5. Synchronize Room Bed Occupancies in Property Layout Store (Fuzzy Slot Index Matching)
+  // 5. Synchronize Room Bed Occupancies in Property Layout Store (Accurate Bed-Code Matching)
   const currentStructure = propertyStore.getStructure(propertyId);
   if (currentStructure && currentStructure.length > 0) {
     let structureUpdated = false;
@@ -372,10 +478,20 @@ export async function executeFastTrackBatchIngest(
     currentStructure.forEach((floor) => {
       floor.rooms.forEach((room) => {
         const roomOccupants = activeOccupantsByRoom.get(room.roomNumber.toUpperCase().trim()) || [];
+        const usedOccIdsInRoom = new Set<string>();
 
-        room.beds.forEach((bed, bedIdx) => {
-          const matchingOcc = roomOccupants[bedIdx];
+        room.beds.forEach((bed) => {
+          const cleanBedCode = (bed.bedCode || "").toUpperCase().trim();
+          // Match by bedCode first, fallback to first unassigned occupant in room
+          const matchingOcc =
+            roomOccupants.find(
+              (o) =>
+                !usedOccIdsInRoom.has(o.id) &&
+                (o.bedCode || "").toUpperCase().trim() === cleanBedCode
+            ) || roomOccupants.find((o) => !usedOccIdsInRoom.has(o.id));
+
           if (matchingOcc) {
+            usedOccIdsInRoom.add(matchingOcc.id);
             bed.status =
               matchingOcc.lifecycleStatus === "Notice"
                 ? "Vacating"

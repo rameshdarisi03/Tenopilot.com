@@ -125,12 +125,26 @@ export function autoProvisionBuildingFromRoster(
         const targetRoom = fl.rooms.find((r) => r.roomNumber.toUpperCase() === rm.toUpperCase());
         if (targetRoom) {
           roomFound = true;
-          // Auto-expand capacity if roster has more tenants than current configured beds
-          const neededBeds = occupantsInRoom.length;
+          // Auto-expand capacity if roster has more tenants or higher explicit sharing than current configured beds
+          const explicitSharing = occupantsInRoom.find((o) => o.sharingType && o.sharingType > 0)?.sharingType;
+          const neededBeds = Math.max(occupantsInRoom.length, explicitSharing || 0);
           if (neededBeds > targetRoom.beds.length) {
             const currentCount = targetRoom.beds.length;
+            const usedLetters = new Set<string>();
+            targetRoom.beds.forEach((b) => {
+              const match = (b.bedCode || "").toUpperCase().match(/[A-Z]/);
+              if (match) usedLetters.add(match[0]);
+            });
+            const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            let alphaIdx = 0;
+
             for (let i = currentCount; i < neededBeds; i++) {
-              const bedLetter = String.fromCharCode(65 + i);
+              while (alphaIdx < alphabet.length && usedLetters.has(alphabet[alphaIdx])) {
+                alphaIdx++;
+              }
+              const bedLetter = alphaIdx < alphabet.length ? alphabet[alphaIdx] : String(i + 1);
+              usedLetters.add(bedLetter);
+
               const occ = occupantsInRoom[i];
               const isVacant = !occ || isVacantRow(occ);
               targetRoom.beds.push({
@@ -140,7 +154,7 @@ export function autoProvisionBuildingFromRoster(
               });
             }
             targetRoom.sharingType = targetRoom.beds.length;
-            targetRoom.specialFeatureTag = `${targetRoom.beds.length}-Sharing Suite`;
+            targetRoom.specialFeatureTag = targetRoom.sharingType === 1 ? "Private Single" : `${targetRoom.beds.length}-Sharing Suite`;
           }
           fl.totalBeds = fl.rooms.reduce((acc, r) => acc + r.beds.length, 0);
         }
