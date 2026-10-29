@@ -223,8 +223,15 @@ export const propertyStore = {
               PROPERTY_LAYOUT_MAP.set(propertyId, normalized);
               if (typeof window !== "undefined") {
                 try {
-                  localStorage.setItem(`tenopilot_layout_${propertyId}`, JSON.stringify(data));
+                  localStorage.setItem(`tenopilot_layout_${propertyId}`, JSON.stringify(normalized));
                 } catch {}
+              }
+              // 🌟 Silently auto-heal Firestore if structure had duplicate/unsorted floors or rooms
+              if (JSON.stringify(normalized) !== JSON.stringify(data)) {
+                try {
+                  const sanitizedFloors = sanitizeForFirestore(normalized);
+                  setDoc(docRef, { floors: sanitizedFloors, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
+                } catch (e) {}
               }
               this.notify();
             }
@@ -279,7 +286,7 @@ export const propertyStore = {
     PROPERTY_LAYOUT_MAP.set(propertyId, normalized);
     if (typeof window !== "undefined") {
       try {
-        localStorage.setItem(`tenopilot_layout_${propertyId}`, JSON.stringify(newStructure));
+        localStorage.setItem(`tenopilot_layout_${propertyId}`, JSON.stringify(normalized));
       } catch {}
     }
     this.notify();
