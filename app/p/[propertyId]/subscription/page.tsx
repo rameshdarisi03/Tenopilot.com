@@ -119,7 +119,7 @@ export default function SubscriptionBillingPage() {
   };
 
   const customPlanWhatsappUrl = `https://wa.me/91${platformConfig.founderWhatsapp}?text=${encodeURIComponent(
-    `Hi Ramesh, I manage ${profile?.propertyName || "our property"} (Property ID: ${propertyId}) and have 300+ beds (e.g. 380 tenants). I would like to discuss a custom tailored Pro plan for our operations.`
+    `Hi TenoPilot Team, I manage ${profile?.propertyName || "our property"} (Property ID: ${propertyId}) and have 300+ beds (e.g. 380 tenants). I would like to discuss a custom tailored plan for our operations.`
   )}`;
 
   // Offline Verification State
@@ -1415,7 +1415,7 @@ export default function SubscriptionBillingPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="px-3 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-xs">
                       <span>👑</span>
-                      <span>ENTERPRISE & CAMPUS TAILORED FLIGHT DECK</span>
+                      <span>CUSTOM PLAN / TAILORED PLAN</span>
                     </span>
                     <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-black uppercase tracking-wider">
                       300+ Beds / Multi-Building
@@ -1427,7 +1427,7 @@ export default function SubscriptionBillingPage() {
                   </h3>
 
                   <p className="text-xs sm:text-sm text-gray-300 leading-relaxed font-normal">
-                    Operating a large 380-bed hostel, multiple PG wings, or a corporate co-living campus? Talk directly with founder Ramesh to craft a customized plan with tailored bed capacity, dedicated WhatsApp/Email quotas, and personalized onboarding.
+                    Operating a large 380-bed hostel, multiple PG wings, or a corporate co-living campus? Connect with the TenoPilot team to craft a customized plan with tailored bed capacity, dedicated WhatsApp/Email quotas, and personalized onboarding.
                   </p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 text-xs text-gray-200">
@@ -1445,7 +1445,7 @@ export default function SubscriptionBillingPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>Dedicated Priority SLA & Direct Founder Onboarding</span>
+                      <span>Dedicated Priority SLA & Personalized Team Onboarding</span>
                     </div>
                   </div>
                 </div>
@@ -1459,7 +1459,7 @@ export default function SubscriptionBillingPage() {
                     className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2.5 transition-all cursor-pointer active:scale-95 text-center"
                   >
                     <Smartphone className="w-4 h-4 text-white" />
-                    <span>Talk with Founder Ramesh (WhatsApp)</span>
+                    <span>Connect with TenoPilot Team (WhatsApp)</span>
                     <ChevronRight className="w-4 h-4" />
                   </a>
 
@@ -1808,7 +1808,7 @@ export default function SubscriptionBillingPage() {
                           </li>
                           <li className="flex items-start gap-2">
                             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                            <span>1-on-1 direct onboarding with Ramesh</span>
+                            <span>Dedicated onboarding by TenoPilot team</span>
                           </li>
                         </ul>
                       </div>
@@ -1821,7 +1821,7 @@ export default function SubscriptionBillingPage() {
                           className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all"
                         >
                           <Smartphone className="w-4 h-4" />
-                          <span>Talk with Founder Ramesh (WhatsApp)</span>
+                          <span>Connect with TenoPilot Team (WhatsApp)</span>
                         </a>
                       </div>
                     </div>
