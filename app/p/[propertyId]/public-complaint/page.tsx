@@ -48,6 +48,7 @@ import {
   Trash2,
   X,
   Eye,
+  Loader2,
 } from "lucide-react";
 import { normalizePhoneNumber } from "@/utils/security";
 
@@ -137,6 +138,8 @@ export default function PublicTenantComplaintPage({
   // Phone input & Verification State
   const [tenantPhone, setTenantPhone] = useState("");
   const [verifiedOccupant, setVerifiedOccupant] = useState<Occupant | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [directoryLoaded, setDirectoryLoaded] = useState(false);
   const [verificationError, setVerificationError] = useState<{
     status: "BOOKED" | "PAST" | "NOT_FOUND";
     message: string;
@@ -183,9 +186,16 @@ export default function PublicTenantComplaintPage({
     });
 
     // Occupants sync
-    setOccupants(occupantStore.getOccupants(propertyId));
+    const initialLocalOccupants = occupantStore.getOccupants(propertyId);
+    setOccupants(initialLocalOccupants);
+    if (initialLocalOccupants && initialLocalOccupants.length > 0) {
+      setDirectoryLoaded(true);
+    }
+
     const unsubscribeLocal = propertyStore.subscribe(() => {
-      setOccupants(occupantStore.getOccupants(propertyId));
+      const loc = occupantStore.getOccupants(propertyId);
+      setOccupants(loc);
+      if (loc && loc.length > 0) setDirectoryLoaded(true);
     });
 
     const unsubscribeFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
@@ -193,8 +203,9 @@ export default function PublicTenantComplaintPage({
         const cleanList = fsOccupants.filter(
           (o) => /^(occ|guest)-\d{12,16}$/.test(o.id) || (!o.id.startsWith("tera") && !o.id.includes("test-"))
         );
-        occupantStore.setOccupantsFromFirestore(cleanList);
+        occupantStore.setOccupantsFromFirestore(cleanList, propertyId);
         setOccupants(cleanList);
+        setDirectoryLoaded(true);
       }
     });
 
@@ -220,39 +231,119 @@ export default function PublicTenantComplaintPage({
     };
   }, [propertyId]);
 
-  // Strict As-of-Today Active Resident Verification Handler
+  // Robust Resident Verification Executor: Combines Local SSOT + Server API Fallback
+  const executeVerification = async (phoneToCheck: string, currentOccupants: Occupant[]) => {
+    const cleanDigits = phoneToCheck.replace(/\D/g, "").slice(-10);
+    if (cleanDigits.length !== 10) {
+      setVerifiedOccupant(null);
+      setVerificationError(null);
+      setIsVerifying(false);
+      return;
+    }
+
+    // 1. Instant local client check if occupants array is populated
+    if (currentOccupants && currentOccupants.length > 0) {
+      const res = verifyResidentForComplaint(cleanDigits, currentOccupants);
+
+      if (res.isValid && res.occupant) {
+        setVerifiedOccupant(res.occupant);
+        setTenantName(res.occupant.name);
+        const rawBed = res.occupant.bedCode;
+        const bedLabel = rawBed
+          ? rawBed.toLowerCase().startsWith("bed")
+            ? rawBed
+            : `Bed ${rawBed}`
+          : "Bed A";
+        setRoomNumber(`${res.occupant.roomNumber} (${bedLabel})`);
+        setVerificationError(null);
+        setIsVerifying(false);
+        return;
+      } else if (res.status === "BOOKED" || res.status === "PAST") {
+        setVerifiedOccupant(null);
+        setTenantName("");
+        setRoomNumber("");
+        setVerificationError({
+          status: res.status,
+          message:
+            res.errorMessage ||
+            "Access restricted based on your current resident status.",
+        });
+        setIsVerifying(false);
+        return;
+      }
+    }
+
+    // 2. Server API fallback for real-time Firestore accuracy (handles mobile lag / sync gaps)
+    setIsVerifying(true);
+    try {
+      const resp = await fetch(
+        `/api/complaints/verify-resident?propertyId=${encodeURIComponent(propertyId)}&phone=${encodeURIComponent(cleanDigits)}`
+      );
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.isValid && data.occupant) {
+          setVerifiedOccupant(data.occupant as Occupant);
+          setTenantName(data.occupant.name);
+          const rawBed = data.occupant.bedCode;
+          const bedLabel = rawBed
+            ? rawBed.toLowerCase().startsWith("bed")
+              ? rawBed
+              : `Bed ${rawBed}`
+            : "Bed A";
+          setRoomNumber(`${data.occupant.roomNumber} (${bedLabel})`);
+          setVerificationError(null);
+          setIsVerifying(false);
+          return;
+        } else if (data.status === "BOOKED" || data.status === "PAST") {
+          setVerifiedOccupant(null);
+          setTenantName("");
+          setRoomNumber("");
+          setVerificationError({
+            status: data.status,
+            message:
+              data.errorMessage ||
+              "Access restricted based on your current resident status.",
+          });
+          setIsVerifying(false);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Server-side resident verification error:", e);
+    } finally {
+      setIsVerifying(false);
+    }
+
+    // 3. Fallback Not Found
+    setVerifiedOccupant(null);
+    setTenantName("");
+    setRoomNumber("");
+    setVerificationError({
+      status: "NOT_FOUND",
+      message:
+        "Mobile number not found in this property's resident directory. Please contact your property manager if you recently checked in.",
+    });
+  };
+
+  // Reactive Auto-Verification: Automatically re-evaluates whenever occupants load or phone reaches 10 digits
+  useEffect(() => {
+    if (tenantPhone.length === 10 && !verifiedOccupant && !isVerifying) {
+      executeVerification(tenantPhone, occupants);
+    }
+  }, [tenantPhone, occupants, verifiedOccupant]);
+
+  // Strict As-of-Today Active Resident Verification Input Handler
   const handlePhoneChange = (inputPhone: string) => {
     const digits = inputPhone.replace(/\D/g, "");
     const cleanDigits = digits.length > 10 ? normalizePhoneNumber(digits) : digits.slice(0, 10);
     setTenantPhone(cleanDigits);
 
     if (cleanDigits.length === 10) {
-      const res = verifyResidentForComplaint(cleanDigits, occupants);
-
-      if (res.isValid && res.occupant) {
-        setVerifiedOccupant(res.occupant);
-        setTenantName(res.occupant.name);
-        const bedLabel = res.occupant.bedCode
-          ? res.occupant.bedCode.toLowerCase().startsWith("bed")
-            ? res.occupant.bedCode
-            : `Bed ${res.occupant.bedCode}`
-          : "Bed A";
-        setRoomNumber(`${res.occupant.roomNumber} (${bedLabel})`);
-        setVerificationError(null);
-      } else {
-        setVerifiedOccupant(null);
-        setTenantName("");
-        setRoomNumber("");
-        setVerificationError({
-          status: res.status !== "VALID" ? res.status : "NOT_FOUND",
-          message:
-            res.errorMessage ||
-            "Mobile number not found in this property's active resident directory.",
-        });
-      }
+      executeVerification(cleanDigits, occupants);
     } else {
       setVerifiedOccupant(null);
       setVerificationError(null);
+      setIsVerifying(false);
     }
   };
 
@@ -289,8 +380,9 @@ export default function PublicTenantComplaintPage({
   // Filter complaints for tracking (only belonging to entered verified mobile)
   const tenantComplaints = useMemo(() => {
     if (!tenantPhone || tenantPhone.length < 10) return [];
+    const cleanTarget = tenantPhone.replace(/\D/g, "").slice(-10);
     const filtered = allComplaints.filter(
-      (c) => c.tenantPhone.replace(/\D/g, "") === tenantPhone
+      (c) => (c.tenantPhone || "").replace(/\D/g, "").slice(-10) === cleanTarget
     );
     const seen = new Set<string>();
     return filtered.filter((c) => {
@@ -518,9 +610,11 @@ export default function PublicTenantComplaintPage({
                         }}
                         onChange={(e) => handlePhoneChange(e.target.value)}
                         placeholder="Enter 10-digit mobile number (e.g. 9876543210)"
-                        className={`w-full pl-10 pr-3.5 py-3 rounded-xl border bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#964407] tabular-nums ${
+                        className={`w-full pl-10 pr-24 py-3 rounded-xl border bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#964407] tabular-nums ${
                           verifiedOccupant
                             ? "border-emerald-500 ring-1 ring-emerald-500"
+                            : isVerifying
+                            ? "border-amber-400 ring-1 ring-amber-400"
                             : verificationError
                             ? verificationError.status === "BOOKED"
                               ? "border-amber-500 ring-1 ring-amber-500"
@@ -528,6 +622,12 @@ export default function PublicTenantComplaintPage({
                             : "border-gray-300"
                         }`}
                       />
+                      {isVerifying && (
+                        <div className="absolute right-3.5 top-3.5 flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-[#964407]" />
+                          <span className="text-[10px] font-bold">Verifying...</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -541,7 +641,7 @@ export default function PublicTenantComplaintPage({
                             {verifiedOccupant.name} ({verifiedOccupant.stayType})
                           </p>
                           <p className="text-xs text-emerald-800 font-semibold mt-0.5">
-                            Assigned Location: {verifiedOccupant.roomNumber} (Bed {verifiedOccupant.bedCode})
+                            Assigned Location: {verifiedOccupant.roomNumber} ({verifiedOccupant.bedCode ? (verifiedOccupant.bedCode.toLowerCase().startsWith("bed") ? verifiedOccupant.bedCode : `Bed ${verifiedOccupant.bedCode}`) : "Bed A"})
                           </p>
                         </div>
                       </div>
@@ -551,7 +651,7 @@ export default function PublicTenantComplaintPage({
                     </div>
                   )}
 
-                  {verificationError && (
+                  {!isVerifying && verificationError && (
                     <div
                       className={`p-3.5 rounded-2xl border text-xs font-bold flex items-start gap-2.5 animate-in fade-in ${
                         verificationError.status === "BOOKED"
