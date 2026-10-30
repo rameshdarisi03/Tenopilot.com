@@ -107,6 +107,7 @@ function PropertyMapContent({
 
   useEffect(() => {
     setIsMounted(true);
+    propertyStore.initFirebaseListener(propertyId);
     setPropertyGrid(propertyStore.getStructure(propertyId));
     const unsubscribe = propertyStore.subscribe(() => {
       setPropertyGrid([...propertyStore.getStructure(propertyId)]);
