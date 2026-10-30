@@ -1152,10 +1152,69 @@ export function canonicalBedKey(bedCode?: string): string {
 }
 
 /**
+ * 🏨 Enterprise Room-Bed Allocation Engine (PMS Global Standard)
+ * Maps occupants in a room to physical beds deterministically:
+ * Pass 1: Distinct exact canonical bed matches ('Bed 2' <-> 'Bed B', 'Bed 1' <-> 'Bed A')
+ * Pass 2: Gracefully cascades ANY unassigned or duplicate occupants to remaining empty beds
+ * Guarantees zero dropped residents when vacant beds physically exist in the room!
+ */
+export function allocateRoomOccupantsToBeds(
+  bedsInRoom: BedSlotConfig[],
+  roomOccupants: Occupant[]
+): Map<string, Occupant> {
+  const sortedBeds = [...bedsInRoom].sort((a, b) => getCanonicalBedIndex(a.bedCode) - getCanonicalBedIndex(b.bedCode));
+  const assignedOccIds = new Set<string>();
+  const bedMap = new Map<string, Occupant>();
+
+  // Pass 1: Distinct Exact Canonical Bed Matches
+  sortedBeds.forEach((b) => {
+    const targetIdx = getCanonicalBedIndex(b.bedCode);
+    const targetKey = canonicalBedKey(b.bedCode);
+    const match = roomOccupants.find((o) => {
+      if (assignedOccIds.has(o.id)) return false;
+      const occIdx = getCanonicalBedIndex(o.bedCode);
+      if (targetIdx !== -1 && occIdx !== -1) return targetIdx === occIdx;
+      return canonicalBedKey(o.bedCode) === targetKey;
+    });
+    if (match) {
+      assignedOccIds.add(match.id);
+      if (b.id) bedMap.set(b.id, match);
+      bedMap.set(b.bedCode, match);
+      bedMap.set(targetKey, match);
+      if (targetIdx !== -1) bedMap.set(`idx_${targetIdx}`, match);
+    }
+  });
+
+  // Pass 2: Fill ANY remaining empty beds with remaining unassigned/duplicate occupants in room
+  const remainingOccupants = roomOccupants.filter((o) => !assignedOccIds.has(o.id));
+  let remIdx = 0;
+  sortedBeds.forEach((b) => {
+    const targetIdx = getCanonicalBedIndex(b.bedCode);
+    const targetKey = canonicalBedKey(b.bedCode);
+    const isAlreadyAssigned =
+      (b.id ? bedMap.has(b.id) : false) ||
+      bedMap.has(b.bedCode) ||
+      bedMap.has(targetKey) ||
+      (targetIdx !== -1 ? bedMap.has(`idx_${targetIdx}`) : false);
+
+    if (!isAlreadyAssigned && remIdx < remainingOccupants.length) {
+      const match = remainingOccupants[remIdx++];
+      assignedOccIds.add(match.id);
+      if (b.id) bedMap.set(b.id, match);
+      bedMap.set(b.bedCode, match);
+      bedMap.set(targetKey, match);
+      if (targetIdx !== -1) bedMap.set(`idx_${targetIdx}`, match);
+    }
+  });
+
+  return bedMap;
+}
+
+/**
  * 8. SSOT Bed Occupants Timeline & Multi-Booking Resolver (PMS Enterprise 2-Tier Engine)
  * Resolves current physical resident vs upcoming reservations for a bed slot.
  * Tier 1: Exact canonical bed index match ('Bed 2' <-> 'Bed B')
- * Tier 2: Resilient room fallback allocator for unassigned residents so zero active tenants are dropped.
+ * Tier 2: Resilient room fallback allocator for unassigned/duplicate residents so zero active tenants are dropped.
  */
 export function getBedOccupantsTimeline(
   roomNumber: string,
@@ -1176,42 +1235,16 @@ export function getBedOccupantsTimeline(
     return occRoom === cleanRoom && occ.lifecycleStatus !== "Past";
   });
 
-  // 1. Tier 1: Look for exact canonical bed index match
-  let matchingOccupants = roomOccupants.filter((occ) => {
-    const occIdx = getCanonicalBedIndex(occ.bedCode);
-    if (targetBedIdx !== -1 && occIdx !== -1) {
-      return occIdx === targetBedIdx;
-    }
-    return canonicalBedKey(occ.bedCode) === targetKey;
-  });
+  // 🏢 Enterprise 2-Pass Room-Bed Allocation
+  const bedsInRoom = allRoomBeds && allRoomBeds.length > 0 ? allRoomBeds : [bed];
+  const allocatedMap = allocateRoomOccupantsToBeds(bedsInRoom, roomOccupants);
+  const allocatedOccupant =
+    (bed.id ? allocatedMap.get(bed.id) : undefined) ||
+    (targetBedIdx !== -1 ? allocatedMap.get(`idx_${targetBedIdx}`) : undefined) ||
+    allocatedMap.get(bedCode) ||
+    allocatedMap.get(targetKey);
 
-  // 2. Tier 2 (PMS Fallback Allocator): If no occupant has an exact match for this bed slot,
-  // check for unassigned active residents in this room (residents with empty/unrecognized bedCode)
-  if (matchingOccupants.length === 0) {
-    const occupantsWithExact = new Set(
-      roomOccupants
-        .filter((o) => getCanonicalBedIndex(o.bedCode) !== -1)
-        .map((o) => o.id)
-    );
-    const unassignedOccupants = roomOccupants.filter((o) => !occupantsWithExact.has(o.id));
-
-    if (unassignedOccupants.length > 0) {
-      // Determine this bed's position among beds in the room that lack an exact match
-      const bedsInRoom = allRoomBeds && allRoomBeds.length > 0 ? allRoomBeds : [bed];
-      const bedsWithoutExact = bedsInRoom.filter((b) => {
-        const bIdx = getCanonicalBedIndex(b.bedCode);
-        return !roomOccupants.some((o) => getCanonicalBedIndex(o.bedCode) === bIdx);
-      });
-
-      const positionInUnassigned = bedsWithoutExact.findIndex(
-        (b) => canonicalBedKey(b.bedCode) === targetKey || b.id === bed.id
-      );
-
-      if (positionInUnassigned !== -1 && positionInUnassigned < unassignedOccupants.length) {
-        matchingOccupants = [unassignedOccupants[positionInUnassigned]];
-      }
-    }
-  }
+  const matchingOccupants = allocatedOccupant ? [allocatedOccupant] : [];
 
   const now = new Date();
   const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -1295,27 +1328,11 @@ export function getUnmappedRoomOccupants(
     return [];
   }
 
-  // Count which occupants are mapped to physical beds
-  const mappedOccIds = new Set<string>();
+  const allocatedMap = allocateRoomOccupantsToBeds(roomBeds, roomActiveOccupants);
+  const allocatedIds = new Set<string>();
+  allocatedMap.forEach((occ) => allocatedIds.add(occ.id));
 
-  // Pass 1: exact canonical bed matches
-  roomBeds.forEach((bed) => {
-    const bIdx = getCanonicalBedIndex(bed.bedCode);
-    const exact = roomActiveOccupants.find((o) => !mappedOccIds.has(o.id) && getCanonicalBedIndex(o.bedCode) === bIdx);
-    if (exact) mappedOccIds.add(exact.id);
-  });
-
-  // Pass 2: sequential fill into remaining vacant bed slots
-  roomBeds.forEach((bed) => {
-    const bIdx = getCanonicalBedIndex(bed.bedCode);
-    const isBedClaimed = roomActiveOccupants.some((o) => mappedOccIds.has(o.id) && getCanonicalBedIndex(o.bedCode) === bIdx);
-    if (!isBedClaimed) {
-      const nextUnassigned = roomActiveOccupants.find((o) => !mappedOccIds.has(o.id));
-      if (nextUnassigned) mappedOccIds.add(nextUnassigned.id);
-    }
-  });
-
-  return roomActiveOccupants.filter((o) => !mappedOccIds.has(o.id));
+  return roomActiveOccupants.filter((o) => !allocatedIds.has(o.id));
 }
 
 export interface BedAvailabilityEvaluation {

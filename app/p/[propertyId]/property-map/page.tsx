@@ -81,6 +81,9 @@ function PropertyMapContent({
   const [propertyGrid, setPropertyGrid] = useState<FloorConfig[]>(() =>
     typeof window !== "undefined" ? propertyStore.getStructure(propertyId) : []
   );
+  const [occupants, setOccupants] = useState<Occupant[]>(() =>
+    occupantStore.getOccupants(propertyId) || []
+  );
   const [isMounted, setIsMounted] = useState(false);
 
   const [propertySettings, setPropertySettings] = useState(() =>
@@ -109,6 +112,7 @@ function PropertyMapContent({
     setIsMounted(true);
     propertyStore.initFirebaseListener(propertyId);
     setPropertyGrid(propertyStore.getStructure(propertyId));
+    setOccupants([...occupantStore.getOccupants(propertyId)]);
     const unsubscribe = propertyStore.subscribe(() => {
       setPropertyGrid([...propertyStore.getStructure(propertyId)]);
     });
@@ -119,10 +123,12 @@ function PropertyMapContent({
       } else {
         occupantStore.setOccupantsFromFirestore([], propertyId);
       }
+      setOccupants([...occupantStore.getOccupants(propertyId)]);
       setPropertyGrid([...propertyStore.getStructure(propertyId)]);
     });
 
     const unsubscribeOccupantsLocal = occupantStore.subscribe(() => {
+      setOccupants([...occupantStore.getOccupants(propertyId)]);
       setPropertyGrid([...propertyStore.getStructure(propertyId)]);
     });
 
@@ -468,7 +474,7 @@ function PropertyMapContent({
     const total = available + occupied + vacating + booked + guest;
 
     return { total, available, occupied, vacating, booked, guest };
-  }, [propertyGrid, propertyId, kycSubmissions, kycInvites]);
+  }, [propertyGrid, propertyId, kycSubmissions, kycInvites, occupants]);
 
   // Seamless Donut Ring Gradient (100% circular, zero overlapping stroke caps, zero jagged notches)
   const donutConicGradient = useMemo(() => {
@@ -612,7 +618,7 @@ function PropertyMapContent({
           .filter((rm) => rm.beds.length > 0),
       }))
       .filter((fl) => fl.rooms.length > 0);
-  }, [propertyGrid, selectedFloor, selectedRoom, activeFilterStatus, rawSearchTerm, kycSubmissions, kycInvites]);
+  }, [propertyGrid, selectedFloor, selectedRoom, activeFilterStatus, rawSearchTerm, kycSubmissions, kycInvites, occupants]);
 
   return (
     <div className="flex min-h-screen bg-[#fcf9f8] text-gray-900 font-sans selection:bg-[#c2652a]/20 selection:text-[#c2652a]">
