@@ -370,8 +370,8 @@ export const propertyStore = {
     return result;
   },
 
-  // Method to clear bed slot and reset status to "Available" upon tenant checkout
-  freeUpBedSlot(propertyId: string, roomNumber: string, bedCode: string) {
+  // Method to clear bed slot and reset status to "Available" upon tenant checkout or invite revocation
+  async freeUpBedSlot(propertyId: string, roomNumber: string, bedCode: string) {
     const current = this.getStructure(propertyId);
     const updated = current.map((fl) => ({
       ...fl,
@@ -385,12 +385,15 @@ export const propertyStore = {
               ...bd,
               status: "Available" as const,
               occupant: undefined,
+              holdCandidate: undefined,
+              vacatingDate: undefined,
+              guestCheckoutDate: undefined,
             };
           }),
         };
       }),
     }));
-    this.updateStructure(updated, propertyId);
+    return await this.updateStructure(updated, propertyId);
   },
 
   // Conflict check helper for notice extension & bookings

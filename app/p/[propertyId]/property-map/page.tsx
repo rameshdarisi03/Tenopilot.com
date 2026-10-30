@@ -39,7 +39,12 @@ import {
   Lock,
   UserPlus,
   Search,
+  BellRing,
+  Copy,
+  ExternalLink,
 } from "lucide-react";
+
+import { selfKycStore, SelfKycSubmission, SelfKycInvite } from "@/lib/selfKycStore";
 
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { staffStore, UserRole } from "@/lib/staffStore";
@@ -113,23 +118,44 @@ function PropertyMapContent({
     };
   }, [propertyId]);
 
+  // Real-Time Self-KYC Submissions & Invites Subscriptions
+  const [kycSubmissions, setKycSubmissions] = useState<SelfKycSubmission[]>(() =>
+    selfKycStore.getSubmissions(propertyId)
+  );
+  const [kycInvites, setKycInvites] = useState<SelfKycInvite[]>(() =>
+    selfKycStore.getInvites(propertyId)
+  );
+
+  useEffect(() => {
+    if (!propertyId) return;
+    const unsubSubs = selfKycStore.subscribeSubmissions(propertyId, (list) => {
+      setKycSubmissions(list);
+    });
+    const unsubInvs = selfKycStore.subscribeInvites(propertyId, (list) => {
+      setKycInvites(list);
+    });
+    return () => {
+      unsubSubs();
+      unsubInvs();
+    };
+  }, [propertyId]);
+
   // Dynamic Room Filter options derived from propertyStore
   const availableRooms = useMemo(() => propertyStore.getRoomNumbers(propertyId), [propertyGrid, propertyId]);
   const availableFloors = useMemo(() => propertyStore.getFloorNames(propertyId), [propertyGrid, propertyId]);
 
-  // Filters state
+  // Filters state (Hold is now unified into Booked)
   const [selectedFloor, setSelectedFloor] = useState<string>("ALL FLOORS");
   const [selectedRoom, setSelectedRoom] = useState<string>("ALL ROOMS");
   const [activeFilterStatus, setActiveFilterStatus] = useState<
-    "ALL" | "Available" | "Occupied" | "Vacating" | "Booked" | "Guest" | "Hold"
+    "ALL" | "Available" | "Occupied" | "Vacating" | "Booked" | "Guest"
   >(() => {
     const f = searchParams?.get("filter")?.toLowerCase();
     if (f === "available" || f === "vacant") return "Available";
     if (f === "occupied") return "Occupied";
     if (f === "vacating") return "Vacating";
-    if (f === "booked") return "Booked";
+    if (f === "booked" || f === "hold" || f === "onhold") return "Booked";
     if (f === "guest" || f === "guests") return "Guest";
-    if (f === "hold" || f === "onhold") return "Hold";
     return "ALL";
   });
 
@@ -145,12 +171,10 @@ function PropertyMapContent({
       setActiveFilterStatus("Occupied");
     } else if (f === "vacating") {
       setActiveFilterStatus("Vacating");
-    } else if (f === "booked") {
+    } else if (f === "booked" || f === "hold" || f === "onhold") {
       setActiveFilterStatus("Booked");
     } else if (f === "guest" || f === "guests") {
       setActiveFilterStatus("Guest");
-    } else if (f === "hold" || f === "onhold") {
-      setActiveFilterStatus("Hold");
     }
   }, [searchParams]);
 
@@ -195,6 +219,26 @@ function PropertyMapContent({
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  // 1-Click Instant Revoke Invite / Free Bed from Quick Drawer
+  const handleRevokeInvite = async (inviteId?: string, roomNo?: string, bedCd?: string) => {
+    if (!propertyId) return;
+    const targetRoom = roomNo || activeBedSlot?.roomNumber || "";
+    const targetBed = bedCd || activeBedSlot?.bed?.bedCode || "";
+    const invId = inviteId || activeBedSlot?.bed?.holdCandidate?.inviteId || "";
+
+    try {
+      if (invId) {
+        await selfKycStore.revokeInvite(propertyId, invId, targetRoom, targetBed);
+      }
+      await propertyStore.freeUpBedSlot(propertyId, targetRoom, targetBed);
+      setActiveBedSlot(null);
+      triggerToast(`Bed ${targetBed} released to Available`);
+    } catch (err) {
+      console.error("Failed to revoke invite:", err);
+      triggerToast("Failed to revoke invite");
+    }
+  };
+
   // Compute exact bed counts for Donut Ring Chart & Filter Badges across all beds
   const bedCounts = useMemo(() => {
     let available = 0;
@@ -202,7 +246,6 @@ function PropertyMapContent({
     let vacating = 0;
     let booked = 0;
     let guest = 0;
-    let hold = 0;
 
     propertyGrid.forEach((floor) => {
       floor.rooms.forEach((room) => {
@@ -239,35 +282,57 @@ function PropertyMapContent({
               ? undefined
               : rawNext;
 
+          const cleanRm = room.roomNumber.toLowerCase().trim();
+          const cleanBd = (bed.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+          const hasPendingKyc = kycSubmissions.some((s) => {
+            if (s.status !== "PENDING") return false;
+            const sRm = (s.roomNumber || "").toLowerCase().trim();
+            const sBd = (s.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+            return sRm === cleanRm && sBd === cleanBd;
+          });
+
+          const hasActiveInvite = kycInvites.some((i) => {
+            if (i.status !== "ACTIVE") return false;
+            const iRm = (i.roomNumber || "").toLowerCase().trim();
+            const iBd = (i.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+            return iRm === cleanRm && iBd === cleanBd;
+          });
+
+          const isBooked =
+            (!primaryOcc && !!nextOcc && nextOcc.stayType !== "Guest") ||
+            bed.status === "Hold" ||
+            bed.status === "Booked" ||
+            Boolean(bed.holdCandidate) ||
+            hasPendingKyc ||
+            hasActiveInvite;
+
           const effectiveStatus = primaryOcc
             ? primaryOcc.lifecycleStatus === "Notice"
               ? "Vacating"
               : primaryOcc.stayType === "Guest"
               ? "Guest"
               : "Occupied"
-            : nextOcc
-            ? nextOcc.stayType === "Guest"
-              ? "Guest"
-              : "Booked"
-            : bed.status === "Hold"
-            ? "Hold"
-            : (bed.status === "Occupied" && !bed.occupant ? "Available" : bed.status === "Booked" ? "Available" : bed.status);
+            : nextOcc && nextOcc.stayType === "Guest"
+            ? "Guest"
+            : isBooked
+            ? "Booked"
+            : (bed.status === "Occupied" && !bed.occupant ? "Available" : bed.status);
 
           if (effectiveStatus === "Available") available++;
           else if (effectiveStatus === "Occupied") occupied++;
           else if (effectiveStatus === "Vacating") vacating++;
           else if (effectiveStatus === "Booked") booked++;
           else if (effectiveStatus === "Guest") guest++;
-          else if (effectiveStatus === "Hold") hold++;
           else available++;
         });
       });
     });
 
-    const total = available + occupied + vacating + booked + guest + hold;
+    const total = available + occupied + vacating + booked + guest;
 
-    return { total, available, occupied, vacating, booked, guest, hold };
-  }, [propertyGrid, propertyId]);
+    return { total, available, occupied, vacating, booked, guest };
+  }, [propertyGrid, propertyId, kycSubmissions, kycInvites]);
 
   // Exact SVG Donut Ring Arc Calculations (Zero grey gaps - 100% split between color arcs)
   const ringArcs = useMemo(() => {
@@ -359,19 +424,42 @@ function PropertyMapContent({
                     ? undefined
                     : rawNext;
 
+                const cleanRm = rm.roomNumber.toLowerCase().trim();
+                const cleanBd = (bd.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+                const hasPendingKyc = kycSubmissions.some((s) => {
+                  if (s.status !== "PENDING") return false;
+                  const sRm = (s.roomNumber || "").toLowerCase().trim();
+                  const sBd = (s.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+                  return sRm === cleanRm && sBd === cleanBd;
+                });
+
+                const hasActiveInvite = kycInvites.some((i) => {
+                  if (i.status !== "ACTIVE") return false;
+                  const iRm = (i.roomNumber || "").toLowerCase().trim();
+                  const iBd = (i.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+                  return iRm === cleanRm && iBd === cleanBd;
+                });
+
+                const isBooked =
+                  (!primaryOcc && !!nextOcc && nextOcc.stayType !== "Guest") ||
+                  bd.status === "Hold" ||
+                  bd.status === "Booked" ||
+                  Boolean(bd.holdCandidate) ||
+                  hasPendingKyc ||
+                  hasActiveInvite;
+
                 const effStatus = primaryOcc
                   ? primaryOcc.lifecycleStatus === "Notice"
                     ? "Vacating"
                     : primaryOcc.stayType === "Guest"
                     ? "Guest"
                     : "Occupied"
-                  : nextOcc
-                  ? nextOcc.stayType === "Guest"
-                    ? "Guest"
-                    : "Booked"
-                  : bd.status === "Hold"
-                  ? "Hold"
-                  : (bd.status === "Occupied" && !bd.occupant ? "Available" : bd.status === "Booked" ? "Available" : bd.status);
+                  : nextOcc && nextOcc.stayType === "Guest"
+                  ? "Guest"
+                  : isBooked
+                  ? "Booked"
+                  : (bd.status === "Occupied" && !bd.occupant ? "Available" : bd.status);
 
                 if (activeFilterStatus !== "ALL" && effStatus !== activeFilterStatus) {
                   return false;
@@ -406,7 +494,7 @@ function PropertyMapContent({
           .filter((rm) => rm.beds.length > 0),
       }))
       .filter((fl) => fl.rooms.length > 0);
-  }, [propertyGrid, selectedFloor, selectedRoom, activeFilterStatus, rawSearchTerm]);
+  }, [propertyGrid, selectedFloor, selectedRoom, activeFilterStatus, rawSearchTerm, kycSubmissions, kycInvites]);
 
   return (
     <div className="flex min-h-screen bg-[#fcf9f8] text-gray-900 font-sans selection:bg-[#c2652a]/20 selection:text-[#c2652a]">
@@ -621,17 +709,6 @@ function PropertyMapContent({
                 >
                   <span className="w-2 h-2 rounded-full bg-purple-500"></span> GUESTS (<span suppressHydrationWarning>{bedCounts.guest}</span>)
                 </button>
-
-                <button
-                  onClick={() => setActiveFilterStatus("Hold")}
-                  className={`px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all ${
-                    activeFilterStatus === "Hold"
-                      ? "bg-rose-600 text-white shadow-xs"
-                      : "bg-rose-50 text-rose-700 hover:bg-rose-100"
-                  }`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-rose-500"></span> ON HOLD (<span suppressHydrationWarning>{bedCounts.hold || 0}</span>)
-                </button>
               </div>
             </div>
 
@@ -816,23 +893,53 @@ function PropertyMapContent({
                                   let icon = <User className="w-3.5 h-3.5" />;
                                   let statusLabel: string = bed.status;
 
+                                  const cleanRm = room.roomNumber.toLowerCase().trim();
+                                  const cleanBd = (bed.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+                                  // Check if there is an active pending KYC submission for this room & bed
+                                  const pendingKycSub = kycSubmissions.find((s) => {
+                                    if (s.status !== "PENDING") return false;
+                                    const sRm = (s.roomNumber || "").toLowerCase().trim();
+                                    const sBd = (s.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+                                    return sRm === cleanRm && sBd === cleanBd;
+                                  });
+
+                                  // Check if there is an active KYC invite for this room & bed
+                                  const activeKycInvite = kycInvites.find((i) => {
+                                    if (i.status !== "ACTIVE") return false;
+                                    const iRm = (i.roomNumber || "").toLowerCase().trim();
+                                    const iBd = (i.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+                                    return iRm === cleanRm && iBd === cleanBd;
+                                  });
+
+                                  const isKycSubPending = Boolean(pendingKycSub);
+                                  const isKycInviteSent = !isKycSubPending && Boolean(activeKycInvite || bed.holdCandidate || bed.status === "Hold");
+                                  const candidateName =
+                                    pendingKycSub?.name ||
+                                    activeKycInvite?.candidateName ||
+                                    bed.holdCandidate?.name ||
+                                    "";
+
+                                  const isBooked =
+                                    (!primaryOcc && !!nextOcc && nextOcc.stayType !== "Guest") ||
+                                    isKycSubPending ||
+                                    isKycInviteSent ||
+                                    bed.status === "Booked";
+
                                   const effectiveStatus = primaryOcc
                                     ? primaryOcc.lifecycleStatus === "Notice"
                                       ? "Vacating"
                                       : primaryOcc.stayType === "Guest"
                                       ? "Guest"
                                       : "Occupied"
-                                    : nextOcc
-                                    ? nextOcc.stayType === "Guest"
-                                      ? "Guest"
-                                      : "Booked"
-                                    : bed.status === "Hold"
-                                    ? "Hold"
-                                    : (bed.status === "Occupied" && !bed.occupant ? "Available" : bed.status === "Booked" ? "Available" : bed.status);
+                                    : nextOcc && nextOcc.stayType === "Guest"
+                                    ? "Guest"
+                                    : isBooked
+                                    ? "Booked"
+                                    : (bed.status === "Occupied" && !bed.occupant ? "Available" : bed.status);
 
-                                  const isHoldBed = effectiveStatus === "Hold";
-                                  const isGuestBed = !isHoldBed && (effectiveStatus === "Guest" || primaryOcc?.stayType === "Guest" || (!primaryOcc && nextOcc?.stayType === "Guest"));
-                                  const isBookedBed = !isHoldBed && (effectiveStatus === "Booked" && !primaryOcc && !!nextOcc);
+                                  const isGuestBed = !primaryOcc && nextOcc?.stayType === "Guest";
+                                  const isBookedBed = !primaryOcc && isBooked;
                                   const rawVacDate = primaryOcc?.vacatingDate || bed.vacatingDate || "";
                                   
                                   // Evaluate if promised vacating date is past/overdue (strictly day after promised vacating date without checkout)
@@ -860,12 +967,23 @@ function PropertyMapContent({
                                     }
                                   }
 
-                                  if (isHoldBed) {
-                                    badgeStyle =
-                                      "bg-rose-50 text-rose-900 border-rose-300 hover:bg-rose-100 ring-1 ring-rose-400";
-                                    statusLabel = bed.holdCandidate?.name
-                                      ? `Hold (${bed.holdCandidate.name})`
-                                      : "On Hold (Self-KYC)";
+                                  if (isBookedBed) {
+                                    if (isKycSubPending) {
+                                      // 🔔 Buzzer animation for pending KYC review
+                                      badgeStyle =
+                                        "bg-amber-50 text-amber-950 border-2 border-amber-400 hover:bg-amber-100 shadow-md ring-2 ring-amber-400/80 animate-pulse";
+                                      statusLabel = candidateName ? `Booked (${candidateName})` : "KYC Submitted";
+                                    } else if (isKycInviteSent) {
+                                      // ✉️ Sent for KYC
+                                      badgeStyle =
+                                        "bg-blue-50/80 text-blue-950 border border-blue-300 hover:bg-blue-100";
+                                      statusLabel = candidateName ? `Booked (${candidateName})` : "Booked (Invite Sent)";
+                                    } else {
+                                      // 📅 Standard future booked bed
+                                      badgeStyle =
+                                        "bg-blue-50 text-blue-900 border-blue-300 hover:bg-blue-100";
+                                      statusLabel = nextOcc ? nextOcc.name : "Booked";
+                                    }
                                   } else if (effectiveStatus === "Available" && !nextOcc) {
                                     badgeStyle =
                                       "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100";
@@ -884,10 +1002,6 @@ function PropertyMapContent({
                                     statusLabel = isOverdueVacating
                                       ? `Overdue (${primaryOcc?.name || "Move-Out"})`
                                       : `Vacating (${primaryOcc?.name || "Notice"})`;
-                                  } else if (isBookedBed) {
-                                    badgeStyle =
-                                      "bg-blue-50 text-blue-900 border-blue-300 hover:bg-blue-100";
-                                    statusLabel = nextOcc ? nextOcc.name : "Booked";
                                   } else if (primaryOcc) {
                                     badgeStyle =
                                       "bg-[#f7f2ee] text-amber-900 border-amber-200 hover:bg-amber-100";
@@ -911,10 +1025,21 @@ function PropertyMapContent({
                                       }
                                       className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all text-center group cursor-pointer active:scale-95 relative ${badgeStyle}`}
                                     >
-                                      {/* 🔒 TOP-RIGHT HOLD BADGE PILL */}
-                                      {isHoldBed && (
-                                        <span className="absolute top-1.5 right-1.5 text-[8px] font-extrabold uppercase bg-rose-200 text-rose-950 border border-rose-300 px-1.5 py-0.5 rounded shadow-2xs flex items-center gap-0.5">
-                                          HOLD 🔒
+                                      {/* 🔵 TOP-RIGHT BOOKED / REVIEW BADGE PILL */}
+                                      {isBookedBed && (
+                                        <span className={`absolute top-1.5 right-1.5 text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow-2xs flex items-center gap-1 ${
+                                          isKycSubPending
+                                            ? "bg-amber-100 text-amber-950 border border-amber-400 animate-pulse ring-1 ring-amber-400"
+                                            : "bg-blue-100 text-blue-900 border border-blue-200"
+                                        }`}>
+                                          {isKycSubPending ? (
+                                            <>
+                                              <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-ping" />
+                                              REVIEW KYC ⚡
+                                            </>
+                                          ) : (
+                                            "BOOKED"
+                                          )}
                                         </span>
                                       )}
 
@@ -963,11 +1088,32 @@ function PropertyMapContent({
                                         {primaryOcc ? primaryOcc.name : statusLabel}
                                       </span>
 
-                                      {/* Active Occupant Status Badge */}
-                                      {isHoldBed && (
-                                        <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full bg-rose-200 text-rose-950 border border-rose-300">
-                                          🔒 Self-KYC Active
-                                        </span>
+                                      {/* Active Occupant / Booked Status Badge */}
+                                      {isBookedBed && (
+                                        <>
+                                          {isKycSubPending ? (
+                                            <span className="text-[8.5px] font-black px-2 py-0.5 rounded-full mt-0.5 truncate max-w-full bg-amber-200 text-amber-950 border border-amber-400 shadow-2xs flex items-center justify-center gap-1 animate-pulse">
+                                              <span className="relative flex h-2 w-2">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-500 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-600"></span>
+                                              </span>
+                                              <span>🔔 KYC Review Pending</span>
+                                            </span>
+                                          ) : isKycInviteSent ? (
+                                            <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full bg-blue-100 text-blue-900 border border-blue-200 flex items-center justify-center gap-1">
+                                              <span>✉️</span>
+                                              <span>Sent for KYC</span>
+                                            </span>
+                                          ) : nextOcc?.joiningDate ? (
+                                            <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full bg-blue-100 text-blue-950 border border-blue-200 font-mono">
+                                              Check-In: {nextOcc.joiningDate}
+                                            </span>
+                                          ) : (
+                                            <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full bg-blue-100 text-blue-900 border border-blue-200">
+                                              Reserved
+                                            </span>
+                                          )}
+                                        </>
                                       )}
                                       {effectiveStatus === "Vacating" && (
                                         <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full flex items-center justify-center gap-1 ${
@@ -1183,44 +1329,130 @@ function PropertyMapContent({
 
                 const displayOcc = activeOcc || nextOcc;
 
-                const isSlotOnHold = activeBedSlot.bed.status === "Hold" && !activeOcc && !nextOcc;
+                const cleanSlotRm = activeBedSlot.roomNumber.toLowerCase().trim();
+                const cleanSlotBd = (activeBedSlot.bed.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
-                if (isSlotOnHold) {
+                const activePendingSub = kycSubmissions.find((s) => {
+                  if (s.status !== "PENDING") return false;
+                  const sRm = (s.roomNumber || "").toLowerCase().trim();
+                  const sBd = (s.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+                  return sRm === cleanSlotRm && sBd === cleanSlotBd;
+                });
+
+                const activeInvite = kycInvites.find((i) => {
+                  if (i.status !== "ACTIVE") return false;
+                  const iRm = (i.roomNumber || "").toLowerCase().trim();
+                  const iBd = (i.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+                  return iRm === cleanSlotRm && iBd === cleanSlotBd;
+                });
+
+                const isSlotKycSubPending = Boolean(activePendingSub);
+                const isSlotKycInviteSent = !isSlotKycSubPending && Boolean(activeInvite || activeBedSlot.bed.holdCandidate || activeBedSlot.bed.status === "Hold");
+
+                if (isSlotKycSubPending && activePendingSub) {
                   return (
                     <div className="space-y-5 text-xs text-center py-6">
-                      <div className="w-16 h-16 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center mx-auto text-2xl font-bold shadow-inner">
-                        🔒
+                      <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto text-2xl font-bold shadow-inner ring-4 ring-amber-200/50 animate-bounce">
+                        🔔
                       </div>
                       <div>
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-900 border border-rose-300 mb-2">
-                          ON HOLD • SELF-KYC IN PROGRESS
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-950 border border-amber-300 mb-2 animate-pulse">
+                          ⚡ KYC REVIEW PENDING
                         </span>
                         <h4 className="font-serif font-bold text-lg text-gray-900">
-                          Bed is Locked for Incoming Resident
+                          Candidate Submitted Documents
                         </h4>
-                        <p className="text-gray-500 mt-1 max-w-xs mx-auto">
+                        <p className="text-gray-500 mt-1 max-w-xs mx-auto text-xs">
+                          {activePendingSub.name} has submitted their KYC form & ID proof for {activeBedSlot.floorName} Room {activeBedSlot.roomNumber} ({activeBedSlot.bed.bedCode}). Ready for your review and approval.
+                        </p>
+                      </div>
+
+                      <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200 text-left space-y-2">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-gray-500 font-semibold">Candidate:</span>
+                          <span className="font-bold text-gray-900">{activePendingSub.name}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-gray-500 font-semibold">Phone:</span>
+                          <span className="font-mono text-gray-900">{activePendingSub.phone}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-gray-500 font-semibold">Assigned Tariff:</span>
+                          <span className="font-mono font-bold text-[#c2652a]">₹{activePendingSub.rentAmount?.toLocaleString("en-IN")}/mo</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Link
+                          href={`/p/${propertyId}/self-kyc`}
+                          className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-[#964407] to-[#c2652a] hover:opacity-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all block cursor-pointer"
+                        >
+                          <span>Review & Approve KYC</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </Link>
+
+                        <button
+                          type="button"
+                          onClick={() => handleRevokeInvite(activePendingSub.inviteId, activeBedSlot.roomNumber, activeBedSlot.bed.bedCode)}
+                          className="w-full py-2.5 px-4 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          <span>Revoke Submission & Free Bed</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (isSlotKycInviteSent) {
+                  return (
+                    <div className="space-y-5 text-xs text-center py-6">
+                      <div className="w-16 h-16 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center mx-auto text-2xl font-bold shadow-inner">
+                        ✉️
+                      </div>
+                      <div>
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-900 border border-blue-200 mb-2">
+                          BOOKED • SENT FOR KYC
+                        </span>
+                        <h4 className="font-serif font-bold text-lg text-gray-900">
+                          Bed Reserved for Incoming Resident
+                        </h4>
+                        <p className="text-gray-500 mt-1 max-w-xs mx-auto text-xs">
                           A digital Self-KYC invite has been generated for {activeBedSlot.floorName} Room {activeBedSlot.roomNumber} ({activeBedSlot.bed.bedCode}). Bed cannot be booked by others until resolved.
                         </p>
                       </div>
 
-                      {activeBedSlot.bed.holdCandidate && (
-                        <div className="p-3.5 rounded-2xl bg-rose-50/60 border border-rose-200 text-left space-y-1.5">
-                          <p className="font-bold text-rose-950 text-xs">
-                            Candidate: {activeBedSlot.bed.holdCandidate.name}
+                      {(activeInvite || activeBedSlot.bed.holdCandidate) && (
+                        <div className="p-3.5 rounded-2xl bg-blue-50/60 border border-blue-200 text-left space-y-1.5">
+                          <p className="font-bold text-blue-950 text-xs">
+                            Candidate: {activeInvite?.candidateName || activeBedSlot.bed.holdCandidate?.name}
                           </p>
-                          <p className="text-[11px] text-rose-800 font-mono">
-                            Phone: {activeBedSlot.bed.holdCandidate.phone}
-                          </p>
+                          {(activeInvite?.candidatePhone || activeBedSlot.bed.holdCandidate?.phone) && (
+                            <p className="text-[11px] text-blue-800 font-mono">
+                              Phone: {activeInvite?.candidatePhone || activeBedSlot.bed.holdCandidate?.phone}
+                            </p>
+                          )}
                         </div>
                       )}
 
-                      <Link
-                        href={`/p/${propertyId}/self-kyc`}
-                        className="w-full py-3.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all block cursor-pointer"
-                      >
-                        <span>Open Self-KYC Desk</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </Link>
+                      <div className="space-y-2">
+                        <Link
+                          href={`/p/${propertyId}/self-kyc`}
+                          className="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all block cursor-pointer"
+                        >
+                          <span>Open Self-KYC Desk</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </Link>
+
+                        <button
+                          type="button"
+                          onClick={() => handleRevokeInvite(activeInvite?.id || activeBedSlot.bed.holdCandidate?.inviteId, activeBedSlot.roomNumber, activeBedSlot.bed.bedCode)}
+                          className="w-full py-2.5 px-4 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          <span>Revoke Invite & Release Bed</span>
+                        </button>
+                      </div>
                     </div>
                   );
                 }
