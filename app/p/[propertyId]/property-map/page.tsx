@@ -968,22 +968,11 @@ function PropertyMapContent({
                                   }
 
                                   if (isBookedBed) {
-                                    if (isKycSubPending) {
-                                      // 🔔 Buzzer animation for pending KYC review
-                                      badgeStyle =
-                                        "bg-amber-50 text-amber-950 border-2 border-amber-400 hover:bg-amber-100 shadow-md ring-2 ring-amber-400/80 animate-pulse";
-                                      statusLabel = candidateName ? `Booked (${candidateName})` : "KYC Submitted";
-                                    } else if (isKycInviteSent) {
-                                      // ✉️ Sent for KYC
-                                      badgeStyle =
-                                        "bg-blue-50/80 text-blue-950 border border-blue-300 hover:bg-blue-100";
-                                      statusLabel = candidateName ? `Booked (${candidateName})` : "Booked (Invite Sent)";
-                                    } else {
-                                      // 📅 Standard future booked bed
-                                      badgeStyle =
-                                        "bg-blue-50 text-blue-900 border-blue-300 hover:bg-blue-100";
-                                      statusLabel = nextOcc ? nextOcc.name : "Booked";
-                                    }
+                                    // 📅 Clean Booked theme restored (blue card)
+                                    badgeStyle =
+                                      "bg-blue-50 text-blue-900 border border-blue-200 hover:bg-blue-100 shadow-2xs";
+                                    // Clean tenant name without 'Booked' and without brackets
+                                    statusLabel = candidateName || (nextOcc ? nextOcc.name : "Incoming Resident");
                                   } else if (effectiveStatus === "Available" && !nextOcc) {
                                     badgeStyle =
                                       "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100";
@@ -1025,24 +1014,6 @@ function PropertyMapContent({
                                       }
                                       className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all text-center group cursor-pointer active:scale-95 relative ${badgeStyle}`}
                                     >
-                                      {/* 🔵 TOP-RIGHT BOOKED / REVIEW BADGE PILL */}
-                                      {isBookedBed && (
-                                        <span className={`absolute top-1.5 right-1.5 text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow-2xs flex items-center gap-1 ${
-                                          isKycSubPending
-                                            ? "bg-amber-100 text-amber-950 border border-amber-400 animate-pulse ring-1 ring-amber-400"
-                                            : "bg-blue-100 text-blue-900 border border-blue-200"
-                                        }`}>
-                                          {isKycSubPending ? (
-                                            <>
-                                              <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-ping" />
-                                              REVIEW KYC ⚡
-                                            </>
-                                          ) : (
-                                            "BOOKED"
-                                          )}
-                                        </span>
-                                      )}
-
                                       {/* 🟠 TOP-RIGHT VACATING / OVERDUE BADGE PILL */}
                                       {effectiveStatus === "Vacating" && (
                                         <span className={`absolute top-1.5 right-1.5 text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded shadow-2xs flex items-center gap-1 ${
@@ -1071,13 +1042,6 @@ function PropertyMapContent({
                                         </span>
                                       )}
 
-                                      {/* 🔵 TOP-RIGHT BOOKED BADGE PILL */}
-                                      {isBookedBed && (
-                                        <span className="absolute top-1.5 right-1.5 text-[8px] font-extrabold uppercase bg-blue-100 text-blue-900 border border-blue-200 px-1.5 py-0.5 rounded shadow-2xs">
-                                          BOOKED
-                                        </span>
-                                      )}
-
                                       <div className="p-1 rounded-full bg-white/70 shadow-2xs">
                                         {icon}
                                       </div>
@@ -1088,28 +1052,27 @@ function PropertyMapContent({
                                         {primaryOcc ? primaryOcc.name : statusLabel}
                                       </span>
 
-                                      {/* Active Occupant / Booked Status Badge */}
+                                      {/* Active Occupant / Booked Status Badge (Styled with exact solid blue filter theme) */}
                                       {isBookedBed && (
                                         <>
                                           {isKycSubPending ? (
-                                            <span className="text-[8.5px] font-black px-2 py-0.5 rounded-full mt-0.5 truncate max-w-full bg-amber-200 text-amber-950 border border-amber-400 shadow-2xs flex items-center justify-center gap-1 animate-pulse">
+                                            <span className="text-[8.5px] font-bold px-2 py-0.5 rounded-full mt-0.5 truncate max-w-full bg-blue-600 text-white shadow-2xs flex items-center justify-center gap-1">
                                               <span className="relative flex h-2 w-2">
-                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-500 opacity-75"></span>
-                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-600"></span>
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
                                               </span>
                                               <span>🔔 KYC Review Pending</span>
                                             </span>
                                           ) : isKycInviteSent ? (
-                                            <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full bg-blue-100 text-blue-900 border border-blue-200 flex items-center justify-center gap-1">
-                                              <span>✉️</span>
-                                              <span>Sent for KYC</span>
+                                            <span className="text-[8px] font-bold px-2 py-0.5 rounded-full mt-0.5 truncate max-w-full bg-blue-600 text-white shadow-2xs flex items-center justify-center gap-1">
+                                              <span>✉️ Sent for KYC</span>
                                             </span>
                                           ) : nextOcc?.joiningDate ? (
-                                            <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full bg-blue-100 text-blue-950 border border-blue-200 font-mono">
+                                            <span className="text-[8px] font-bold px-2 py-0.5 rounded-full mt-0.5 truncate max-w-full bg-blue-600 text-white shadow-2xs font-mono">
                                               Check-In: {nextOcc.joiningDate}
                                             </span>
                                           ) : (
-                                            <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full bg-blue-100 text-blue-900 border border-blue-200">
+                                            <span className="text-[8px] font-bold px-2 py-0.5 rounded-full mt-0.5 truncate max-w-full bg-blue-600 text-white shadow-2xs">
                                               Reserved
                                             </span>
                                           )}
@@ -1136,7 +1099,7 @@ function PropertyMapContent({
                                       )}
 
                                       {/* Check-In Date Badge for upcoming reservations when bed is currently vacant */}
-                                      {!primaryOcc && nextOcc && (
+                                      {!primaryOcc && nextOcc && !isBookedBed && (
                                         <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full font-mono ${
                                           nextOcc.stayType === "Guest"
                                             ? "bg-purple-100 text-purple-950 border border-purple-200"
