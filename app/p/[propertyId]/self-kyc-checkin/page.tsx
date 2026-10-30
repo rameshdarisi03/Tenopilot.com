@@ -254,6 +254,28 @@ export default function WalkInSelfKycCheckinPage({
     return existingResidentEmails.has(cleanEmail);
   }, [email, existingResidentEmails]);
 
+  // Auto-restore previous documents if candidate has submitted previously in this property
+  useEffect(() => {
+    if (cleanCandidateMobile.length !== 10) return;
+    async function restoreDocs() {
+      try {
+        const prev = await selfKycStore.fetchLatestSubmissionForInviteAsync(propertyId, "", cleanCandidateMobile);
+        if (prev) {
+          if (!fullName && prev.name) setFullName(prev.name);
+          if (!email && prev.email) setEmail(prev.email);
+          if (!workplace && prev.workplace) setWorkplace(prev.workplace);
+          if (!emergencyPhone && prev.emergencyContact?.phone) setEmergencyPhone(prev.emergencyContact.phone.replace(/\D/g, "").slice(-10));
+          if (!emergencyName && prev.emergencyContact?.name) setEmergencyName(prev.emergencyContact.name);
+          if (!selfiePhoto && prev.photoUrl) setSelfiePhoto(prev.photoUrl);
+          if (!aadhaarFront && prev.aadhaarFrontUrl) setAadhaarFront(prev.aadhaarFrontUrl);
+          if (!aadhaarBack && prev.aadhaarBackUrl) setAadhaarBack(prev.aadhaarBackUrl);
+          if (!aadhaarNumber && prev.aadhaarNumber) setAadhaarNumber(prev.aadhaarNumber);
+        }
+      } catch (e) {}
+    }
+    restoreDocs();
+  }, [cleanCandidateMobile, propertyId]);
+
   // Real-time calculation of Available beds + Vacating beds getting freed by check-in date
   const { availableBeds, upcomingLaterBeds } = useMemo(() => {
     const available: {

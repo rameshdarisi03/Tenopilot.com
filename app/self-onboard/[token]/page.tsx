@@ -151,7 +151,7 @@ export default function TenantSelfOnboardingPage({
 
           // Check for previously submitted data to pre-fill all fields on correction/re-upload
           try {
-            const prevSub = await selfKycStore.fetchLatestSubmissionForInviteAsync(resolvedPropId, inv.id);
+            const prevSub = await selfKycStore.fetchLatestSubmissionForInviteAsync(resolvedPropId, inv.id, inv.candidatePhone);
             if (prevSub) {
               if (prevSub.name && !resolvedName) setCandidateName(prevSub.name);
               if (prevSub.phone && !inv.candidatePhone) setPhone(prevSub.phone.replace(/\D/g, "").slice(-10));
@@ -170,6 +170,12 @@ export default function TenantSelfOnboardingPage({
               if (prevSub.purposeOfVisit) setPurposeOfVisit(prevSub.purposeOfVisit);
               if (prevSub.guestCheckoutDate) setGuestCheckoutDate(prevSub.guestCheckoutDate);
               if (prevSub.rejectionReason) setCorrectionReason(prevSub.rejectionReason);
+
+              // 🚀 PRELOAD & PRESERVE IDENTITY DOCUMENTS SO RESIDENT DOES NOT RE-UPLOAD
+              if (prevSub.photoUrl) setSelfiePhoto(prevSub.photoUrl);
+              if (prevSub.aadhaarFrontUrl) setAadhaarFront(prevSub.aadhaarFrontUrl);
+              if (prevSub.aadhaarBackUrl) setAadhaarBack(prevSub.aadhaarBackUrl);
+              if (prevSub.aadhaarNumber) setAadhaarNumber(prevSub.aadhaarNumber);
             }
           } catch (prevErr) {
             console.warn("Failed to load prior submission for prefill:", prevErr);
@@ -288,6 +294,30 @@ export default function TenantSelfOnboardingPage({
     if (!cleanEmail || !cleanEmail.includes("@")) return false;
     return existingResidentEmails.has(cleanEmail);
   }, [email, existingResidentEmails]);
+
+  // Auto-restore previous documents if candidate has submitted previously in this property on walk-in form
+  useEffect(() => {
+    if (step !== "WALK_IN_FORM") return;
+    const cleanCandMobile = phone.replace(/\D/g, "").slice(-10);
+    if (cleanCandMobile.length !== 10) return;
+    async function restoreDocs() {
+      try {
+        const prev = await selfKycStore.fetchLatestSubmissionForInviteAsync(propertyId, "", cleanCandMobile);
+        if (prev) {
+          if (!candidateName && prev.name) setCandidateName(prev.name);
+          if (!email && prev.email) setEmail(prev.email);
+          if (!workplace && prev.workplace) setWorkplace(prev.workplace);
+          if (!emergencyPhone && prev.emergencyContact?.phone) setEmergencyPhone(prev.emergencyContact.phone.replace(/\D/g, "").slice(-10));
+          if (!emergencyName && prev.emergencyContact?.name) setEmergencyName(prev.emergencyContact.name);
+          if (!selfiePhoto && prev.photoUrl) setSelfiePhoto(prev.photoUrl);
+          if (!aadhaarFront && prev.aadhaarFrontUrl) setAadhaarFront(prev.aadhaarFrontUrl);
+          if (!aadhaarBack && prev.aadhaarBackUrl) setAadhaarBack(prev.aadhaarBackUrl);
+          if (!aadhaarNumber && prev.aadhaarNumber) setAadhaarNumber(prev.aadhaarNumber);
+        }
+      } catch (e) {}
+    }
+    restoreDocs();
+  }, [phone, step, propertyId]);
 
   // Property Branding & Name (Synced with Firestore SSOT)
   const [propSettings, setPropSettings] = useState(() =>
@@ -744,7 +774,7 @@ export default function TenantSelfOnboardingPage({
                   "{correctionReason}"
                 </div>
                 <p className="text-[11px] text-amber-800 leading-relaxed">
-                  ✓ Your previously entered personal, workplace, and emergency contact details have been restored below. Please review/update the requested items and re-upload your verification photo / documents.
+                  ✓ Your previously entered details and identity documents have been restored below. You only need to review/update the requested items above and submit.
                 </p>
               </div>
             )}

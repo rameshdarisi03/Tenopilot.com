@@ -957,50 +957,108 @@ export const selfKycStore = {
     }
   },
 
-  // 6. Fetch Latest Prior Submission for Invite (Pre-fills correction forms so residents don't re-type)
+  // 6. Fetch Latest Prior Submission for Invite (Pre-fills correction forms so residents don't re-type or re-upload)
   async fetchLatestSubmissionForInviteAsync(
     propertyId: string,
-    inviteId: string
+    inviteId: string,
+    candidatePhone?: string
   ): Promise<SelfKycSubmission | null> {
-    if (!inviteId) return null;
+    if (!inviteId && !candidatePhone) return null;
+
+    let match: SelfKycSubmission | null = null;
+    const cleanPhoneDigits = candidatePhone ? candidatePhone.replace(/\D/g, "").slice(-10) : "";
 
     // 1. Check local cache
     const cached = SUBMISSIONS_CACHE.get(propertyId) || [];
-    const localMatch = cached
-      .filter((s) => s.inviteId === inviteId)
-      .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())[0];
-    if (localMatch) return localMatch;
+    if (inviteId) {
+      match = cached
+        .filter((s) => s.inviteId === inviteId)
+        .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())[0] || null;
+    }
+    if (!match && cleanPhoneDigits) {
+      match = cached
+        .filter((s) => (s.phone || "").replace(/\D/g, "").slice(-10) === cleanPhoneDigits)
+        .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())[0] || null;
+    }
 
     // 2. Check localStorage
-    if (typeof window !== "undefined") {
+    if (!match && typeof window !== "undefined") {
       try {
         const raw = localStorage.getItem(`tenopilot_self_kyc_subs_${propertyId}`);
         if (raw) {
           const list: SelfKycSubmission[] = JSON.parse(raw);
-          const match = list
-            .filter((s) => s.inviteId === inviteId)
-            .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())[0];
-          if (match) return match;
+          if (inviteId) {
+            match = list
+              .filter((s) => s.inviteId === inviteId)
+              .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())[0] || null;
+          }
+          if (!match && cleanPhoneDigits) {
+            match = list
+              .filter((s) => (s.phone || "").replace(/\D/g, "").slice(-10) === cleanPhoneDigits)
+              .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())[0] || null;
+          }
         }
       } catch (e) {}
     }
 
     // 3. Query Firestore properties/{propertyId}/self_kyc_submissions
-    try {
-      const q = query(
-        collection(db, "properties", propertyId, "self_kyc_submissions"),
-        where("inviteId", "==", inviteId)
-      );
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        const docs = snap.docs.map((d) => d.data() as SelfKycSubmission);
-        docs.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
-        return docs[0];
+    if (!match && inviteId) {
+      try {
+        const q = query(
+          collection(db, "properties", propertyId, "self_kyc_submissions"),
+          where("inviteId", "==", inviteId)
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const docs = snap.docs.map((d) => d.data() as SelfKycSubmission);
+          docs.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+          match = docs[0];
+        }
+      } catch (e) {
+        console.warn("Firestore latest submission query notice:", e);
       }
-    } catch (e) {
-      console.warn("Firestore latest submission query notice:", e);
     }
 
-    return null;
+    // 4. Secondary lookup by candidate phone if still not found
+    if (!match && cleanPhoneDigits) {
+      try {
+        const snap = await getDocs(collection(db, "properties", propertyId, "self_kyc_submissions"));
+        if (!snap.empty) {
+          const phoneDocs = snap.docs
+            .map((d) => d.data() as SelfKycSubmission)
+            .filter((s) => (s.phone || "").replace(/\D/g, "").slice(-10) === cleanPhoneDigits)
+            .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+          if (phoneDocs.length > 0) {
+            match = phoneDocs[0];
+          }
+        }
+      } catch (e) {
+        console.warn("Firestore phone-based submission query notice:", e);
+      }
+    }
+
+    // 5. Smart Image Back-fill: If match exists but images are missing, check if candidate uploaded them previously
+    if (match && cleanPhoneDigits && (!match.photoUrl || !match.aadhaarFrontUrl || !match.aadhaarBackUrl)) {
+      try {
+        const snap = await getDocs(collection(db, "properties", propertyId, "self_kyc_submissions"));
+        if (!snap.empty) {
+          const withImages = snap.docs
+            .map((d) => d.data() as SelfKycSubmission)
+            .filter((s) => (s.phone || "").replace(/\D/g, "").slice(-10) === cleanPhoneDigits)
+            .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+
+          for (const s of withImages) {
+            if (!match.photoUrl && s.photoUrl) match.photoUrl = s.photoUrl;
+            if (!match.aadhaarFrontUrl && s.aadhaarFrontUrl) match.aadhaarFrontUrl = s.aadhaarFrontUrl;
+            if (!match.aadhaarBackUrl && s.aadhaarBackUrl) match.aadhaarBackUrl = s.aadhaarBackUrl;
+            if (!match.aadhaarNumber && s.aadhaarNumber) match.aadhaarNumber = s.aadhaarNumber;
+          }
+        }
+      } catch (e) {
+        console.warn("Smart image recovery query notice:", e);
+      }
+    }
+
+    return match;
   },
 };
