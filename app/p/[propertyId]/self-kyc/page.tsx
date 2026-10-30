@@ -1,7 +1,8 @@
 "use client";
 
-import { use, useState, useEffect, useMemo } from "react";
+import { use, useState, useEffect, useMemo, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
@@ -56,16 +57,22 @@ import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
 import { getCanonicalPortalOrigin } from "@/utils/urlUtils";
 import { useAuth } from "@/providers/AuthProvider";
 
-export default function SelfKycDeskPage({
-  params,
+function SelfKycDeskContent({
+  propertyId,
 }: {
-  params: Promise<{ propertyId: string }>;
+  propertyId: string;
 }) {
-  const resolvedParams = use(params);
-  const propertyId = resolvedParams?.propertyId || "ramesh-residencies";
+  const searchParams = useSearchParams();
+  const reviewSubmissionId = searchParams?.get("reviewSubmissionId") || searchParams?.get("reviewId") || "";
+  const urlRoom = searchParams?.get("room") || "";
+  const urlBed = searchParams?.get("bed") || "";
+  const urlTab = searchParams?.get("tab") || "";
+
   const { profile, user } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<"INVITES" | "REVIEW" | "APPROVED">("INVITES");
+  const [activeTab, setActiveTab] = useState<"INVITES" | "REVIEW" | "APPROVED">(
+    urlTab === "REVIEW" || reviewSubmissionId || urlRoom ? "REVIEW" : "INVITES"
+  );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [submissions, setSubmissions] = useState<SelfKycSubmission[]>([]);
   const [invites, setInvites] = useState<SelfKycInvite[]>([]);
@@ -271,11 +278,71 @@ export default function SelfKycDeskPage({
     }
   }, [activeTab, propertyId]);
 
+  // Auto-switch to REVIEW tab when deep-linked from Property Map
+  useEffect(() => {
+    if (urlTab === "REVIEW" || reviewSubmissionId || urlRoom) {
+      setActiveTab("REVIEW");
+    }
+  }, [urlTab, reviewSubmissionId, urlRoom]);
+
+  // Direct 1-Click KYC Verification: Auto-select targeted resident and open Review & Verification modal
+  useEffect(() => {
+    if (!reviewSubmissionId && !urlRoom) return;
+    if (submissions.length === 0) return;
+
+    const cleanUrlRoom = urlRoom.toLowerCase().trim();
+    const cleanUrlBed = urlBed.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+    const matchedSub = submissions.find((s) => {
+      if (reviewSubmissionId && s.id === reviewSubmissionId) return true;
+      if (cleanUrlRoom && cleanUrlBed) {
+        const sRm = (s.roomNumber || "").toLowerCase().trim();
+        const sBd = (s.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+        return sRm === cleanUrlRoom && sBd === cleanUrlBed;
+      }
+      return false;
+    });
+
+    if (matchedSub && (!activeReviewSubmission || activeReviewSubmission.id !== matchedSub.id)) {
+      setActiveTab("REVIEW");
+      setActiveReviewSubmission(matchedSub);
+      setShowRejectionInput(false);
+      setRejectionReason("");
+    }
+  }, [reviewSubmissionId, urlRoom, urlBed, submissions]);
+
   // Derived lists
   const pendingSubmissions = useMemo(
     () => submissions.filter((s) => s.status === "PENDING"),
     [submissions]
   );
+
+  // Sorted / prioritized pending submissions: if navigating from Property Map, pin the target candidate to the top
+  const sortedPendingSubmissions = useMemo(() => {
+    if (!reviewSubmissionId && !urlRoom) return pendingSubmissions;
+    const cleanUrlRoom = urlRoom.toLowerCase().trim();
+    const cleanUrlBed = urlBed.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+    return [...pendingSubmissions].sort((a, b) => {
+      const aMatch =
+        (reviewSubmissionId && a.id === reviewSubmissionId) ||
+        (cleanUrlRoom &&
+          cleanUrlBed &&
+          (a.roomNumber || "").toLowerCase().trim() === cleanUrlRoom &&
+          (a.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "") === cleanUrlBed);
+      const bMatch =
+        (reviewSubmissionId && b.id === reviewSubmissionId) ||
+        (cleanUrlRoom &&
+          cleanUrlBed &&
+          (b.roomNumber || "").toLowerCase().trim() === cleanUrlRoom &&
+          (b.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "") === cleanUrlBed);
+
+      if (aMatch && !bMatch) return -1;
+      if (!aMatch && bMatch) return 1;
+      return 0;
+    });
+  }, [pendingSubmissions, reviewSubmissionId, urlRoom, urlBed]);
+
   const approvedSubmissions = useMemo(
     () => submissions.filter((s) => s.status === "APPROVED"),
     [submissions]
@@ -1330,21 +1397,40 @@ export default function SelfKycDeskPage({
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {pendingSubmissions.map((sub) => (
-                    <div
-                      key={sub.id}
-                      className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
-                    >
-                      <div>
-                        {/* Top Badge Row */}
-                        <div className="flex items-center justify-between gap-2 mb-3">
-                          <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
-                            sub.stayType === "Guest"
-                              ? "bg-purple-100 text-purple-900 border border-purple-200"
-                              : "bg-blue-100 text-blue-900 border border-blue-200"
-                          }`}>
-                            {sub.stayType === "Guest" ? "🟣 Guest Stay" : "🔵 Monthly Tenant"}
-                          </span>
+                  {sortedPendingSubmissions.map((sub) => {
+                    const isTargetCandidate =
+                      (reviewSubmissionId && sub.id === reviewSubmissionId) ||
+                      (urlRoom &&
+                        urlBed &&
+                        (sub.roomNumber || "").toLowerCase().trim() === urlRoom.toLowerCase().trim() &&
+                        (sub.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "") === urlBed.toLowerCase().replace(/[^a-z0-9]/g, ""));
+
+                    return (
+                      <div
+                        key={sub.id}
+                        className={`p-5 rounded-3xl bg-white border transition-all flex flex-col justify-between space-y-4 ${
+                          isTargetCandidate
+                            ? "border-[#c2652a] ring-2 ring-[#c2652a]/80 shadow-md"
+                            : "border-gray-200 shadow-xs hover:shadow-md"
+                        }`}
+                      >
+                        <div>
+                          {/* Top Badge Row */}
+                          <div className="flex items-center justify-between gap-2 mb-3">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
+                                sub.stayType === "Guest"
+                                  ? "bg-purple-100 text-purple-900 border border-purple-200"
+                                  : "bg-blue-100 text-blue-900 border border-blue-200"
+                              }`}>
+                                {sub.stayType === "Guest" ? "🟣 Guest Stay" : "🔵 Monthly Tenant"}
+                              </span>
+                              {isTargetCandidate && (
+                                <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#c2652a] text-white shadow-2xs">
+                                  Selected Bed
+                                </span>
+                              )}
+                            </div>
 
                           <span className="text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full flex items-center gap-1">
                             <Clock className="w-3 h-3 text-rose-500" />
@@ -1430,7 +1516,8 @@ export default function SelfKycDeskPage({
                         <span>Review & Verify KYC</span>
                       </button>
                     </div>
-                  ))}
+                  );
+                })}
                 </div>
               )}
             </div>
@@ -2224,5 +2311,26 @@ export default function SelfKycDeskPage({
         onClose={() => setShowStandeeModal(false)}
       />
     </div>
+  );
+}
+
+export default function SelfKycDeskPage({
+  params,
+}: {
+  params: Promise<{ propertyId: string }>;
+}) {
+  const resolvedParams = use(params);
+  const propertyId = resolvedParams?.propertyId || "ramesh-residencies";
+
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#fff8f6] flex items-center justify-center text-gray-500 font-bold text-sm">
+          Loading Self-KYC Desk...
+        </div>
+      }
+    >
+      <SelfKycDeskContent propertyId={propertyId} />
+    </Suspense>
   );
 }

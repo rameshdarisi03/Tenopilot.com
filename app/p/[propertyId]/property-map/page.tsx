@@ -2,7 +2,7 @@
 
 import { use, useState, useEffect, useMemo, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { Occupant, occupantStore } from "@/constants/mockOccupants";
@@ -55,6 +55,7 @@ function PropertyMapContent({
 }: {
   propertyId: string;
 }) {
+  const router = useRouter();
   const searchParams = useSearchParams();
 
   // Mobile menu state
@@ -1004,14 +1005,20 @@ function PropertyMapContent({
                                   return (
                                     <button
                                       key={bed.id}
-                                      onClick={() =>
+                                      onClick={() => {
+                                        if (isKycSubPending && pendingKycSub) {
+                                          router.push(
+                                            `/p/${propertyId}/self-kyc?reviewSubmissionId=${pendingKycSub.id}&room=${encodeURIComponent(room.roomNumber)}&bed=${encodeURIComponent(bed.bedCode)}`
+                                          );
+                                          return;
+                                        }
                                         setActiveBedSlot({
                                           bed,
                                           roomNumber: room.roomNumber,
                                           floorName: floor.floorName,
                                           timeline,
-                                        })
-                                      }
+                                        });
+                                      }}
                                       className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all text-center group cursor-pointer active:scale-95 relative ${badgeStyle}`}
                                     >
                                       {/* 🟠 TOP-RIGHT VACATING / OVERDUE BADGE PILL */}
@@ -1344,7 +1351,7 @@ function PropertyMapContent({
 
                       <div className="space-y-2">
                         <Link
-                          href={`/p/${propertyId}/self-kyc`}
+                          href={`/p/${propertyId}/self-kyc?reviewSubmissionId=${activePendingSub.id}&room=${encodeURIComponent(activeBedSlot.roomNumber)}&bed=${encodeURIComponent(activeBedSlot.bed.bedCode)}`}
                           className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-[#964407] to-[#c2652a] hover:opacity-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all block cursor-pointer"
                         >
                           <span>Review & Approve KYC</span>
