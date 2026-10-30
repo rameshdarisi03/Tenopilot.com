@@ -4,6 +4,7 @@
 import { Occupant, occupantStore, MOCK_OCCUPANTS_200, PaymentHistoryItem } from "@/constants/mockOccupants";
 import { BedSlotConfig, RoomConfig } from "@/constants/propertyLayoutStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
+import { normalizePhoneNumber } from "./security";
 import { parseOccupantDate } from "./autoCheckInEngine";
 export { parseOccupantDate } from "./autoCheckInEngine";
 
@@ -1650,5 +1651,168 @@ export function calculatePropertyRentComplianceSummary(
     overduePendingAmount,
   };
 }
+
+export interface TenoPilotSearchEntity {
+  name?: string;
+  roomNumber?: string;
+  phone?: string;
+  vehicleNumber?: string;
+  vehicleNumbers?: string[];
+  vehiclePlate?: string;
+  company?: string;
+  workplace?: string;
+  bedCode?: string;
+  aadhaarNumber?: string;
+}
+
+/**
+ * 🔍 Centralized TenoPilot Global Search Engine (SSOT)
+ * Enforces authoritative tiered filtering rules:
+ * - 1 to 3 Digits: Reserved for Room Number (e.g. '203' strictly matches Room 203; never matches middle of phone numbers)
+ * - 4 Digits: Reserved for Bike / Vehicle Number (e.g. '5705' matches KA09JG5705)
+ * - Minimum 5 Digits: Reserved for Mobile Number (filtered from first 5 digits of mobile number)
+ * - Non-numeric / Alphanumeric: Matches Name, Room, Bed Code, Workplace, or Vehicle Plate
+ */
+export function matchesTenoPilotSearch(
+  entity: TenoPilotSearchEntity,
+  rawQuery: string
+): boolean {
+  const query = (rawQuery || "").trim().toLowerCase();
+  if (!query) return true;
+
+  const isPureDigits = /^\d+$/.test(query);
+  const cleanDigits = query.replace(/\D/g, "");
+
+  // =========================================================================
+  // 1. TIERED PURE NUMERIC SEARCH LOGIC
+  // =========================================================================
+  if (isPureDigits) {
+    const digitCount = cleanDigits.length;
+
+    // TIER 1: 1 to 3 Digits -> Strictly Room Number (or exact digit word in name)
+    if (digitCount <= 3) {
+      const cleanRm = (entity.roomNumber || "").trim().toLowerCase();
+      // Room match: exact room or room starts with query (e.g. "203", "101")
+      const roomMatch = cleanRm === cleanDigits || cleanRm.startsWith(cleanDigits);
+
+      // Name word match only if name has that exact standalone number (e.g. "305 Uday Friend")
+      const nameWords = (entity.name || "").toLowerCase().split(/[\s,/-]+/).filter(Boolean);
+      const nameExactWordMatch = nameWords.includes(cleanDigits);
+
+      return Boolean(roomMatch || nameExactWordMatch);
+    }
+
+    // TIER 2: 4 Digits -> Strictly Bike / Vehicle Registration Number (or 4-digit room)
+    if (digitCount === 4) {
+      const cleanRm = (entity.roomNumber || "").trim().toLowerCase();
+      if (cleanRm === cleanDigits) return true;
+
+      const vList: string[] = [];
+      if (entity.vehicleNumber) vList.push(entity.vehicleNumber);
+      if (entity.vehiclePlate) vList.push(entity.vehiclePlate);
+      if (Array.isArray(entity.vehicleNumbers)) {
+        entity.vehicleNumbers.forEach((v) => v && vList.push(v));
+      }
+
+      const vehicleMatch = vList.some((v) => {
+        const cleanV = v.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+        return cleanV.endsWith(cleanDigits) || cleanV.includes(cleanDigits);
+      });
+
+      const nameWords = (entity.name || "").toLowerCase().split(/[\s,/-]+/).filter(Boolean);
+      const nameExactWordMatch = nameWords.includes(cleanDigits);
+
+      return Boolean(vehicleMatch || nameExactWordMatch);
+    }
+
+    // TIER 3: Minimum 5 Digits -> Mobile Number (Filtered from first 5 digits)
+    if (digitCount >= 5) {
+      const cleanPhone = normalizePhoneNumber(entity.phone || "");
+      // Starts with the digits (first 5+ digits of mobile number), or contains if 7+ digits entered
+      const phoneMatch = cleanPhone.startsWith(cleanDigits) || (digitCount >= 7 && cleanPhone.includes(cleanDigits));
+
+      const cleanAadhaar = (entity.aadhaarNumber || "").replace(/\D/g, "");
+      const aadhaarMatch = cleanAadhaar.length >= 5 && cleanAadhaar.startsWith(cleanDigits);
+
+      return Boolean(phoneMatch || aadhaarMatch);
+    }
+  }
+
+  // =========================================================================
+  // 2. ALPHANUMERIC & TEXT TOKENS SEARCH LOGIC
+  // =========================================================================
+  const tokens = query.split(/\s+/).filter(Boolean);
+
+  return tokens.every((token) => {
+    // If this individual token is 1 to 3 digits, treat as room number
+    if (/^\d{1,3}$/.test(token)) {
+      const cleanRm = (entity.roomNumber || "").trim().toLowerCase();
+      const roomMatch = cleanRm === token || cleanRm.startsWith(token);
+      const nameWords = (entity.name || "").toLowerCase().split(/[\s,/-]+/).filter(Boolean);
+      return roomMatch || nameWords.includes(token);
+    }
+
+    // If this individual token is 4 digits, treat as vehicle number
+    if (/^\d{4}$/.test(token)) {
+      const vList: string[] = [];
+      if (entity.vehicleNumber) vList.push(entity.vehicleNumber);
+      if (entity.vehiclePlate) vList.push(entity.vehiclePlate);
+      if (Array.isArray(entity.vehicleNumbers)) {
+        entity.vehicleNumbers.forEach((v) => v && vList.push(v));
+      }
+      return vList.some((v) => {
+        const cleanV = v.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+        return cleanV.endsWith(token) || cleanV.includes(token);
+      });
+    }
+
+    // Name matching
+    const nameLower = (entity.name || "").toLowerCase();
+    const cleanName = nameLower.replace(/[^a-z0-9\s]/g, "");
+    const nameWords = cleanName.split(/\s+/).filter(Boolean);
+    if (nameLower.startsWith(token) || nameWords.some((w) => w.startsWith(token)) || nameLower.includes(token)) {
+      return true;
+    }
+
+    // Room number
+    const roomLower = (entity.roomNumber || "").toLowerCase();
+    if (roomLower.includes(token)) return true;
+
+    // Bed slot
+    const bedLower = (entity.bedCode || "").toLowerCase();
+    if (bedLower.includes(token)) return true;
+
+    // Workplace / Company
+    const workLower = (entity.workplace || entity.company || "").toLowerCase();
+    if (workLower.includes(token)) return true;
+
+    // Vehicle plate
+    const vList: string[] = [];
+    if (entity.vehicleNumber) vList.push(entity.vehicleNumber);
+    if (entity.vehiclePlate) vList.push(entity.vehiclePlate);
+    if (Array.isArray(entity.vehicleNumbers)) {
+      entity.vehicleNumbers.forEach((v) => v && vList.push(v));
+    }
+    const tokenAlpha = token.replace(/[^a-z0-9]/g, "");
+    const vehicleMatches = vList.some((v) => {
+      const vl = v.toLowerCase();
+      const vs = vl.replace(/[^a-z0-9]/g, "");
+      return vl.includes(token) || (tokenAlpha && vs.includes(tokenAlpha));
+    });
+    if (vehicleMatches) return true;
+
+    // Phone match ONLY if token has 5+ digits
+    const tokenDigits = token.replace(/\D/g, "");
+    if (tokenDigits.length >= 5) {
+      const cleanPhone = normalizePhoneNumber(entity.phone || "");
+      if (cleanPhone.startsWith(tokenDigits) || cleanPhone.includes(tokenDigits)) {
+        return true;
+      }
+    }
+
+    return false;
+  });
+}
+
 
 

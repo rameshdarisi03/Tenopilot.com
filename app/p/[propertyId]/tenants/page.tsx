@@ -14,7 +14,7 @@ import { propertySettingsStore, DEFAULT_QR_PROFILES, PaymentQRProfile, PAY_BY_CA
 import { partnerStore, PaymentAccountConfig, PartnerConfig } from "@/constants/partnerStore";
 import { subscribeOccupantsFromFirestore, saveOccupantToFirestore, updateOccupantInFirestore, deleteOccupantFromFirestore, purgeAllMockOccupantsFromFirestore, isGenuineOccupantId } from "@/lib/firestoreService";
 import { sanitizeSearchInput, normalizePhoneNumber, formatWhatsAppPhone, formatDisplayPhone, buildWhatsAppUrl, sanitizeVehicleNumber } from "@/utils/security";
-import { calculateOccupantFinancialStatement, calculateProRataRent, resolveOccupantLastPaidInfo, resolveOccupantPaymentDueDate, parseOccupantDate } from "@/utils/domainSSOT";
+import { calculateOccupantFinancialStatement, calculateProRataRent, resolveOccupantLastPaidInfo, resolveOccupantPaymentDueDate, parseOccupantDate, matchesTenoPilotSearch } from "@/utils/domainSSOT";
 import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot, doc, setDoc, getDoc } from "firebase/firestore";
 import { PaymentProofReviewModal, PaymentProofRecord } from "@/components/dashboard/PaymentProofReviewModal";
@@ -1809,52 +1809,13 @@ export default function TenantsDirectoryPage({
   // XSS Sanitized & Tokenized Search Filtering + Sorting
   const filteredOccupants = useMemo(() => {
     // 1. Sanitize raw input against script injection
-    const cleanSearch = sanitizeSearchInput(rawSearchTerm).toLowerCase().trim();
-    const searchTokens = cleanSearch.split(/\s+/).filter(Boolean);
-    const numericDigitsOnly = normalizePhoneNumber(cleanSearch);
+    const cleanSearch = sanitizeSearchInput(rawSearchTerm).trim();
+    const searchTokens = cleanSearch.toLowerCase().split(/\s+/).filter(Boolean);
 
     const matched = occupantsList.filter((occ) => {
-      // 1. Robust multi-attribute search matching (Global Search Override)
-      if (searchTokens.length > 0) {
-        const occNameLower = occ.name.toLowerCase();
-        const occRoomLower = occ.roomNumber.toLowerCase();
-        const occPhoneDigits = normalizePhoneNumber(occ.phone);
-        const occAadhaar = occ.aadhaarNumber.toLowerCase();
-
-        // Collect all registered vehicle plates for this occupant
-        const vList: string[] = [];
-        if (occ.vehicleNumber) vList.push(occ.vehicleNumber);
-        if (Array.isArray(occ.vehicleNumbers)) {
-          for (const v of occ.vehicleNumbers) {
-            if (v && !vList.includes(v)) vList.push(v);
-          }
-        }
-
-        // Check if entered tokens match name prefix (startsWith word), room, phone, or vehicle plate
-        const matchesAllTokens = searchTokens.every((token) => {
-          const cleanName = occNameLower.replace(/[^a-z0-9\s]/g, "");
-          const nameWords = cleanName.split(/\s+/).filter(Boolean);
-          // Match if full name starts with token OR any word in name starts with token
-          const nameMatchesPrefix = occNameLower.startsWith(token) || nameWords.some((w) => w.startsWith(token));
-          const roomMatches = occRoomLower.startsWith(token) || occRoomLower.includes(token);
-          const aadhaarMatches = occAadhaar.startsWith(token);
-          const phoneMatches = numericDigitsOnly.length >= 2 && occPhoneDigits.includes(numericDigitsOnly);
-
-          // 🚗 Vehicle registration plate matching (Case-insensitive, substring like "HK", last 4 digits like "4772")
-          const tokenAlpha = token.replace(/[^a-z0-9]/g, "");
-          const vehicleMatches = vList.some((veh) => {
-            const vl = veh.toLowerCase();
-            const vs = vl.replace(/[^a-z0-9]/g, "");
-            if (!tokenAlpha) return vl.includes(token);
-            // Matches substring in raw plate (e.g. "hk") OR alphanumeric condensed plate (e.g. "ka03") OR ends with token (e.g. last 4 digits "4772")
-            return vl.includes(token) || vs.includes(tokenAlpha) || vs.endsWith(tokenAlpha);
-          });
-
-          return nameMatchesPrefix || roomMatches || aadhaarMatches || phoneMatches || vehicleMatches;
-        });
-
-        // If searching, return true if matches query (Ignore tab & dropdown filters for True Global Search)
-        return matchesAllTokens;
+      // 1. Tiered Global Search: 1-3 digits for room, 4 digits for vehicle, 5+ digits for phone prefix
+      if (cleanSearch) {
+        return matchesTenoPilotSearch(occ, cleanSearch);
       }
 
       // 2. Status Segmented Tab Filter (Only applied when NOT searching)

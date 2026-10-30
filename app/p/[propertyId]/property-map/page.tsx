@@ -25,6 +25,7 @@ import {
   normalizeBedCode,
   canonicalBedKey,
   normalizeRoomNumber,
+  matchesTenoPilotSearch,
 } from "@/utils/domainSSOT";
 import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
 import {
@@ -436,7 +437,7 @@ function PropertyMapContent({
               getCanonicalBedIndex(a.bedCode) - getCanonicalBedIndex(b.bedCode)
             );
             const rmClaimedOccIds = new Set<string>();
-            const roomMatchesQuery = query ? rm.roomNumber.toLowerCase().includes(query) : false;
+            const roomMatchesQuery = query ? matchesTenoPilotSearch({ roomNumber: rm.roomNumber }, query) : false;
 
             return {
               ...rm,
@@ -514,22 +515,10 @@ function PropertyMapContent({
                 // If room number directly matches query, show all beds in room
                 if (roomMatchesQuery) return true;
 
-                // Match occupant attributes (name, phone, vehicle plate, workplace, bedCode)
+                // Match occupant attributes via unified tiered SSOT
                 const bdCodeMatch = bd.bedCode?.toLowerCase().includes(query);
-                const primaryMatch = primaryOcc && (
-                  primaryOcc.name?.toLowerCase().includes(query) ||
-                  primaryOcc.phone?.toLowerCase().includes(query) ||
-                  (primaryOcc as any).vehiclePlate?.toLowerCase().includes(query) ||
-                  (primaryOcc as any).vehicleNumber?.toLowerCase().includes(query) ||
-                  (primaryOcc as any).company?.toLowerCase().includes(query) ||
-                  (primaryOcc as any).workplace?.toLowerCase().includes(query)
-                );
-                const nextMatch = nextOcc && (
-                  nextOcc.name?.toLowerCase().includes(query) ||
-                  nextOcc.phone?.toLowerCase().includes(query) ||
-                  (nextOcc as any).vehiclePlate?.toLowerCase().includes(query) ||
-                  (nextOcc as any).vehicleNumber?.toLowerCase().includes(query)
-                );
+                const primaryMatch = primaryOcc && matchesTenoPilotSearch(primaryOcc, query);
+                const nextMatch = nextOcc && matchesTenoPilotSearch(nextOcc, query);
 
                 return Boolean(bdCodeMatch || primaryMatch || nextMatch);
               }),
