@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect, useMemo, Suspense } from "react";
+import { use, useState, useEffect, useMemo, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { collection, getDocs } from "firebase/firestore";
@@ -278,22 +278,44 @@ function SelfKycDeskContent({
     }
   }, [activeTab, propertyId]);
 
-  // Auto-switch to REVIEW tab when deep-linked from Property Map
+  const handledDeepLinkRef = useRef<boolean>(false);
+
+  // Helper to cleanly purge review query parameters from browser URL bar
+  const clearReviewUrlParams = () => {
+    if (typeof window !== "undefined") {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("reviewSubmissionId");
+        url.searchParams.delete("reviewId");
+        url.searchParams.delete("room");
+        url.searchParams.delete("bed");
+        url.searchParams.delete("tab");
+        window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
+      } catch (err) {
+        console.warn("URL cleanup error:", err);
+      }
+    }
+  };
+
+  // Auto-switch to REVIEW tab when deep-linked from Property Map (only once on load)
   useEffect(() => {
-    if (urlTab === "REVIEW" || reviewSubmissionId || urlRoom) {
+    if (!handledDeepLinkRef.current && (urlTab === "REVIEW" || reviewSubmissionId || urlRoom)) {
       setActiveTab("REVIEW");
     }
   }, [urlTab, reviewSubmissionId, urlRoom]);
 
   // Direct 1-Click KYC Verification: Auto-select targeted resident and open Review & Verification modal
   useEffect(() => {
+    if (handledDeepLinkRef.current) return;
     if (!reviewSubmissionId && !urlRoom) return;
     if (submissions.length === 0) return;
 
     const cleanUrlRoom = urlRoom.toLowerCase().trim();
     const cleanUrlBed = urlBed.toLowerCase().replace(/[^a-z0-9]/g, "");
 
+    // ONLY auto-open if the submission is actually PENDING review!
     const matchedSub = submissions.find((s) => {
+      if (s.status !== "PENDING") return false;
       if (reviewSubmissionId && s.id === reviewSubmissionId) return true;
       if (cleanUrlRoom && cleanUrlBed) {
         const sRm = (s.roomNumber || "").toLowerCase().trim();
@@ -303,7 +325,8 @@ function SelfKycDeskContent({
       return false;
     });
 
-    if (matchedSub && (!activeReviewSubmission || activeReviewSubmission.id !== matchedSub.id)) {
+    if (matchedSub) {
+      handledDeepLinkRef.current = true;
       setActiveTab("REVIEW");
       setActiveReviewSubmission(matchedSub);
       setShowRejectionInput(false);
@@ -351,31 +374,31 @@ function SelfKycDeskContent({
   // Sent Invites Log: Only active invites awaiting candidate action (first fill or re-upload after rejection)
   // Transitions OUT when candidate submits (enters Review KYC), or when candidate is Approved
   const activeInvites = useMemo(() => {
+    // 1. Collect invite IDs and specific room/bed pairs that currently have a PENDING submission
     const pendingInviteIds = new Set(
       pendingSubmissions.map((s) => s.inviteId).filter(Boolean)
     );
-    const pendingPhones = new Set(
-      pendingSubmissions.map((s) => (s.phone || "").replace(/\D/g, "").slice(-10)).filter(Boolean)
+    const pendingRoomBeds = new Set(
+      pendingSubmissions.map(
+        (s) => `${(s.roomNumber || "").trim().toLowerCase()}___${(s.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "")}`
+      )
     );
 
+    // 2. Collect invite IDs that were APPROVED
     const approvedInviteIds = new Set(
       approvedSubmissions.map((s) => s.inviteId).filter(Boolean)
-    );
-    const approvedPhones = new Set(
-      approvedSubmissions.map((s) => (s.phone || "").replace(/\D/g, "").slice(-10)).filter(Boolean)
     );
 
     return invites.filter((inv) => {
       if (inv.status === "REVOKED" || inv.status === "COMPLETED") return false;
 
-      // Filter out if currently pending in Review KYC
+      // Filter out if THIS specific invite currently has a pending submission in Review KYC
       if (pendingInviteIds.has(inv.id)) return false;
-      const cleanPhone = (inv.candidatePhone || "").replace(/\D/g, "").slice(-10);
-      if (cleanPhone && pendingPhones.has(cleanPhone)) return false;
+      const invRoomBed = `${(inv.roomNumber || "").trim().toLowerCase()}___${(inv.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "")}`;
+      if (pendingRoomBeds.has(invRoomBed)) return false;
 
-      // Filter out if already approved
+      // Filter out if THIS specific invite was already approved
       if (approvedInviteIds.has(inv.id)) return false;
-      if (cleanPhone && approvedPhones.has(cleanPhone)) return false;
 
       return true;
     });
@@ -854,6 +877,8 @@ function SelfKycDeskContent({
       triggerToast(
         `🎉 ${createdResident.name} approved & checked in! Room ${createdResident.roomNumber} (${formatBedLabel(createdResident.bedCode)}) updated. Welcome notice sent via ${emailDispatched ? "WhatsApp & Email ✉️" : "WhatsApp"}.`
       );
+      handledDeepLinkRef.current = true;
+      clearReviewUrlParams();
       setActiveReviewSubmission(null);
       setActiveTab("APPROVED");
     } catch (e) {
@@ -981,6 +1006,8 @@ function SelfKycDeskContent({
         `Correction requested for ${subToReject.name}. Application moved back to Sent Invites Log. Candidate notified on WhatsApp (${targetPhonesList || "Candidate Phone"})!`,
         "success"
       );
+      handledDeepLinkRef.current = true;
+      clearReviewUrlParams();
       setActiveReviewSubmission(null);
       setShowRejectionInput(false);
       setRejectionReason("");
@@ -2007,7 +2034,11 @@ function SelfKycDeskContent({
               </div>
               <button
                 type="button"
-                onClick={() => setActiveReviewSubmission(null)}
+                onClick={() => {
+                  handledDeepLinkRef.current = true;
+                  clearReviewUrlParams();
+                  setActiveReviewSubmission(null);
+                }}
                 className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -2270,6 +2301,8 @@ function SelfKycDeskContent({
               <button
                 type="button"
                 onClick={() => {
+                  handledDeepLinkRef.current = true;
+                  clearReviewUrlParams();
                   setActiveReviewSubmission(null);
                   setShowRejectionInput(false);
                 }}
