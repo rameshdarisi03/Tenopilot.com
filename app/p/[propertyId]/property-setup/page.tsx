@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
-import { MOCK_OCCUPANTS_200, Occupant } from "@/constants/mockOccupants";
+import { Occupant, occupantStore } from "@/constants/mockOccupants";
+import { subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
+import { selfKycStore, SelfKycInvite, SelfKycSubmission } from "@/lib/selfKycStore";
 import {
   propertyStore,
   FloorConfig,
@@ -77,41 +79,165 @@ export default function PropertySetupPage({
     typeof window !== "undefined" ? propertySettingsStore.getSettings(propertyId) : propertySettingsStore.getSettings()
   );
 
+  // Reactive Occupants & KYC Stores
+  const [occupantsList, setOccupantsList] = useState<Occupant[]>(() =>
+    typeof window !== "undefined" ? occupantStore.getOccupants(propertyId) : []
+  );
+  const [kycInvites, setKycInvites] = useState<SelfKycInvite[]>(() =>
+    typeof window !== "undefined" ? selfKycStore.getInvites(propertyId) : []
+  );
+  const [kycSubmissions, setKycSubmissions] = useState<SelfKycSubmission[]>(() =>
+    typeof window !== "undefined" ? selfKycStore.getSubmissions(propertyId) : []
+  );
+
   useEffect(() => {
     propertyStore.initFirebaseListener(propertyId);
     propertySettingsStore.initFirebaseListener(propertyId);
-    setPropertyStructure(propertyStore.getStructure(propertyId));
+
+    const initialStructure = propertyStore.getStructure(propertyId);
+    setPropertyStructure(initialStructure);
+    if (initialStructure && initialStructure.length > 0) {
+      setOpenFloorIds((prev) => Array.from(new Set([...prev, ...initialStructure.map((f) => f.id)])));
+    }
     setSettings(propertySettingsStore.getSettings(propertyId));
+    setOccupantsList(occupantStore.getOccupants(propertyId));
+    setKycInvites(selfKycStore.getInvites(propertyId));
+    setKycSubmissions(selfKycStore.getSubmissions(propertyId));
 
     const unsubscribeProperty = propertyStore.subscribe(() => {
-      setPropertyStructure(propertyStore.getStructure(propertyId));
-    });
-    const unsubscribeSettings = propertySettingsStore.subscribe(() => {
-      setSettings(propertySettingsStore.getSettings(propertyId));
-    });
-
-    return () => {
-      unsubscribeProperty();
-      unsubscribeSettings();
-    };
-  }, [propertyId]);
-
-  // Subscribe to propertyStore updates & auto-expand floor accordions
-  useEffect(() => {
-    const current = propertyStore.getStructure(propertyId);
-    setPropertyStructure(current);
-    if (current && current.length > 0) {
-      setOpenFloorIds((prev) => Array.from(new Set([...prev, ...current.map((f) => f.id)])));
-    }
-    const unsubscribe = propertyStore.subscribe(() => {
       const updated = propertyStore.getStructure(propertyId);
       setPropertyStructure(updated);
       if (updated && updated.length > 0) {
         setOpenFloorIds((prev) => Array.from(new Set([...prev, ...updated.map((f) => f.id)])));
       }
     });
-    return unsubscribe;
+    const unsubscribeSettings = propertySettingsStore.subscribe(() => {
+      setSettings(propertySettingsStore.getSettings(propertyId));
+    });
+    const unsubscribeOccupantsFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
+      if (fsOccupants && fsOccupants.length > 0) {
+        occupantStore.setOccupantsFromFirestore(fsOccupants, propertyId);
+      } else {
+        occupantStore.setOccupantsFromFirestore([], propertyId);
+      }
+      setOccupantsList(occupantStore.getOccupants(propertyId));
+    });
+    const unsubscribeOccupants = occupantStore.subscribe(() => {
+      setOccupantsList(occupantStore.getOccupants(propertyId));
+    });
+    const unsubscribeSubmissions = selfKycStore.subscribeSubmissions(propertyId, (list) => {
+      setKycSubmissions(list);
+    });
+    const unsubscribeInvites = selfKycStore.subscribeInvites(propertyId, (list) => {
+      setKycInvites(list);
+    });
+
+    return () => {
+      unsubscribeProperty();
+      unsubscribeSettings();
+      unsubscribeOccupantsFirestore();
+      unsubscribeOccupants();
+      unsubscribeSubmissions();
+      unsubscribeInvites();
+    };
   }, [propertyId]);
+
+  // Helper to normalize bed codes (e.g. "Bed A" -> "beda")
+  const normalizeBedCode = (c?: string) => {
+    const norm = (c || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    return norm.startsWith("bed") ? norm : `bed${norm}`;
+  };
+
+  // Helper to resolve real live occupant and state for a bed slot
+  const resolveBedSlotInfo = (roomNumber: string, bed: BedSlotConfig) => {
+    const cleanRm = (roomNumber || "").toLowerCase().trim();
+    const cleanBd = normalizeBedCode(bed.bedCode);
+
+    // 1. Live occupant lookup (highest priority)
+    const liveOcc = occupantsList.find(
+      (o) =>
+        (o.roomNumber || "").toLowerCase().trim() === cleanRm &&
+        normalizeBedCode(o.bedCode) === cleanBd &&
+        o.lifecycleStatus !== "Past"
+    );
+
+    // 2. Active invite lookup
+    const activeInvite = kycInvites.find(
+      (i) =>
+        i.status === "ACTIVE" &&
+        (i.roomNumber || "").toLowerCase().trim() === cleanRm &&
+        normalizeBedCode(i.bedCode) === cleanBd
+    );
+
+    // 3. Pending KYC submission lookup
+    const pendingSub = kycSubmissions.find(
+      (s) =>
+        s.status === "PENDING" &&
+        (s.roomNumber || "").toLowerCase().trim() === cleanRm &&
+        normalizeBedCode(s.bedCode) === cleanBd
+    );
+
+    // 4. Rejected submission (awaiting revision) lookup
+    const rejectedSub = kycSubmissions.find(
+      (s) =>
+        s.status === "REJECTED" &&
+        (s.roomNumber || "").toLowerCase().trim() === cleanRm &&
+        normalizeBedCode(s.bedCode) === cleanBd
+    );
+
+    const isLiveOccupied = Boolean(liveOcc);
+    const isNotice = liveOcc?.lifecycleStatus === "Notice";
+    const isGuest = liveOcc?.stayType === "Guest";
+    const isBooked =
+      !liveOcc && Boolean(activeInvite || pendingSub || bed.status === "Booked" || bed.status === "Hold");
+
+    let effectiveStatus: "Available" | "Occupied" | "Booked" | "Vacating" | "Guest" = "Available";
+    if (isNotice) effectiveStatus = "Vacating";
+    else if (isGuest) effectiveStatus = "Guest";
+    else if (isLiveOccupied) effectiveStatus = "Occupied";
+    else if (isBooked) effectiveStatus = "Booked";
+    else if (
+      bed.status === "Occupied" &&
+      bed.occupant &&
+      (!bed.occupant.bedCode || normalizeBedCode(bed.occupant.bedCode) === cleanBd)
+    ) {
+      effectiveStatus = "Occupied";
+    }
+
+    let badgeStyle = "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100";
+    let statusBadge = "VACANT";
+    let displayName = "";
+
+    if (effectiveStatus === "Occupied") {
+      badgeStyle = "bg-[#f7f2ee] text-amber-900 border-amber-200 hover:bg-amber-100";
+      statusBadge = "OCCUPIED";
+      displayName = liveOcc?.name || bed.occupant?.name || "Occupied";
+    } else if (effectiveStatus === "Vacating") {
+      badgeStyle = "bg-orange-50 text-orange-950 border-2 border-orange-400 hover:bg-orange-100 shadow-2xs";
+      statusBadge = "NOTICE";
+      displayName = liveOcc?.name || "Notice";
+    } else if (effectiveStatus === "Guest") {
+      badgeStyle = "bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100";
+      statusBadge = "GUEST";
+      displayName = liveOcc?.name || "Guest";
+    } else if (effectiveStatus === "Booked") {
+      badgeStyle = "bg-blue-50 text-blue-900 border border-blue-200 hover:bg-blue-100 shadow-2xs";
+      statusBadge = pendingSub ? "KYC REVIEW" : rejectedSub ? "CORRECTION" : "BOOKED";
+      displayName = pendingSub?.name || activeInvite?.candidateName || bed.holdCandidate?.name || "Incoming Resident";
+    }
+
+    return {
+      isOccupied: effectiveStatus !== "Available",
+      effectiveStatus,
+      occupant: liveOcc || bed.occupant,
+      displayName,
+      statusBadge,
+      badgeStyle,
+      activeInvite,
+      pendingSub,
+      rejectedSub,
+    };
+  };
 
   // Update global store whenever structure mutates
   const updateLayoutStructure = (newStructure: FloorConfig[]) => {
@@ -273,14 +399,16 @@ export default function PropertySetupPage({
   };
 
   // Handle Deletion of Bed Slot
-  const handleDeleteBed = (floorId: string, roomId: string, bed: BedSlotConfig) => {
-    if (bed.status !== "Available" && bed.occupant) {
+  const handleDeleteBed = (floorId: string, room: RoomConfig, bed: BedSlotConfig) => {
+    const info = resolveBedSlotInfo(room.roomNumber, bed);
+
+    if (info.isOccupied) {
       setBlockedDeleteModal({
-        title: `Cannot Delete Occupied ${bed.bedCode}`,
+        title: `Cannot Delete ${info.statusBadge} ${bed.bedCode}`,
         itemName: `${bed.bedCode}`,
-        occupantName: bed.occupant.name,
-        occupantId: bed.occupant.id,
-        reason: `This bed is currently ${bed.status.toLowerCase()} by ${bed.occupant.name}. Please transfer or check out the occupant before removing this bed slot.`,
+        occupantName: info.displayName,
+        occupantId: info.occupant?.id || "",
+        reason: `This bed is currently ${info.statusBadge.toLowerCase()} by ${info.displayName}. Please transfer, check out, or revoke hold before removing this bed slot.`,
       });
       return;
     }
@@ -295,7 +423,7 @@ export default function PropertySetupPage({
             ...fl,
             totalBeds: Math.max(0, (fl.totalBeds || 0) - 1),
             rooms: fl.rooms.map((rm) => {
-              if (rm.id !== roomId) return rm;
+              if (rm.id !== room.id) return rm;
               return {
                 ...rm,
                 sharingType: Math.max(1, rm.beds.length - 1),
@@ -314,15 +442,17 @@ export default function PropertySetupPage({
 
   // Handle Deletion of Room
   const handleDeleteRoom = (floorId: string, room: RoomConfig) => {
-    const occupiedBed = room.beds.find((b) => b.status !== "Available" && b.occupant);
+    const occupiedBedItem = room.beds
+      .map((b) => ({ bed: b, info: resolveBedSlotInfo(room.roomNumber, b) }))
+      .find((item) => item.info.isOccupied);
 
-    if (occupiedBed && occupiedBed.occupant) {
+    if (occupiedBedItem) {
       setBlockedDeleteModal({
         title: `Cannot Delete Occupied Room ${room.roomNumber}`,
         itemName: `Room ${room.roomNumber}`,
-        occupantName: occupiedBed.occupant.name,
-        occupantId: occupiedBed.occupant.id,
-        reason: `Room ${room.roomNumber} contains active occupied beds (including ${occupiedBed.bedCode} held by ${occupiedBed.occupant.name}). Please transfer or vacate all occupants first.`,
+        occupantName: occupiedBedItem.info.displayName,
+        occupantId: occupiedBedItem.info.occupant?.id || "",
+        reason: `Room ${room.roomNumber} contains active occupied beds (including ${occupiedBedItem.bed.bedCode} held by ${occupiedBedItem.info.displayName}). Please transfer or vacate all occupants first.`,
       });
       return;
     }
@@ -348,25 +478,31 @@ export default function PropertySetupPage({
 
   // Handle Deletion of Floor
   const handleDeleteFloor = (floor: FloorConfig) => {
-    let occupiedOccupant: Occupant | undefined = undefined;
-    let roomNum = "";
+    let occupiedBedInfo: { roomNum: string; bedCode: string; displayName: string; occupantId: string } | null = null;
 
-    floor.rooms.forEach((rm) => {
-      rm.beds.forEach((bd) => {
-        if (bd.status !== "Available" && bd.occupant) {
-          occupiedOccupant = bd.occupant;
-          roomNum = rm.roomNumber;
+    for (const rm of floor.rooms) {
+      for (const bd of rm.beds) {
+        const info = resolveBedSlotInfo(rm.roomNumber, bd);
+        if (info.isOccupied) {
+          occupiedBedInfo = {
+            roomNum: rm.roomNumber,
+            bedCode: bd.bedCode,
+            displayName: info.displayName,
+            occupantId: info.occupant?.id || "",
+          };
+          break;
         }
-      });
-    });
+      }
+      if (occupiedBedInfo) break;
+    }
 
-    if (occupiedOccupant) {
+    if (occupiedBedInfo) {
       setBlockedDeleteModal({
         title: `Cannot Delete ${floor.floorName}`,
         itemName: floor.floorName,
-        occupantName: (occupiedOccupant as Occupant).name,
-        occupantId: (occupiedOccupant as Occupant).id,
-        reason: `${floor.floorName} contains occupied rooms (Room ${roomNum} held by ${(occupiedOccupant as Occupant).name}). You must vacate all floor beds before deleting the floor structure.`,
+        occupantName: occupiedBedInfo.displayName,
+        occupantId: occupiedBedInfo.occupantId,
+        reason: `${floor.floorName} contains occupied rooms (Room ${occupiedBedInfo.roomNum} held by ${occupiedBedInfo.displayName}). You must vacate all floor beds before deleting the floor structure.`,
       });
       return;
     }
@@ -514,7 +650,9 @@ export default function PropertySetupPage({
       return;
     }
 
-    const occupiedCount = room.beds.filter((b) => b.status !== "Available" && b.occupant).length;
+    const occupiedCount = room.beds.filter(
+      (b) => resolveBedSlotInfo(room.roomNumber, b).isOccupied
+    ).length;
 
     if (newSharingCapacity < occupiedCount) {
       triggerToast(`⚠️ Cannot reduce capacity below ${occupiedCount} beds! Room has ${occupiedCount} active occupant(s).`);
@@ -547,8 +685,16 @@ export default function PropertySetupPage({
         });
       }
     } else if (newSharingCapacity < room.beds.length) {
-      // Safely trim vacant beds from the end
-      updatedBeds = updatedBeds.slice(0, newSharingCapacity);
+      // Safely ensure none of the beds being trimmed are occupied
+      const bedsToKeep = updatedBeds.slice(0, newSharingCapacity);
+      const bedsToTrim = updatedBeds.slice(newSharingCapacity);
+      const occupiedTrimmed = bedsToTrim.find((b) => resolveBedSlotInfo(room.roomNumber, b).isOccupied);
+      if (occupiedTrimmed) {
+        const occInfo = resolveBedSlotInfo(room.roomNumber, occupiedTrimmed);
+        triggerToast(`⚠️ Cannot trim ${occupiedTrimmed.bedCode} because it is held by ${occInfo.displayName}!`);
+        return;
+      }
+      updatedBeds = bedsToKeep;
     }
 
     const customRent = newRoomCustomRent ? Number(newRoomCustomRent) : undefined;
@@ -689,7 +835,27 @@ export default function PropertySetupPage({
             </div>
           ) : (
             <div className="space-y-6">
-            {propertyStructure.map((floor) => {
+              {/* Color Consistency Status Legend */}
+              <div className="flex items-center gap-2 flex-wrap text-[11px] font-bold bg-white p-3 rounded-2xl border border-gray-200 shadow-2xs">
+                <span className="text-gray-400 uppercase text-[9px] tracking-wider mr-1">Bed Legend:</span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Available
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#f7f2ee] text-amber-900 border border-amber-200">
+                  <span className="w-2 h-2 rounded-full bg-amber-600"></span> Occupied
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-900 border border-blue-200">
+                  <span className="w-2 h-2 rounded-full bg-blue-600"></span> Booked / KYC
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-50 text-orange-950 border border-orange-400">
+                  <span className="w-2 h-2 rounded-full bg-orange-500"></span> Notice / Vacating
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-50 text-purple-800 border border-purple-200">
+                  <span className="w-2 h-2 rounded-full bg-purple-500"></span> Guest Stay
+                </span>
+              </div>
+
+              {propertyStructure.map((floor) => {
               const isOpen = openFloorIds.includes(floor.id);
               const totalFloorBeds = floor.rooms.reduce(
                 (acc, r) => acc + r.beds.length,
@@ -821,27 +987,22 @@ export default function PropertySetupPage({
                                 return (
                                   <div className={`grid ${gridCols} gap-2 pt-1`}>
                                     {room.beds.map((bed) => {
-                                      const isOccupied =
-                                        bed.status !== "Available" && bed.occupant;
+                                      const info = resolveBedSlotInfo(room.roomNumber, bed);
 
                                       return (
                                         <div
                                           key={bed.id}
-                                          className={`p-2 rounded-xl border flex flex-col justify-between space-y-1 relative transition-all ${
-                                            isOccupied
-                                              ? "bg-[#f7f2ee] border-amber-200"
-                                              : "bg-emerald-50 border-emerald-200"
-                                          }`}
+                                          className={`p-2 rounded-xl border flex flex-col justify-between space-y-1 relative transition-all shadow-2xs ${info.badgeStyle}`}
                                         >
                                           <div className="flex items-center justify-between">
-                                            <span className="font-bold text-[11px] text-gray-900 truncate">
+                                            <span className="font-bold text-[11px] truncate">
                                               {bed.bedCode}
                                             </span>
                                             <button
                                               onClick={() =>
-                                                handleDeleteBed(floor.id, room.id, bed)
+                                                handleDeleteBed(floor.id, room, bed)
                                               }
-                                              className="p-0.5 rounded hover:bg-red-100 text-gray-400 hover:text-red-600"
+                                              className="p-0.5 rounded hover:bg-black/10 text-gray-400 hover:text-red-600 transition-colors"
                                               title="Delete Bed Slot"
                                             >
                                               <X className="w-3 h-3" />
@@ -849,19 +1010,19 @@ export default function PropertySetupPage({
                                           </div>
 
                                           <div>
-                                            {isOccupied ? (
-                                              <div>
-                                                <span className="block text-[9px] font-bold text-amber-900 truncate">
-                                                  {bed.occupant?.name}
-                                                </span>
-                                                <span className="text-[8px] font-bold text-amber-700 uppercase">
-                                                  {bed.status}
-                                                </span>
-                                              </div>
-                                            ) : (
+                                            {info.effectiveStatus === "Available" ? (
                                               <span className="text-[9px] font-bold text-emerald-700 uppercase">
                                                 VACANT
                                               </span>
+                                            ) : (
+                                              <div>
+                                                <span className="block text-[9px] font-bold truncate">
+                                                  {info.displayName}
+                                                </span>
+                                                <span className="text-[8px] font-extrabold uppercase opacity-90">
+                                                  {info.statusBadge}
+                                                </span>
+                                              </div>
                                             )}
                                           </div>
                                         </div>
@@ -1253,7 +1414,7 @@ export default function PropertySetupPage({
                 <div>
                   {(() => {
                     const occupiedCount = activeEditRoom.room.beds.filter(
-                      (b) => b.status !== "Available" && b.occupant
+                      (b) => resolveBedSlotInfo(activeEditRoom.room.roomNumber, b).isOccupied
                     ).length;
 
                     return (
