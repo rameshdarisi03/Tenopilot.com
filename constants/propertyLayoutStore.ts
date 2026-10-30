@@ -372,15 +372,21 @@ export const propertyStore = {
 
   // Method to clear bed slot and reset status to "Available" upon tenant checkout or invite revocation
   async freeUpBedSlot(propertyId: string, roomNumber: string, bedCode: string) {
+    const normRm = (roomNumber || "").toLowerCase().trim();
+    const cleanBd = (bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const normBd = cleanBd.startsWith("bed") ? cleanBd : `bed${cleanBd}`;
+
     const current = this.getStructure(propertyId);
     const updated = current.map((fl) => ({
       ...fl,
       rooms: fl.rooms.map((rm) => {
-        if (rm.roomNumber !== roomNumber) return rm;
+        if ((rm.roomNumber || "").toLowerCase().trim() !== normRm) return rm;
         return {
           ...rm,
           beds: rm.beds.map((bd) => {
-            if (bd.bedCode !== bedCode) return bd;
+            const currentBdClean = (bd.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+            const currentBdNorm = currentBdClean.startsWith("bed") ? currentBdClean : `bed${currentBdClean}`;
+            if (currentBdNorm !== normBd) return bd;
             return {
               ...bd,
               status: "Available" as const,

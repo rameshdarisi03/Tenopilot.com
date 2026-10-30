@@ -50,6 +50,11 @@ import { propertySettingsStore } from "@/constants/propertySettings";
 import { staffStore, UserRole } from "@/lib/staffStore";
 import { buildWhatsAppUrl } from "@/utils/security";
 
+const normalizeBedCode = (c?: string) => {
+  const norm = (c || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  return norm.startsWith("bed") ? norm : `bed${norm}`;
+};
+
 function PropertyMapContent({
   propertyId,
 }: {
@@ -140,6 +145,45 @@ function PropertyMapContent({
       unsubInvs();
     };
   }, [propertyId]);
+
+  // Self-healing: automatically clear orphaned hold candidates in property layout structure
+  useEffect(() => {
+    if (!propertyId || !propertyGrid || propertyGrid.length === 0) return;
+    let hasOrphans = false;
+    const cleanedGrid = propertyGrid.map((fl) => ({
+      ...fl,
+      rooms: fl.rooms.map((rm) => {
+        const cleanRm = rm.roomNumber.toLowerCase().trim();
+        return {
+          ...rm,
+          beds: rm.beds.map((bd) => {
+            if (bd.holdCandidate || bd.status === "Hold") {
+              const cleanBd = normalizeBedCode(bd.bedCode);
+              const hasActiveInvite = kycInvites.some(
+                (i) => i.status === "ACTIVE" && (i.roomNumber || "").toLowerCase().trim() === cleanRm && normalizeBedCode(i.bedCode) === cleanBd
+              );
+              const hasPendingKyc = kycSubmissions.some(
+                (s) => s.status === "PENDING" && (s.roomNumber || "").toLowerCase().trim() === cleanRm && normalizeBedCode(s.bedCode) === cleanBd
+              );
+              if (!hasActiveInvite && !hasPendingKyc) {
+                hasOrphans = true;
+                return {
+                  ...bd,
+                  status: (bd.occupant ? bd.status : "Available") as any,
+                  holdCandidate: undefined,
+                };
+              }
+            }
+            return bd;
+          }),
+        };
+      }),
+    }));
+
+    if (hasOrphans) {
+      propertyStore.updateStructure(cleanedGrid, propertyId);
+    }
+  }, [propertyId, kycInvites, kycSubmissions, propertyGrid]);
 
   // Dynamic Room Filter options derived from propertyStore
   const availableRooms = useMemo(() => propertyStore.getRoomNumbers(propertyId), [propertyGrid, propertyId]);
@@ -284,27 +328,25 @@ function PropertyMapContent({
               : rawNext;
 
           const cleanRm = room.roomNumber.toLowerCase().trim();
-          const cleanBd = (bed.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+          const cleanBd = normalizeBedCode(bed.bedCode);
 
           const hasPendingKyc = kycSubmissions.some((s) => {
             if (s.status !== "PENDING") return false;
             const sRm = (s.roomNumber || "").toLowerCase().trim();
-            const sBd = (s.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+            const sBd = normalizeBedCode(s.bedCode);
             return sRm === cleanRm && sBd === cleanBd;
           });
 
           const hasActiveInvite = kycInvites.some((i) => {
             if (i.status !== "ACTIVE") return false;
             const iRm = (i.roomNumber || "").toLowerCase().trim();
-            const iBd = (i.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+            const iBd = normalizeBedCode(i.bedCode);
             return iRm === cleanRm && iBd === cleanBd;
           });
 
           const isBooked =
             (!primaryOcc && !!nextOcc && nextOcc.stayType !== "Guest") ||
-            bed.status === "Hold" ||
             bed.status === "Booked" ||
-            Boolean(bed.holdCandidate) ||
             hasPendingKyc ||
             hasActiveInvite;
 
@@ -408,27 +450,25 @@ function PropertyMapContent({
                     : rawNext;
 
                 const cleanRm = rm.roomNumber.toLowerCase().trim();
-                const cleanBd = (bd.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+                const cleanBd = normalizeBedCode(bd.bedCode);
 
                 const hasPendingKyc = kycSubmissions.some((s) => {
                   if (s.status !== "PENDING") return false;
                   const sRm = (s.roomNumber || "").toLowerCase().trim();
-                  const sBd = (s.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+                  const sBd = normalizeBedCode(s.bedCode);
                   return sRm === cleanRm && sBd === cleanBd;
                 });
 
                 const hasActiveInvite = kycInvites.some((i) => {
                   if (i.status !== "ACTIVE") return false;
                   const iRm = (i.roomNumber || "").toLowerCase().trim();
-                  const iBd = (i.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+                  const iBd = normalizeBedCode(i.bedCode);
                   return iRm === cleanRm && iBd === cleanBd;
                 });
 
                 const isBooked =
                   (!primaryOcc && !!nextOcc && nextOcc.stayType !== "Guest") ||
-                  bd.status === "Hold" ||
                   bd.status === "Booked" ||
-                  Boolean(bd.holdCandidate) ||
                   hasPendingKyc ||
                   hasActiveInvite;
 
@@ -829,13 +869,13 @@ function PropertyMapContent({
                                   let statusLabel: string = bed.status;
 
                                   const cleanRm = room.roomNumber.toLowerCase().trim();
-                                  const cleanBd = (bed.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+                                  const cleanBd = normalizeBedCode(bed.bedCode);
 
                                   // Check if there is an active pending KYC submission for this room & bed
                                   const pendingKycSub = kycSubmissions.find((s) => {
                                     if (s.status !== "PENDING") return false;
                                     const sRm = (s.roomNumber || "").toLowerCase().trim();
-                                    const sBd = (s.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+                                    const sBd = normalizeBedCode(s.bedCode);
                                     return sRm === cleanRm && sBd === cleanBd;
                                   });
 
@@ -843,16 +883,15 @@ function PropertyMapContent({
                                   const activeKycInvite = kycInvites.find((i) => {
                                     if (i.status !== "ACTIVE") return false;
                                     const iRm = (i.roomNumber || "").toLowerCase().trim();
-                                    const iBd = (i.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+                                    const iBd = normalizeBedCode(i.bedCode);
                                     return iRm === cleanRm && iBd === cleanBd;
                                   });
 
                                   const isKycSubPending = Boolean(pendingKycSub);
-                                  const isKycInviteSent = !isKycSubPending && Boolean(activeKycInvite || bed.holdCandidate || bed.status === "Hold");
+                                  const isKycInviteSent = !isKycSubPending && Boolean(activeKycInvite);
                                   const candidateName =
                                     pendingKycSub?.name ||
                                     activeKycInvite?.candidateName ||
-                                    bed.holdCandidate?.name ||
                                     "";
 
                                   const isBooked =
@@ -1231,24 +1270,24 @@ function PropertyMapContent({
                 const displayOcc = activeOcc || nextOcc;
 
                 const cleanSlotRm = activeBedSlot.roomNumber.toLowerCase().trim();
-                const cleanSlotBd = (activeBedSlot.bed.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+                const cleanSlotBd = normalizeBedCode(activeBedSlot.bed.bedCode);
 
                 const activePendingSub = kycSubmissions.find((s) => {
                   if (s.status !== "PENDING") return false;
                   const sRm = (s.roomNumber || "").toLowerCase().trim();
-                  const sBd = (s.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+                  const sBd = normalizeBedCode(s.bedCode);
                   return sRm === cleanSlotRm && sBd === cleanSlotBd;
                 });
 
                 const activeInvite = kycInvites.find((i) => {
                   if (i.status !== "ACTIVE") return false;
                   const iRm = (i.roomNumber || "").toLowerCase().trim();
-                  const iBd = (i.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+                  const iBd = normalizeBedCode(i.bedCode);
                   return iRm === cleanSlotRm && iBd === cleanSlotBd;
                 });
 
                 const isSlotKycSubPending = Boolean(activePendingSub);
-                const isSlotKycInviteSent = !isSlotKycSubPending && Boolean(activeInvite || activeBedSlot.bed.holdCandidate || activeBedSlot.bed.status === "Hold");
+                const isSlotKycInviteSent = !isSlotKycSubPending && Boolean(activeInvite);
 
                 if (isSlotKycSubPending && activePendingSub) {
                   return (
@@ -1323,14 +1362,14 @@ function PropertyMapContent({
                         </p>
                       </div>
 
-                      {(activeInvite || activeBedSlot.bed.holdCandidate) && (
+                      {activeInvite && (
                         <div className="p-3.5 rounded-2xl bg-blue-50/60 border border-blue-200 text-left space-y-1.5">
                           <p className="font-bold text-blue-950 text-xs">
-                            Candidate: {activeInvite?.candidateName || activeBedSlot.bed.holdCandidate?.name}
+                            Candidate: {activeInvite.candidateName}
                           </p>
-                          {(activeInvite?.candidatePhone || activeBedSlot.bed.holdCandidate?.phone) && (
+                          {activeInvite.candidatePhone && (
                             <p className="text-[11px] text-blue-800 font-mono">
-                              Phone: {activeInvite?.candidatePhone || activeBedSlot.bed.holdCandidate?.phone}
+                              Phone: {activeInvite.candidatePhone}
                             </p>
                           )}
                         </div>
@@ -1347,7 +1386,7 @@ function PropertyMapContent({
 
                         <button
                           type="button"
-                          onClick={() => handleRevokeInvite(activeInvite?.id || activeBedSlot.bed.holdCandidate?.inviteId, activeBedSlot.roomNumber, activeBedSlot.bed.bedCode)}
+                          onClick={() => handleRevokeInvite(activeInvite?.id, activeBedSlot.roomNumber, activeBedSlot.bed.bedCode)}
                           className="w-full py-2.5 px-4 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                         >
                           <X className="w-3.5 h-3.5" />
