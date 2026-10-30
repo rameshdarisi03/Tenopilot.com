@@ -1868,17 +1868,28 @@ export default function TenantsDirectoryPage({
       // Dropdown Filters
       if (tenantStatusFilter !== "All" && occ.lifecycleStatus !== tenantStatusFilter) return false;
       if (paymentStatusFilter !== "All") {
+        const stmt = calculateOccupantFinancialStatement(occ, currentSettings);
+        const isPaid = stmt.isFullyPaid;
+        const isPartial = stmt.isPartialPaid;
+        const isOverdue = !isPaid && (stmt.isOverdue || occ.paymentStatus === "Overdue" || (occ.daysDiff !== undefined && occ.daysDiff < 0));
+        const effectivePaymentStatus = isPaid ? "Paid" : isPartial ? "Partial" : isOverdue ? "Overdue" : "Due";
+
         if (paymentStatusFilter === "Due") {
-          const isDueOrOverdue = occ.paymentStatus === "Due" || occ.paymentStatus === "Overdue" || (occ.daysDiff !== undefined && occ.daysDiff <= 0);
+          const isDueOrOverdue = isOverdue || isPartial || effectivePaymentStatus === "Due";
           if (!isDueOrOverdue) return false;
-        } else if (occ.paymentStatus !== paymentStatusFilter) {
+        } else if (paymentStatusFilter === "Overdue") {
+          if (!isOverdue) return false;
+        } else if (effectivePaymentStatus !== paymentStatusFilter && occ.paymentStatus !== paymentStatusFilter) {
           return false;
         }
       }
       if (paymentDueFilter !== "All") {
-        if (paymentDueFilter === "Today" && (occ.daysDiff !== 0 || occ.paymentStatus !== "Due")) return false;
-        if (paymentDueFilter === "Tomorrow" && (occ.daysDiff !== 1 || occ.paymentStatus !== "Due")) return false;
-        if (paymentDueFilter === "Overdue" && occ.paymentStatus !== "Overdue") return false;
+        const stmt = calculateOccupantFinancialStatement(occ, currentSettings);
+        const isOverdue = !stmt.isFullyPaid && (stmt.isOverdue || occ.paymentStatus === "Overdue" || (occ.daysDiff !== undefined && occ.daysDiff < 0));
+
+        if (paymentDueFilter === "Today" && (occ.daysDiff !== 0 || stmt.isFullyPaid)) return false;
+        if (paymentDueFilter === "Tomorrow" && (occ.daysDiff !== 1 || stmt.isFullyPaid)) return false;
+        if (paymentDueFilter === "Overdue" && !isOverdue) return false;
       }
       if (roomFilter !== "All Rooms" && occ.roomNumber !== roomFilter) return false;
 
@@ -2718,22 +2729,28 @@ export default function TenantsDirectoryPage({
                         <td className="p-4">
                           {(() => {
                             const stmt = calculateOccupantFinancialStatement(occ, currentSettings);
+                            const isPaid = stmt.isFullyPaid;
+                            const isPartial = stmt.isPartialPaid;
+                            const isOverdue = !isPaid && (stmt.isOverdue || occ.paymentStatus === "Overdue" || (occ.daysDiff !== undefined && occ.daysDiff < 0));
+
                             return (
                               <span
                                 className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase ${
-                                  stmt.isFullyPaid
+                                  isPaid
                                     ? "bg-green-100 text-green-700"
-                                    : stmt.isPartialPaid
+                                    : isPartial
                                     ? "bg-orange-100 text-orange-800 border border-orange-200"
-                                    : occ.paymentStatus === "Overdue"
-                                    ? "bg-red-100 text-red-600"
+                                    : isOverdue
+                                    ? "bg-red-100 text-red-600 border border-red-200"
                                     : "bg-orange-100 text-orange-600"
                                 }`}
                               >
-                                {stmt.isFullyPaid
+                                {isPaid
                                   ? "Paid"
-                                  : stmt.isPartialPaid
+                                  : isPartial
                                   ? `Partial (₹${stmt.netOutstandingBalance.toLocaleString("en-IN")})`
+                                  : isOverdue
+                                  ? "Overdue"
                                   : occ.paymentStatus}
                               </span>
                             );
@@ -2992,14 +3009,14 @@ Scroll vertically to browse all residents without pagination limits
                       const stmt = calculateOccupantFinancialStatement(occ, currentSettings);
                       const isPaid = stmt.isFullyPaid;
                       const isPartial = stmt.isPartialPaid;
-                      const isOverdue = occ.paymentStatus === "Overdue";
+                      const isOverdue = !isPaid && (stmt.isOverdue || occ.paymentStatus === "Overdue" || (occ.daysDiff !== undefined && occ.daysDiff < 0));
 
                       // Format partial amounts compactly if brackets exist e.g. ₹14,500 -> ₹14.5k
                       const partialAmountCompact = stmt.netOutstandingBalance > 9999
                         ? `₹${(stmt.netOutstandingBalance / 1000).toFixed(stmt.netOutstandingBalance % 1000 === 0 ? 0 : 1)}k`
                         : `₹${stmt.netOutstandingBalance.toLocaleString("en-IN")}`;
 
-                      const statusMain = isPaid ? "Paid" : isPartial ? "Partial" : occ.paymentStatus;
+                      const statusMain = isPaid ? "Paid" : isPartial ? "Partial" : isOverdue ? "Overdue" : occ.paymentStatus;
                       const statusExtra = isPartial ? `(${partialAmountCompact})` : "";
                       const fullStatusString = statusExtra ? `${statusMain} ${statusExtra}` : statusMain;
                       const statusLen = fullStatusString.length;
@@ -3115,7 +3132,7 @@ Scroll vertically to browse all residents without pagination limits
                                     : isPartial
                                     ? "bg-orange-100 text-orange-800 border border-orange-200"
                                     : isOverdue
-                                    ? "bg-red-100 text-red-600"
+                                    ? "bg-red-100 text-red-600 border border-red-200"
                                     : "bg-orange-100 text-orange-600"
                                 }`}
                               >
@@ -3200,7 +3217,7 @@ Scroll vertically to browse all residents without pagination limits
                               <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">
                                 Payment Due
                               </span>
-                              <span className={`font-bold ${occ.paymentStatus === "Paid" ? "text-emerald-700" : "text-[#c2652a]"}`}>
+                              <span className={`font-bold ${isPaid ? "text-emerald-700" : isOverdue ? "text-red-600" : "text-[#c2652a]"}`}>
                                 {resolveOccupantPaymentDueDate(occ, currentSettings)}
                               </span>
                             </div>
