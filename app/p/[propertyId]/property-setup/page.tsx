@@ -14,6 +14,12 @@ import {
   RoomConfig,
   BedSlotConfig,
 } from "@/constants/propertyLayoutStore";
+import {
+  getBedOccupantsTimeline,
+  getCanonicalBedIndex,
+  normalizeBedCode,
+  normalizeRoomNumber,
+} from "@/utils/domainSSOT";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { staffStore, UserRole } from "@/lib/staffStore";
 import {
@@ -142,30 +148,29 @@ export default function PropertySetupPage({
     };
   }, [propertyId]);
 
-  // Helper to normalize bed codes (e.g. "Bed A" -> "beda")
-  const normalizeBedCode = (c?: string) => {
-    const norm = (c || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    return norm.startsWith("bed") ? norm : `bed${norm}`;
-  };
-
-  // Helper to resolve real live occupant and state for a bed slot
-  const resolveBedSlotInfo = (roomNumber: string, bed: BedSlotConfig) => {
-    const cleanRm = (roomNumber || "").toLowerCase().trim();
+  // Helper to resolve real live occupant and state for a bed slot (PMS Enterprise Parity with Property Map)
+  const resolveBedSlotInfo = (roomNumber: string, bed: BedSlotConfig, allRoomBeds?: BedSlotConfig[]) => {
+    const cleanRm = normalizeRoomNumber(roomNumber);
     const cleanBd = normalizeBedCode(bed.bedCode);
+    const bedCanonicalIdx = getCanonicalBedIndex(bed.bedCode);
+
+    const timeline = getBedOccupantsTimeline(roomNumber, bed.bedCode, bed, propertyId, allRoomBeds);
 
     // 1. Live occupant lookup (highest priority)
-    const liveOcc = occupantsList.find(
-      (o) =>
-        (o.roomNumber || "").toLowerCase().trim() === cleanRm &&
-        normalizeBedCode(o.bedCode) === cleanBd &&
-        o.lifecycleStatus !== "Past"
-    );
+    const liveOcc =
+      timeline.activeOccupant ||
+      (bed.occupant &&
+       bed.occupant.lifecycleStatus !== "Past" &&
+       bed.occupant.lifecycleStatus !== "Booked" &&
+       (!bed.occupant.bedCode || (bedCanonicalIdx !== -1 && getCanonicalBedIndex(bed.occupant.bedCode) === bedCanonicalIdx) || normalizeBedCode(bed.occupant.bedCode) === cleanBd)
+        ? bed.occupant
+        : undefined);
 
     // 2. Active invite lookup
     const activeInvite = kycInvites.find(
       (i) =>
         i.status === "ACTIVE" &&
-        (i.roomNumber || "").toLowerCase().trim() === cleanRm &&
+        normalizeRoomNumber(i.roomNumber) === cleanRm &&
         normalizeBedCode(i.bedCode) === cleanBd
     );
 
@@ -173,7 +178,7 @@ export default function PropertySetupPage({
     const pendingSub = kycSubmissions.find(
       (s) =>
         s.status === "PENDING" &&
-        (s.roomNumber || "").toLowerCase().trim() === cleanRm &&
+        normalizeRoomNumber(s.roomNumber) === cleanRm &&
         normalizeBedCode(s.bedCode) === cleanBd
     );
 
@@ -181,7 +186,7 @@ export default function PropertySetupPage({
     const rejectedSub = kycSubmissions.find(
       (s) =>
         s.status === "REJECTED" &&
-        (s.roomNumber || "").toLowerCase().trim() === cleanRm &&
+        normalizeRoomNumber(s.roomNumber) === cleanRm &&
         normalizeBedCode(s.bedCode) === cleanBd
     );
 
@@ -199,7 +204,7 @@ export default function PropertySetupPage({
     else if (
       bed.status === "Occupied" &&
       bed.occupant &&
-      (!bed.occupant.bedCode || normalizeBedCode(bed.occupant.bedCode) === cleanBd)
+      (!bed.occupant.bedCode || (bedCanonicalIdx !== -1 && getCanonicalBedIndex(bed.occupant.bedCode) === bedCanonicalIdx) || normalizeBedCode(bed.occupant.bedCode) === cleanBd)
     ) {
       effectiveStatus = "Occupied";
     }
@@ -985,16 +990,13 @@ export default function PropertySetupPage({
                                     : "grid-cols-4 sm:grid-cols-5";
 
                                 const sortedBeds = [...(room.beds || [])].sort((a, b) =>
-                                  (a.bedCode || "").localeCompare(b.bedCode || "", undefined, {
-                                    numeric: true,
-                                    sensitivity: "base",
-                                  })
+                                  getCanonicalBedIndex(a.bedCode) - getCanonicalBedIndex(b.bedCode)
                                 );
 
                                 return (
                                   <div className={`grid ${gridCols} gap-2 pt-1`}>
                                     {sortedBeds.map((bed) => {
-                                      const info = resolveBedSlotInfo(room.roomNumber, bed);
+                                      const info = resolveBedSlotInfo(room.roomNumber, bed, room.beds);
 
                                       return (
                                         <div

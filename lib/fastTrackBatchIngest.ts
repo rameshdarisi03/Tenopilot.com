@@ -11,6 +11,7 @@ import { FastTrackParsedRow, validateParsedRow, isVacantRow } from "./fastTrackH
 import { saveOccupantToFirestore } from "./firestoreService";
 import { getEffectiveTenantLimit, evaluateSubscription } from "./subscriptionEngine";
 import { generateReceiptNumber } from "./invoiceNumberEngine";
+import { getCanonicalBedIndex, normalizeRoomNumber } from "@/utils/domainSSOT";
 
 export interface BatchIngestOptions {
   autoProvisionBuilding: boolean;
@@ -469,7 +470,7 @@ export async function executeFastTrackBatchIngest(
     mergedOccupants
       .filter((o) => o.lifecycleStatus !== "Past")
       .forEach((occ) => {
-        const rm = occ.roomNumber.toUpperCase().trim();
+        const rm = normalizeRoomNumber(occ.roomNumber);
         const list = activeOccupantsByRoom.get(rm) || [];
         list.push(occ);
         activeOccupantsByRoom.set(rm, list);
@@ -480,22 +481,23 @@ export async function executeFastTrackBatchIngest(
         // 1. Canonical bed sorting: ensure Bed A precedes Bed B, Bed C...
         if (Array.isArray(room.beds)) {
           room.beds.sort((a, b) =>
-            (a.bedCode || "").localeCompare(b.bedCode || "", undefined, { numeric: true, sensitivity: "base" })
+            getCanonicalBedIndex(a.bedCode) - getCanonicalBedIndex(b.bedCode)
           );
         }
 
-        const roomOccupants = activeOccupantsByRoom.get(room.roomNumber.toUpperCase().trim()) || [];
+        const roomOccupants = activeOccupantsByRoom.get(normalizeRoomNumber(room.roomNumber)) || [];
         const usedOccIdsInRoom = new Set<string>();
         const bedAssignments = new Map<string, any>();
 
-        // Step 1: Assign occupants who have an exact bedCode match
+        // Step 1: Assign occupants who have an exact canonical bed index match
         room.beds.forEach((bed) => {
-          const cleanBedCode = (bed.bedCode || "").toUpperCase().trim();
-          const exactMatch = roomOccupants.find(
-            (o) =>
-              !usedOccIdsInRoom.has(o.id) &&
-              (o.bedCode || "").toUpperCase().trim() === cleanBedCode
-          );
+          const bedIdx = getCanonicalBedIndex(bed.bedCode);
+          const exactMatch = roomOccupants.find((o) => {
+            if (usedOccIdsInRoom.has(o.id)) return false;
+            const oIdx = getCanonicalBedIndex(o.bedCode);
+            if (bedIdx !== -1 && oIdx !== -1) return bedIdx === oIdx;
+            return (o.bedCode || "").toUpperCase().trim() === (bed.bedCode || "").toUpperCase().trim();
+          });
           if (exactMatch) {
             usedOccIdsInRoom.add(exactMatch.id);
             bedAssignments.set(bed.id, exactMatch);

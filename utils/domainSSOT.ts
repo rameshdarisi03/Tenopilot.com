@@ -1078,31 +1078,140 @@ export interface BedOccupantsTimeline {
 }
 
 /**
- * 8. SSOT Bed Occupants Timeline & Multi-Booking Resolver
+ * 🏢 Universal PMS Room Number Normalizer (Enterprise Standard)
+ * Strips 'Room', 'RM', leading dashes, whitespace, and non-alphanumeric noise.
+ * Examples: 'Room 101', 'RM 101', 'room-101', '101' -> '101'
+ * 'A-101', 'Room A-101' -> 'a101'
+ * 'G-01', 'Room G-01' -> 'g01'
+ */
+export function normalizeRoomNumber(room?: string): string {
+  if (!room) return "";
+  let clean = room.toLowerCase().trim();
+  clean = clean.replace(/^(?:room|rm)\s*[-_.]?\s*/i, "");
+  return clean.replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * 🛏️ Universal Canonical Bed Index Resolver (PMS Enterprise Standard)
+ * Converts any bed format (letter or number, with/without prefixes) into a deterministic 0-based index.
+ * Index 0: 'Bed A', 'Bed 1', 'A', '1', 'b1', 'bed-a'
+ * Index 1: 'Bed B', 'Bed 2', 'B', '2', 'b2', 'bed-b'
+ * Index 2: 'Bed C', 'Bed 3', 'C', '3', 'b3', 'bed-c'
+ * Returns -1 if no recognizable index is present.
+ */
+export function getCanonicalBedIndex(bedCode?: string): number {
+  if (!bedCode) return -1;
+  const clean = bedCode.toLowerCase().trim().replace(/[^a-z0-9]/g, "");
+  const rest = clean.replace(/^bed/, "");
+  if (!rest) return -1;
+
+  // 1. Pure Digit: '1' -> 0, '2' -> 1
+  if (/^\d+$/.test(rest)) {
+    const num = parseInt(rest, 10);
+    return num > 0 ? num - 1 : 0;
+  }
+
+  // 2. Short form 'b1', 'b2'
+  if (/^b\d+$/.test(rest)) {
+    const num = parseInt(rest.slice(1), 10);
+    return num > 0 ? num - 1 : 0;
+  }
+
+  // 3. Alpha character: 'a' -> 0, 'b' -> 1, ... 'z' -> 25
+  const letterMatch = rest.match(/[a-z]/);
+  if (letterMatch) {
+    const charCode = letterMatch[0].charCodeAt(0);
+    if (charCode >= 97 && charCode <= 122) {
+      return charCode - 97;
+    }
+  }
+
+  return -1;
+}
+
+/**
+ * Standard Bed Label Normalizer ('Bed A', 'Bed B', 'Bed C'...)
+ */
+export function normalizeBedCode(bedCode?: string): string {
+  const idx = getCanonicalBedIndex(bedCode);
+  if (idx >= 0 && idx < 26) {
+    const letter = String.fromCharCode(65 + idx);
+    return `Bed ${letter}`;
+  }
+  const clean = (bedCode || "").trim();
+  return clean ? (clean.toLowerCase().startsWith("bed") ? clean : `Bed ${clean}`) : "Bed A";
+}
+
+/**
+ * Canonical Bed Key for hash maps and comparisons ('bed_0', 'bed_1'...)
+ */
+export function canonicalBedKey(bedCode?: string): string {
+  const idx = getCanonicalBedIndex(bedCode);
+  if (idx >= 0) return `bed_${idx}`;
+  return (bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * 8. SSOT Bed Occupants Timeline & Multi-Booking Resolver (PMS Enterprise 2-Tier Engine)
  * Resolves current physical resident vs upcoming reservations for a bed slot.
+ * Tier 1: Exact canonical bed index match ('Bed 2' <-> 'Bed B')
+ * Tier 2: Resilient room fallback allocator for unassigned residents so zero active tenants are dropped.
  */
 export function getBedOccupantsTimeline(
   roomNumber: string,
   bedCode: string,
   bed: BedSlotConfig,
-  propertyId?: string
+  propertyId?: string,
+  allRoomBeds?: BedSlotConfig[]
 ): BedOccupantsTimeline {
   const allOccupants = propertyId ? occupantStore.getOccupants(propertyId) : (occupantStore.getOccupants() || []);
-  
-  const cleanRoom = (roomNumber || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-  const cleanBed = (bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
-  const matching = allOccupants.filter((occ) => {
-    const occRoom = (occ.roomNumber || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const occBed = (occ.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    
-    // Strict Bed Binding: An occupant with an assigned bedCode ONLY matches that exact bed
-    // If an occupant has no bedCode, they only match Bed A (never floating into Bed B/C)
-    const isPrimaryBed = cleanBed === "beda" || cleanBed === "bed1" || cleanBed === "a" || cleanBed === "1";
-    const bedMatches = occBed ? occBed === cleanBed : isPrimaryBed;
+  const cleanRoom = normalizeRoomNumber(roomNumber);
+  const targetBedIdx = getCanonicalBedIndex(bedCode);
+  const targetKey = canonicalBedKey(bedCode);
 
-    return occRoom === cleanRoom && bedMatches && occ.lifecycleStatus !== "Past";
+  // Filter all occupants assigned to this room who are not Past
+  const roomOccupants = allOccupants.filter((occ) => {
+    const occRoom = normalizeRoomNumber(occ.roomNumber);
+    return occRoom === cleanRoom && occ.lifecycleStatus !== "Past";
   });
+
+  // 1. Tier 1: Look for exact canonical bed index match
+  let matchingOccupants = roomOccupants.filter((occ) => {
+    const occIdx = getCanonicalBedIndex(occ.bedCode);
+    if (targetBedIdx !== -1 && occIdx !== -1) {
+      return occIdx === targetBedIdx;
+    }
+    return canonicalBedKey(occ.bedCode) === targetKey;
+  });
+
+  // 2. Tier 2 (PMS Fallback Allocator): If no occupant has an exact match for this bed slot,
+  // check for unassigned active residents in this room (residents with empty/unrecognized bedCode)
+  if (matchingOccupants.length === 0) {
+    const occupantsWithExact = new Set(
+      roomOccupants
+        .filter((o) => getCanonicalBedIndex(o.bedCode) !== -1)
+        .map((o) => o.id)
+    );
+    const unassignedOccupants = roomOccupants.filter((o) => !occupantsWithExact.has(o.id));
+
+    if (unassignedOccupants.length > 0) {
+      // Determine this bed's position among beds in the room that lack an exact match
+      const bedsInRoom = allRoomBeds && allRoomBeds.length > 0 ? allRoomBeds : [bed];
+      const bedsWithoutExact = bedsInRoom.filter((b) => {
+        const bIdx = getCanonicalBedIndex(b.bedCode);
+        return !roomOccupants.some((o) => getCanonicalBedIndex(o.bedCode) === bIdx);
+      });
+
+      const positionInUnassigned = bedsWithoutExact.findIndex(
+        (b) => canonicalBedKey(b.bedCode) === targetKey || b.id === bed.id
+      );
+
+      if (positionInUnassigned !== -1 && positionInUnassigned < unassignedOccupants.length) {
+        matchingOccupants = [unassignedOccupants[positionInUnassigned]];
+      }
+    }
+  }
 
   const now = new Date();
   const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -1110,7 +1219,7 @@ export function getBedOccupantsTimeline(
   // 1. Primary Active or Notice Resident physically living in bed right now,
   // OR a Booked resident whose joining date has reached/passed (today >= joiningDate)
   const activeOccupant =
-    matching.find((occ) => {
+    matchingOccupants.find((occ) => {
       if (occ.lifecycleStatus === "Active" || occ.lifecycleStatus === "Notice") return true;
       if (occ.lifecycleStatus === "Booked") {
         const joinD = parseOccupantDate(occ.joiningDate);
@@ -1125,13 +1234,13 @@ export function getBedOccupantsTimeline(
      bed.occupant.lifecycleStatus !== "Booked" &&
      bed.occupant.lifecycleStatus !== "Past" &&
      (bed.occupant.bedCode
-       ? (bed.occupant.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "") === cleanBed
-       : cleanBed === "beda" || cleanBed === "bed1" || cleanBed === "a" || cleanBed === "1")
+       ? (targetBedIdx !== -1 && getCanonicalBedIndex(bed.occupant.bedCode) === targetBedIdx) || canonicalBedKey(bed.occupant.bedCode) === targetKey
+       : targetBedIdx === 0)
       ? bed.occupant
       : undefined);
 
   // 2. Chronological list of upcoming pre-booked reservations strictly in the FUTURE (today < joiningDate)
-  const bookedList = matching
+  const bookedList = matchingOccupants
     .filter((occ) => {
       if (occ.id === activeOccupant?.id || occ.name?.toLowerCase() === activeOccupant?.name?.toLowerCase()) return false;
       if (occ.lifecycleStatus !== "Booked") return false;
@@ -1163,6 +1272,50 @@ export function getBedOccupantsTimeline(
     futureBookings: bookedList,
     totalUpcomingCount: bookedList.length,
   };
+}
+
+/**
+ * 🔍 Unmapped Room Occupants Finder (PMS Safety Net)
+ * Discovers active residents in Firestore who belong to a room but exceed its current physical bed capacity.
+ * (e.g. 3 active residents assigned to Room 104 with only 2 beds configured)
+ */
+export function getUnmappedRoomOccupants(
+  roomNumber: string,
+  roomBeds: BedSlotConfig[],
+  propertyId?: string
+): Occupant[] {
+  const allOccupants = propertyId ? occupantStore.getOccupants(propertyId) : (occupantStore.getOccupants() || []);
+  const cleanRoom = normalizeRoomNumber(roomNumber);
+
+  const roomActiveOccupants = allOccupants.filter((occ) => {
+    return normalizeRoomNumber(occ.roomNumber) === cleanRoom && occ.lifecycleStatus !== "Past";
+  });
+
+  if (roomActiveOccupants.length <= roomBeds.length) {
+    return [];
+  }
+
+  // Count which occupants are mapped to physical beds
+  const mappedOccIds = new Set<string>();
+
+  // Pass 1: exact canonical bed matches
+  roomBeds.forEach((bed) => {
+    const bIdx = getCanonicalBedIndex(bed.bedCode);
+    const exact = roomActiveOccupants.find((o) => !mappedOccIds.has(o.id) && getCanonicalBedIndex(o.bedCode) === bIdx);
+    if (exact) mappedOccIds.add(exact.id);
+  });
+
+  // Pass 2: sequential fill into remaining vacant bed slots
+  roomBeds.forEach((bed) => {
+    const bIdx = getCanonicalBedIndex(bed.bedCode);
+    const isBedClaimed = roomActiveOccupants.some((o) => mappedOccIds.has(o.id) && getCanonicalBedIndex(o.bedCode) === bIdx);
+    if (!isBedClaimed) {
+      const nextUnassigned = roomActiveOccupants.find((o) => !mappedOccIds.has(o.id));
+      if (nextUnassigned) mappedOccIds.add(nextUnassigned.id);
+    }
+  });
+
+  return roomActiveOccupants.filter((o) => !mappedOccIds.has(o.id));
 }
 
 export interface BedAvailabilityEvaluation {

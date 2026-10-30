@@ -6,7 +6,10 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { Occupant, occupantStore } from "@/constants/mockOccupants";
-import { subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
+import { subscribeOccupantsFromFirestore, updateOccupantInFirestore, sanitizeForFirestore } from "@/lib/firestoreService";
+import { db } from "@/lib/firebase";
+import { doc, setDoc } from "firebase/firestore";
+import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
 import { parseOccupantDate } from "@/utils/autoCheckInEngine";
 import {
   propertyStore,
@@ -14,7 +17,16 @@ import {
   RoomConfig,
   BedSlotConfig,
 } from "@/constants/propertyLayoutStore";
-import { getBedOccupantsTimeline, BedOccupantsTimeline, getRoomTariff } from "@/utils/domainSSOT";
+import {
+  getBedOccupantsTimeline,
+  BedOccupantsTimeline,
+  getRoomTariff,
+  getCanonicalBedIndex,
+  normalizeBedCode,
+  canonicalBedKey,
+  normalizeRoomNumber,
+  getUnmappedRoomOccupants,
+} from "@/utils/domainSSOT";
 import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
 import {
   ChevronLeft,
@@ -42,6 +54,7 @@ import {
   BellRing,
   Copy,
   ExternalLink,
+  AlertTriangle,
 } from "lucide-react";
 
 import { selfKycStore, SelfKycSubmission, SelfKycInvite } from "@/lib/selfKycStore";
@@ -49,11 +62,6 @@ import { selfKycStore, SelfKycSubmission, SelfKycInvite } from "@/lib/selfKycSto
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { staffStore, UserRole } from "@/lib/staffStore";
 import { buildWhatsAppUrl } from "@/utils/security";
-
-const normalizeBedCode = (c?: string) => {
-  const norm = (c || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-  return norm.startsWith("bed") ? norm : `bed${norm}`;
-};
 
 function PropertyMapContent({
   propertyId,
@@ -153,30 +161,34 @@ function PropertyMapContent({
     const cleanedGrid = propertyGrid.map((fl) => ({
       ...fl,
       rooms: fl.rooms.map((rm) => {
-        const cleanRm = rm.roomNumber.toLowerCase().trim();
+        const cleanRm = normalizeRoomNumber(rm.roomNumber);
         return {
           ...rm,
           beds: rm.beds.map((bd) => {
             let updatedBed = { ...bd };
             const cleanBd = normalizeBedCode(bd.bedCode);
 
-            // 1. Fix mismatched bed occupants (e.g. occupant assigned to Bed B sitting on Bed A in layout structure)
-            if (updatedBed.occupant && updatedBed.occupant.bedCode && normalizeBedCode(updatedBed.occupant.bedCode) !== cleanBd) {
-              hasChanges = true;
-              updatedBed = {
-                ...updatedBed,
-                occupant: undefined,
-                status: (updatedBed.status === "Occupied" ? "Available" : updatedBed.status) as any,
-              };
+            // 1. Fix mismatched bed occupants (ONLY if both occupant and bed have valid, conflicting canonical indices)
+            if (updatedBed.occupant && updatedBed.occupant.bedCode) {
+              const occIdx = getCanonicalBedIndex(updatedBed.occupant.bedCode);
+              const bdIdx = getCanonicalBedIndex(bd.bedCode);
+              if (occIdx !== -1 && bdIdx !== -1 && occIdx !== bdIdx) {
+                hasChanges = true;
+                updatedBed = {
+                  ...updatedBed,
+                  occupant: undefined,
+                  status: (updatedBed.status === "Occupied" ? "Available" : updatedBed.status) as any,
+                };
+              }
             }
 
             // 2. Clear orphaned hold candidate
             if (updatedBed.holdCandidate || updatedBed.status === "Hold") {
               const hasActiveInvite = kycInvites.some(
-                (i) => i.status === "ACTIVE" && (i.roomNumber || "").toLowerCase().trim() === cleanRm && normalizeBedCode(i.bedCode) === cleanBd
+                (i) => i.status === "ACTIVE" && normalizeRoomNumber(i.roomNumber) === cleanRm && normalizeBedCode(i.bedCode) === cleanBd
               );
               const hasPendingKyc = kycSubmissions.some(
-                (s) => s.status === "PENDING" && (s.roomNumber || "").toLowerCase().trim() === cleanRm && normalizeBedCode(s.bedCode) === cleanBd
+                (s) => s.status === "PENDING" && normalizeRoomNumber(s.roomNumber) === cleanRm && normalizeBedCode(s.bedCode) === cleanBd
               );
               if (!hasActiveInvite && !hasPendingKyc) {
                 hasChanges = true;
@@ -297,6 +309,71 @@ function PropertyMapContent({
     }
   };
 
+  // 1-Click Instant Auto-Add Bed & Assign Unmapped Resident (PMS Safety Net)
+  const handleAutoAddBedForUnmapped = async (floorId: string, room: RoomConfig, occupant: Occupant) => {
+    if (!propertyId) return;
+    try {
+      const nextBedLetter = String.fromCharCode(65 + (room.beds ? room.beds.length : 0));
+      const nextBedCode = `Bed ${nextBedLetter}`;
+      const newBedId = `bed-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+
+      const newBed: BedSlotConfig = {
+        id: newBedId,
+        bedCode: nextBedCode,
+        status: (occupant.lifecycleStatus === "Notice" ? "Vacating" : occupant.stayType === "Guest" ? "Guest" : "Occupied") as any,
+        occupant: {
+          ...occupant,
+          bedCode: nextBedCode,
+        },
+      };
+
+      const updatedGrid = propertyGrid.map((fl) => {
+        if (fl.id !== floorId) return fl;
+        return {
+          ...fl,
+          rooms: fl.rooms.map((rm) => {
+            if (rm.id !== room.id) return rm;
+            const updatedBeds = [...(rm.beds || []), newBed];
+            return {
+              ...rm,
+              beds: updatedBeds,
+              sharingType: Math.max(rm.sharingType || 0, updatedBeds.length),
+            };
+          }),
+        };
+      });
+
+      setPropertyGrid(updatedGrid);
+      await propertyStore.updateStructure(updatedGrid, propertyId);
+
+      try {
+        const layoutRef = doc(db, "properties", propertyId, "layout", "structure");
+        await setDoc(layoutRef, {
+          floors: sanitizeForFirestore(updatedGrid),
+          updatedAt: new Date().toISOString(),
+        }, { merge: true });
+      } catch (fsErr) {
+        console.warn("Notice updating layout in Firestore:", fsErr);
+      }
+
+      await updateOccupantInFirestore(propertyId, occupant.id, {
+        bedCode: nextBedCode,
+      });
+
+      const currentOccupants = occupantStore.getOccupants(propertyId);
+      const updatedOccupants = currentOccupants.map((o) =>
+        o.id === occupant.id ? { ...o, bedCode: nextBedCode } : o
+      );
+      occupantStore.updateOccupants(updatedOccupants, propertyId);
+
+      fireCelebrationConfetti();
+      triggerToast(`🎉 Added ${nextBedCode} to Room ${room.roomNumber} & assigned ${occupant.name}!`);
+    } catch (err) {
+      console.error("Failed to auto-add bed:", err);
+      triggerToast("Failed to add bed. Please try again.");
+    }
+  };
+
   // Compute exact bed counts for Donut Ring Chart & Filter Badges across all beds
   const bedCounts = useMemo(() => {
     let available = 0;
@@ -308,21 +385,22 @@ function PropertyMapContent({
     propertyGrid.forEach((floor) => {
       floor.rooms.forEach((room) => {
         const sortedBeds = [...(room.beds || [])].sort((a, b) =>
-          (a.bedCode || "").localeCompare(b.bedCode || "", undefined, { numeric: true, sensitivity: "base" })
+          getCanonicalBedIndex(a.bedCode) - getCanonicalBedIndex(b.bedCode)
         );
         const roomClaimedOccIds = new Set<string>();
 
         sortedBeds.forEach((bed) => {
-          const timeline = getBedOccupantsTimeline(room.roomNumber, bed.bedCode, bed, propertyId);
-          const cleanRm = room.roomNumber.toLowerCase().trim();
+          const timeline = getBedOccupantsTimeline(room.roomNumber, bed.bedCode, bed, propertyId, room.beds);
+          const cleanRm = normalizeRoomNumber(room.roomNumber);
           const cleanBd = normalizeBedCode(bed.bedCode);
+          const bedCanonicalIdx = getCanonicalBedIndex(bed.bedCode);
 
           let primaryOcc =
             timeline.activeOccupant ||
             (bed.occupant &&
              bed.occupant.lifecycleStatus !== "Past" &&
              bed.occupant.lifecycleStatus !== "Booked" &&
-             (!bed.occupant.bedCode || normalizeBedCode(bed.occupant.bedCode) === cleanBd)
+             (!bed.occupant.bedCode || (bedCanonicalIdx !== -1 && getCanonicalBedIndex(bed.occupant.bedCode) === bedCanonicalIdx) || normalizeBedCode(bed.occupant.bedCode) === cleanBd)
               ? bed.occupant
               : undefined);
 
@@ -346,14 +424,14 @@ function PropertyMapContent({
 
           const hasPendingKyc = kycSubmissions.some((s) => {
             if (s.status !== "PENDING") return false;
-            const sRm = (s.roomNumber || "").toLowerCase().trim();
+            const sRm = normalizeRoomNumber(s.roomNumber);
             const sBd = normalizeBedCode(s.bedCode);
             return sRm === cleanRm && sBd === cleanBd;
           });
 
           const hasActiveInvite = kycInvites.some((i) => {
             if (i.status !== "ACTIVE") return false;
-            const iRm = (i.roomNumber || "").toLowerCase().trim();
+            const iRm = normalizeRoomNumber(i.roomNumber);
             const iBd = normalizeBedCode(i.bedCode);
             return iRm === cleanRm && iBd === cleanBd;
           });
@@ -428,7 +506,7 @@ function PropertyMapContent({
           })
           .map((rm) => {
             const sortedBeds = [...(rm.beds || [])].sort((a, b) =>
-              (a.bedCode || "").localeCompare(b.bedCode || "", undefined, { numeric: true, sensitivity: "base" })
+              getCanonicalBedIndex(a.bedCode) - getCanonicalBedIndex(b.bedCode)
             );
             const rmClaimedOccIds = new Set<string>();
             const roomMatchesQuery = query ? rm.roomNumber.toLowerCase().includes(query) : false;
@@ -437,16 +515,17 @@ function PropertyMapContent({
               ...rm,
               totalPhysicalBeds: rm.beds ? rm.beds.length : (rm.sharingType || 2),
               beds: sortedBeds.filter((bd) => {
-                const cleanRm = rm.roomNumber.toLowerCase().trim();
+                const cleanRm = normalizeRoomNumber(rm.roomNumber);
                 const cleanBd = normalizeBedCode(bd.bedCode);
+                const bdCanonicalIdx = getCanonicalBedIndex(bd.bedCode);
 
-                const timeline = getBedOccupantsTimeline(rm.roomNumber, bd.bedCode, bd, propertyId);
+                const timeline = getBedOccupantsTimeline(rm.roomNumber, bd.bedCode, bd, propertyId, rm.beds);
                 let primaryOcc =
                   timeline.activeOccupant ||
                   (bd.occupant &&
                    bd.occupant.lifecycleStatus !== "Past" &&
                    bd.occupant.lifecycleStatus !== "Booked" &&
-                   (!bd.occupant.bedCode || normalizeBedCode(bd.occupant.bedCode) === cleanBd)
+                   (!bd.occupant.bedCode || (bdCanonicalIdx !== -1 && getCanonicalBedIndex(bd.occupant.bedCode) === bdCanonicalIdx) || normalizeBedCode(bd.occupant.bedCode) === cleanBd)
                     ? bd.occupant
                     : undefined);
 
@@ -469,14 +548,14 @@ function PropertyMapContent({
 
                 const hasPendingKyc = kycSubmissions.some((s) => {
                   if (s.status !== "PENDING") return false;
-                  const sRm = (s.roomNumber || "").toLowerCase().trim();
+                  const sRm = normalizeRoomNumber(s.roomNumber);
                   const sBd = normalizeBedCode(s.bedCode);
                   return sRm === cleanRm && sBd === cleanBd;
                 });
 
                 const hasActiveInvite = kycInvites.some((i) => {
                   if (i.status !== "ACTIVE") return false;
-                  const iRm = (i.roomNumber || "").toLowerCase().trim();
+                  const iRm = normalizeRoomNumber(i.roomNumber);
                   const iBd = normalizeBedCode(i.bedCode);
                   return iRm === cleanRm && iBd === cleanBd;
                 });
@@ -834,6 +913,7 @@ function PropertyMapContent({
 
                         {/* Bed Slots Grid (Dynamic sizing based on bed count) */}
                         {(() => {
+                          const unmappedOccupants = getUnmappedRoomOccupants(room.roomNumber, room.beds, propertyId);
                           const bedCount = room.beds.length;
                           const gridCols =
                             bedCount <= 4
@@ -845,23 +925,46 @@ function PropertyMapContent({
                               : "grid-cols-5";
 
                           const sortedBeds = [...(room.beds || [])].sort((a, b) =>
-                            (a.bedCode || "").localeCompare(b.bedCode || "", undefined, { numeric: true, sensitivity: "base" })
+                            getCanonicalBedIndex(a.bedCode) - getCanonicalBedIndex(b.bedCode)
                           );
                           const roomCardClaimedOccIds = new Set<string>();
 
                           return (
-                            <div className={`grid ${gridCols} gap-2.5`}>
-                              {sortedBeds.map((bed) => {
-                                  const cleanRm = room.roomNumber.toLowerCase().trim();
-                                  const cleanBd = normalizeBedCode(bed.bedCode);
+                            <div className="space-y-3">
+                              {/* PMS Safety Net: Unmapped Resident Alert */}
+                              {unmappedOccupants.length > 0 && (
+                                <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-2 shadow-2xs">
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                                    <span className="text-[11px] font-bold text-amber-900 truncate">
+                                      {unmappedOccupants.length} Unmapped: {unmappedOccupants.map((o) => o.name).join(", ")}
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAutoAddBedForUnmapped(floor.id, room, unmappedOccupants[0])}
+                                    className="shrink-0 px-2 py-1 rounded-lg bg-[#c2652a] hover:bg-[#a04e1d] text-white text-[10px] font-bold flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                                    title={`Automatically add Bed ${String.fromCharCode(65 + (room.beds ? room.beds.length : 0))} and assign ${unmappedOccupants[0]?.name}`}
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                    <span>+ Add Bed & Assign</span>
+                                  </button>
+                                </div>
+                              )}
 
-                                  const timeline = getBedOccupantsTimeline(room.roomNumber, bed.bedCode, bed, propertyId);
+                              <div className={`grid ${gridCols} gap-2.5`}>
+                                {sortedBeds.map((bed) => {
+                                  const cleanRm = normalizeRoomNumber(room.roomNumber);
+                                  const cleanBd = normalizeBedCode(bed.bedCode);
+                                  const bedCanonicalIdx = getCanonicalBedIndex(bed.bedCode);
+
+                                  const timeline = getBedOccupantsTimeline(room.roomNumber, bed.bedCode, bed, propertyId, room.beds);
                                   let primaryOcc =
                                     timeline.activeOccupant ||
                                     (bed.occupant &&
                                      bed.occupant.lifecycleStatus !== "Past" &&
                                      bed.occupant.lifecycleStatus !== "Booked" &&
-                                     (!bed.occupant.bedCode || normalizeBedCode(bed.occupant.bedCode) === cleanBd)
+                                     (!bed.occupant.bedCode || (bedCanonicalIdx !== -1 && getCanonicalBedIndex(bed.occupant.bedCode) === bedCanonicalIdx) || normalizeBedCode(bed.occupant.bedCode) === cleanBd)
                                       ? bed.occupant
                                       : undefined);
 
@@ -890,7 +993,7 @@ function PropertyMapContent({
                                   // Check if there is an active pending KYC submission for this room & bed
                                   const pendingKycSub = kycSubmissions.find((s) => {
                                     if (s.status !== "PENDING") return false;
-                                    const sRm = (s.roomNumber || "").toLowerCase().trim();
+                                    const sRm = normalizeRoomNumber(s.roomNumber);
                                     const sBd = normalizeBedCode(s.bedCode);
                                     return sRm === cleanRm && sBd === cleanBd;
                                   });
@@ -898,7 +1001,7 @@ function PropertyMapContent({
                                   // Check if there is an active KYC invite for this room & bed
                                   const activeKycInvite = kycInvites.find((i) => {
                                     if (i.status !== "ACTIVE") return false;
-                                    const iRm = (i.roomNumber || "").toLowerCase().trim();
+                                    const iRm = normalizeRoomNumber(i.roomNumber);
                                     const iBd = normalizeBedCode(i.bedCode);
                                     return iRm === cleanRm && iBd === cleanBd;
                                   });
@@ -912,7 +1015,7 @@ function PropertyMapContent({
 
                                   const hasCorrectionRequested = isKycInviteSent && kycSubmissions.some((s) => {
                                     if (s.status !== "REJECTED") return false;
-                                    const sRm = (s.roomNumber || "").toLowerCase().trim();
+                                    const sRm = normalizeRoomNumber(s.roomNumber);
                                     const sBd = normalizeBedCode(s.bedCode);
                                     return (s.inviteId && activeKycInvite && s.inviteId === activeKycInvite.id) || (sRm === cleanRm && sBd === cleanBd);
                                   });
@@ -1149,8 +1252,9 @@ function PropertyMapContent({
                                   );
                               })}
                             </div>
-                          );
-                        })()}
+                          </div>
+                        );
+                      })()}
 
                         {/* 🌟 BOTTOM-LEFT ROOM ATTRIBUTE STRIP (Tariff + Photos + Feature Tag) */}
                         <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -1273,15 +1377,16 @@ function PropertyMapContent({
               </div>
 
               {(() => {
-                const cleanSlotRm = activeBedSlot.roomNumber.toLowerCase().trim();
+                const cleanSlotRm = normalizeRoomNumber(activeBedSlot.roomNumber);
                 const cleanSlotBd = normalizeBedCode(activeBedSlot.bed.bedCode);
+                const slotCanonicalIdx = getCanonicalBedIndex(activeBedSlot.bed.bedCode);
 
                 const activeOcc =
                   activeBedSlot.timeline?.activeOccupant ||
                   (activeBedSlot.bed.occupant &&
                    activeBedSlot.bed.occupant.lifecycleStatus !== "Booked" &&
                    activeBedSlot.bed.occupant.lifecycleStatus !== "Past" &&
-                   (!activeBedSlot.bed.occupant.bedCode || normalizeBedCode(activeBedSlot.bed.occupant.bedCode) === cleanSlotBd)
+                   (!activeBedSlot.bed.occupant.bedCode || (slotCanonicalIdx !== -1 && getCanonicalBedIndex(activeBedSlot.bed.occupant.bedCode) === slotCanonicalIdx) || normalizeBedCode(activeBedSlot.bed.occupant.bedCode) === cleanSlotBd)
                     ? activeBedSlot.bed.occupant
                     : undefined);
 
@@ -1300,14 +1405,14 @@ function PropertyMapContent({
 
                 const activePendingSub = kycSubmissions.find((s) => {
                   if (s.status !== "PENDING") return false;
-                  const sRm = (s.roomNumber || "").toLowerCase().trim();
+                  const sRm = normalizeRoomNumber(s.roomNumber);
                   const sBd = normalizeBedCode(s.bedCode);
                   return sRm === cleanSlotRm && sBd === cleanSlotBd;
                 });
 
                 const activeInvite = kycInvites.find((i) => {
                   if (i.status !== "ACTIVE") return false;
-                  const iRm = (i.roomNumber || "").toLowerCase().trim();
+                  const iRm = normalizeRoomNumber(i.roomNumber);
                   const iBd = normalizeBedCode(i.bedCode);
                   return iRm === cleanSlotRm && iBd === cleanSlotBd;
                 });
@@ -1373,7 +1478,7 @@ function PropertyMapContent({
                 if (isSlotKycInviteSent) {
                   const slotRejectedSub = kycSubmissions.find((s) => {
                     if (s.status !== "REJECTED") return false;
-                    const sRm = (s.roomNumber || "").toLowerCase().trim();
+                    const sRm = normalizeRoomNumber(s.roomNumber);
                     const sBd = normalizeBedCode(s.bedCode);
                     return (s.inviteId && activeInvite && s.inviteId === activeInvite.id) || (sRm === cleanSlotRm && sBd === cleanSlotBd);
                   });

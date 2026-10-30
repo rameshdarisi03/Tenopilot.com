@@ -5,6 +5,7 @@ import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Occupant } from "./mockOccupants";
 import { sanitizeForFirestore } from "@/lib/firestoreService";
+import { getCanonicalBedIndex } from "@/utils/domainSSOT";
 
 export interface BedSlotConfig {
   id: string;
@@ -149,9 +150,12 @@ export function normalizeAndSortBuildingStructure(floors: FloorConfig[]): FloorC
     fl.rooms.forEach((rm) => {
       if (Array.isArray(rm.beds) && rm.beds.length > 0) {
         // Canonical Bed Sorting: Ensure Bed A always precedes Bed B, Bed C, etc.
-        rm.beds.sort((a, b) =>
-          (a.bedCode || "").localeCompare(b.bedCode || "", undefined, { numeric: true, sensitivity: "base" })
-        );
+        rm.beds.sort((a, b) => {
+          const idxA = getCanonicalBedIndex(a.bedCode);
+          const idxB = getCanonicalBedIndex(b.bedCode);
+          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+          return (a.bedCode || "").localeCompare(b.bedCode || "", undefined, { numeric: true, sensitivity: "base" });
+        });
 
         const seenLetters = new Set<string>();
         const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";

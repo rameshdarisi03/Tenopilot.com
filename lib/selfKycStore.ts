@@ -27,6 +27,11 @@ import {
   validateBase64Attachment,
   normalizePhoneNumber,
 } from "@/utils/security";
+import {
+  normalizeRoomNumber,
+  getCanonicalBedIndex,
+  canonicalBedKey,
+} from "@/utils/domainSSOT";
 
 export interface SelfKycSubmission {
   id: string;
@@ -582,18 +587,23 @@ export const selfKycStore = {
 
     const roomToRelease = target?.roomNumber || targetRoom;
     const bedToRelease = target?.bedCode || targetBed;
+    const releaseRoomClean = normalizeRoomNumber(roomToRelease);
+    const releaseBedIdx = getCanonicalBedIndex(bedToRelease);
+    const releaseBedKey = canonicalBedKey(bedToRelease);
 
     // Release bed in propertyStore
     const structure = propertyStore.getStructure(propertyId);
     const updated = structure.map((fl) => ({
       ...fl,
       rooms: fl.rooms.map((rm) => {
-        if (roomToRelease && rm.roomNumber !== roomToRelease) return rm;
+        if (releaseRoomClean && normalizeRoomNumber(rm.roomNumber) !== releaseRoomClean) return rm;
         return {
           ...rm,
           beds: rm.beds.map((bd) => {
+            const bdIdx = getCanonicalBedIndex(bd.bedCode);
+            const bdKey = canonicalBedKey(bd.bedCode);
             const isMatch =
-              (bedToRelease && bd.bedCode === bedToRelease) ||
+              (bedToRelease && ((releaseBedIdx !== -1 && bdIdx !== -1 && releaseBedIdx === bdIdx) || bdKey === releaseBedKey)) ||
               bd.holdCandidate?.inviteId === inviteId;
             if (isMatch) {
               return {
@@ -807,19 +817,22 @@ export const selfKycStore = {
       }
     }
 
-    const cleanSubRoom = (submission.roomNumber || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const cleanSubBed = (submission.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const cleanSubRoom = normalizeRoomNumber(submission.roomNumber);
+    const subBedIdx = getCanonicalBedIndex(submission.bedCode);
+    const subBedKey = canonicalBedKey(submission.bedCode);
 
     const updatedStructure = (structure || []).map((fl) => ({
       ...fl,
       rooms: fl.rooms.map((rm) => {
-        const cleanRm = (rm.roomNumber || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+        const cleanRm = normalizeRoomNumber(rm.roomNumber);
         if (cleanRm !== cleanSubRoom) return rm;
         return {
           ...rm,
           beds: rm.beds.map((bd) => {
-            const cleanBd = (bd.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-            if (cleanBd !== cleanSubBed) return bd;
+            const bdIdx = getCanonicalBedIndex(bd.bedCode);
+            const bdKey = canonicalBedKey(bd.bedCode);
+            const isMatch = subBedIdx !== -1 && bdIdx !== -1 ? subBedIdx === bdIdx : bdKey === subBedKey;
+            if (!isMatch) return bd;
             return {
               ...bd,
               status: targetBedStatus,
