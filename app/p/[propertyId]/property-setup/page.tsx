@@ -405,7 +405,7 @@ export default function PropertySetupPage({
 
   // Handle Deletion of Bed Slot
   const handleDeleteBed = (floorId: string, room: RoomConfig, bed: BedSlotConfig) => {
-    const info = resolveBedSlotInfo(room.roomNumber, bed);
+    const info = resolveBedSlotInfo(room.roomNumber, bed, room.beds);
 
     if (info.isOccupied) {
       setBlockedDeleteModal({
@@ -448,7 +448,7 @@ export default function PropertySetupPage({
   // Handle Deletion of Room
   const handleDeleteRoom = (floorId: string, room: RoomConfig) => {
     const occupiedBedItem = room.beds
-      .map((b) => ({ bed: b, info: resolveBedSlotInfo(room.roomNumber, b) }))
+      .map((b) => ({ bed: b, info: resolveBedSlotInfo(room.roomNumber, b, room.beds) }))
       .find((item) => item.info.isOccupied);
 
     if (occupiedBedItem) {
@@ -487,7 +487,7 @@ export default function PropertySetupPage({
 
     for (const rm of floor.rooms) {
       for (const bd of rm.beds) {
-        const info = resolveBedSlotInfo(rm.roomNumber, bd);
+        const info = resolveBedSlotInfo(rm.roomNumber, bd, rm.beds);
         if (info.isOccupied) {
           occupiedBedInfo = {
             roomNum: rm.roomNumber,
@@ -656,7 +656,7 @@ export default function PropertySetupPage({
     }
 
     const occupiedCount = room.beds.filter(
-      (b) => resolveBedSlotInfo(room.roomNumber, b).isOccupied
+      (b) => resolveBedSlotInfo(room.roomNumber, b, room.beds).isOccupied
     ).length;
 
     if (newSharingCapacity < occupiedCount) {
@@ -693,9 +693,9 @@ export default function PropertySetupPage({
       // Safely ensure none of the beds being trimmed are occupied
       const bedsToKeep = updatedBeds.slice(0, newSharingCapacity);
       const bedsToTrim = updatedBeds.slice(newSharingCapacity);
-      const occupiedTrimmed = bedsToTrim.find((b) => resolveBedSlotInfo(room.roomNumber, b).isOccupied);
+      const occupiedTrimmed = bedsToTrim.find((b) => resolveBedSlotInfo(room.roomNumber, b, room.beds).isOccupied);
       if (occupiedTrimmed) {
-        const occInfo = resolveBedSlotInfo(room.roomNumber, occupiedTrimmed);
+        const occInfo = resolveBedSlotInfo(room.roomNumber, occupiedTrimmed, room.beds);
         triggerToast(`⚠️ Cannot trim ${occupiedTrimmed.bedCode} because it is held by ${occInfo.displayName}!`);
         return;
       }
@@ -1423,7 +1423,7 @@ export default function PropertySetupPage({
                 <div>
                   {(() => {
                     const occupiedCount = activeEditRoom.room.beds.filter(
-                      (b) => resolveBedSlotInfo(activeEditRoom.room.roomNumber, b).isOccupied
+                      (b) => resolveBedSlotInfo(activeEditRoom.room.roomNumber, b, activeEditRoom.room.beds).isOccupied
                     ).length;
 
                     return (
