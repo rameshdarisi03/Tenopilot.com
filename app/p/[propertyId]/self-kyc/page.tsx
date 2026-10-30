@@ -416,19 +416,47 @@ function SelfKycDeskContent({
     return `/p/${propertyId}/tenants`;
   };
 
+  // Helper to normalize bed codes (e.g. "Bed A" -> "A")
+  const normBed = (b?: string) => (b || "").replace(/^bed\s*/i, "").trim().toUpperCase();
+
   // List of available rooms & beds for invite creation (dynamically filtered for target check-in date)
   const availableBeds = useMemo(() => {
     const list: { roomNumber: string; bedCode: string; floorName: string; tariff: number }[] = [];
     const targetDate = inviteCheckInDate || new Date().toISOString().split("T")[0];
 
+    // Track beds that are already on hold from active invites or pending submissions
+    const reservedBeds = new Set<string>();
+    activeInvites.forEach((i) => {
+      if (i.roomNumber && i.bedCode) {
+        reservedBeds.add(`${i.roomNumber}___${normBed(i.bedCode)}`);
+      }
+    });
+    pendingSubmissions.forEach((s) => {
+      if (s.roomNumber && s.bedCode) {
+        reservedBeds.add(`${s.roomNumber}___${normBed(s.bedCode)}`);
+      }
+    });
+
     propertyStructure.forEach((fl) => {
       fl.rooms.forEach((rm) => {
         rm.beds.forEach((bd) => {
-          const isDirectlyAvailable = bd.status === "Available";
+          const bedKey = `${rm.roomNumber}___${normBed(bd.bedCode)}`;
+          if (reservedBeds.has(bedKey)) return;
+
+          // Cross-verify with live occupants list to ensure no ghost availability
+          const currentResident = occupantsList.find(
+            (o) =>
+              o.roomNumber === rm.roomNumber &&
+              normBed(o.bedCode) === normBed(bd.bedCode) &&
+              o.lifecycleStatus !== "Past"
+          );
+
+          const isDirectlyAvailable =
+            (bd.status === "Available" || (!bd.status && !bd.occupant)) && !currentResident;
           const isVacatingBeforeTarget =
-            (bd.status === "Occupied" || bd.status === "Booked") &&
-            bd.vacatingDate &&
-            bd.vacatingDate <= targetDate;
+            (bd.status === "Occupied" || bd.status === "Booked" || Boolean(currentResident)) &&
+            Boolean(bd.vacatingDate || currentResident?.vacatingDate) &&
+            (bd.vacatingDate || currentResident?.vacatingDate || "") <= targetDate;
 
           if (isDirectlyAvailable || isVacatingBeforeTarget) {
             list.push({
@@ -442,7 +470,7 @@ function SelfKycDeskContent({
       });
     });
     return list;
-  }, [propertyStructure, inviteCheckInDate]);
+  }, [propertyStructure, inviteCheckInDate, activeInvites, pendingSubmissions, occupantsList]);
 
   // When room changes in invite modal, auto-pick first available bed and tariff
   const availableRoomsList = useMemo(() => {
