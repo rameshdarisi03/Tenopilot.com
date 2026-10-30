@@ -146,10 +146,10 @@ function PropertyMapContent({
     };
   }, [propertyId]);
 
-  // Self-healing: automatically clear orphaned hold candidates in property layout structure
+  // Self-healing: automatically clear orphaned hold candidates & misplaced bed occupants in property layout structure
   useEffect(() => {
     if (!propertyId || !propertyGrid || propertyGrid.length === 0) return;
-    let hasOrphans = false;
+    let hasChanges = false;
     const cleanedGrid = propertyGrid.map((fl) => ({
       ...fl,
       rooms: fl.rooms.map((rm) => {
@@ -157,8 +157,21 @@ function PropertyMapContent({
         return {
           ...rm,
           beds: rm.beds.map((bd) => {
-            if (bd.holdCandidate || bd.status === "Hold") {
-              const cleanBd = normalizeBedCode(bd.bedCode);
+            let updatedBed = { ...bd };
+            const cleanBd = normalizeBedCode(bd.bedCode);
+
+            // 1. Fix mismatched bed occupants (e.g. occupant assigned to Bed B sitting on Bed A in layout structure)
+            if (updatedBed.occupant && updatedBed.occupant.bedCode && normalizeBedCode(updatedBed.occupant.bedCode) !== cleanBd) {
+              hasChanges = true;
+              updatedBed = {
+                ...updatedBed,
+                occupant: undefined,
+                status: (updatedBed.status === "Occupied" ? "Available" : updatedBed.status) as any,
+              };
+            }
+
+            // 2. Clear orphaned hold candidate
+            if (updatedBed.holdCandidate || updatedBed.status === "Hold") {
               const hasActiveInvite = kycInvites.some(
                 (i) => i.status === "ACTIVE" && (i.roomNumber || "").toLowerCase().trim() === cleanRm && normalizeBedCode(i.bedCode) === cleanBd
               );
@@ -166,21 +179,21 @@ function PropertyMapContent({
                 (s) => s.status === "PENDING" && (s.roomNumber || "").toLowerCase().trim() === cleanRm && normalizeBedCode(s.bedCode) === cleanBd
               );
               if (!hasActiveInvite && !hasPendingKyc) {
-                hasOrphans = true;
-                return {
-                  ...bd,
-                  status: (bd.occupant ? bd.status : "Available") as any,
+                hasChanges = true;
+                updatedBed = {
+                  ...updatedBed,
+                  status: (updatedBed.occupant ? updatedBed.status : "Available") as any,
                   holdCandidate: undefined,
                 };
               }
             }
-            return bd;
+            return updatedBed;
           }),
         };
       }),
     }));
 
-    if (hasOrphans) {
+    if (hasChanges) {
       propertyStore.updateStructure(cleanedGrid, propertyId);
     }
   }, [propertyId, kycInvites, kycSubmissions, propertyGrid]);
@@ -301,11 +314,15 @@ function PropertyMapContent({
 
         sortedBeds.forEach((bed) => {
           const timeline = getBedOccupantsTimeline(room.roomNumber, bed.bedCode, bed, propertyId);
+          const cleanRm = room.roomNumber.toLowerCase().trim();
+          const cleanBd = normalizeBedCode(bed.bedCode);
+
           let primaryOcc =
             timeline.activeOccupant ||
             (bed.occupant &&
              bed.occupant.lifecycleStatus !== "Past" &&
-             bed.occupant.lifecycleStatus !== "Booked"
+             bed.occupant.lifecycleStatus !== "Booked" &&
+             (!bed.occupant.bedCode || normalizeBedCode(bed.occupant.bedCode) === cleanBd)
               ? bed.occupant
               : undefined);
 
@@ -326,9 +343,6 @@ function PropertyMapContent({
             rawNext && primaryOcc && (rawNext.id === primaryOcc.id || rawNext.name?.toLowerCase() === primaryOcc.name?.toLowerCase())
               ? undefined
               : rawNext;
-
-          const cleanRm = room.roomNumber.toLowerCase().trim();
-          const cleanBd = normalizeBedCode(bed.bedCode);
 
           const hasPendingKyc = kycSubmissions.some((s) => {
             if (s.status !== "PENDING") return false;
@@ -423,12 +437,16 @@ function PropertyMapContent({
               ...rm,
               totalPhysicalBeds: rm.beds ? rm.beds.length : (rm.sharingType || 2),
               beds: sortedBeds.filter((bd) => {
+                const cleanRm = rm.roomNumber.toLowerCase().trim();
+                const cleanBd = normalizeBedCode(bd.bedCode);
+
                 const timeline = getBedOccupantsTimeline(rm.roomNumber, bd.bedCode, bd, propertyId);
                 let primaryOcc =
                   timeline.activeOccupant ||
                   (bd.occupant &&
                    bd.occupant.lifecycleStatus !== "Past" &&
-                   bd.occupant.lifecycleStatus !== "Booked"
+                   bd.occupant.lifecycleStatus !== "Booked" &&
+                   (!bd.occupant.bedCode || normalizeBedCode(bd.occupant.bedCode) === cleanBd)
                     ? bd.occupant
                     : undefined);
 
@@ -448,9 +466,6 @@ function PropertyMapContent({
                   rawNext && primaryOcc && (rawNext.id === primaryOcc.id || rawNext.name?.toLowerCase() === primaryOcc.name?.toLowerCase())
                     ? undefined
                     : rawNext;
-
-                const cleanRm = rm.roomNumber.toLowerCase().trim();
-                const cleanBd = normalizeBedCode(bd.bedCode);
 
                 const hasPendingKyc = kycSubmissions.some((s) => {
                   if (s.status !== "PENDING") return false;
@@ -837,12 +852,16 @@ function PropertyMapContent({
                           return (
                             <div className={`grid ${gridCols} gap-2.5`}>
                               {sortedBeds.map((bed) => {
+                                  const cleanRm = room.roomNumber.toLowerCase().trim();
+                                  const cleanBd = normalizeBedCode(bed.bedCode);
+
                                   const timeline = getBedOccupantsTimeline(room.roomNumber, bed.bedCode, bed, propertyId);
                                   let primaryOcc =
                                     timeline.activeOccupant ||
                                     (bed.occupant &&
                                      bed.occupant.lifecycleStatus !== "Past" &&
-                                     bed.occupant.lifecycleStatus !== "Booked"
+                                     bed.occupant.lifecycleStatus !== "Booked" &&
+                                     (!bed.occupant.bedCode || normalizeBedCode(bed.occupant.bedCode) === cleanBd)
                                       ? bed.occupant
                                       : undefined);
 
@@ -868,9 +887,6 @@ function PropertyMapContent({
                                   let icon = <User className="w-3.5 h-3.5" />;
                                   let statusLabel: string = bed.status;
 
-                                  const cleanRm = room.roomNumber.toLowerCase().trim();
-                                  const cleanBd = normalizeBedCode(bed.bedCode);
-
                                   // Check if there is an active pending KYC submission for this room & bed
                                   const pendingKycSub = kycSubmissions.find((s) => {
                                     if (s.status !== "PENDING") return false;
@@ -893,6 +909,13 @@ function PropertyMapContent({
                                     pendingKycSub?.name ||
                                     activeKycInvite?.candidateName ||
                                     "";
+
+                                  const hasCorrectionRequested = isKycInviteSent && kycSubmissions.some((s) => {
+                                    if (s.status !== "REJECTED") return false;
+                                    const sRm = (s.roomNumber || "").toLowerCase().trim();
+                                    const sBd = normalizeBedCode(s.bedCode);
+                                    return (s.inviteId && activeKycInvite && s.inviteId === activeKycInvite.id) || (sRm === cleanRm && sBd === cleanBd);
+                                  });
 
                                   const isBooked =
                                     (!primaryOcc && !!nextOcc && nextOcc.stayType !== "Guest") ||
@@ -1041,8 +1064,10 @@ function PropertyMapContent({
                                               <span className="tracking-wide">KYC Review Pending</span>
                                             </span>
                                           ) : isKycInviteSent ? (
-                                            <span className="text-[8px] font-bold px-2 py-0.5 rounded-full mt-0.5 truncate max-w-full bg-blue-600 text-white shadow-2xs flex items-center justify-center gap-1">
-                                              <span>✉️ Sent for KYC</span>
+                                            <span className={`text-[8px] font-bold px-2 py-0.5 rounded-full mt-0.5 truncate max-w-full text-white shadow-2xs flex items-center justify-center gap-1 ${
+                                              hasCorrectionRequested ? "bg-amber-600" : "bg-blue-600"
+                                            }`}>
+                                              <span>{hasCorrectionRequested ? "⚠️ Correction Requested" : "✉️ Sent for KYC"}</span>
                                             </span>
                                           ) : nextOcc?.joiningDate ? (
                                             <span className="text-[8px] font-bold px-2 py-0.5 rounded-full mt-0.5 truncate max-w-full bg-blue-600 text-white shadow-2xs font-mono">
@@ -1248,11 +1273,15 @@ function PropertyMapContent({
               </div>
 
               {(() => {
+                const cleanSlotRm = activeBedSlot.roomNumber.toLowerCase().trim();
+                const cleanSlotBd = normalizeBedCode(activeBedSlot.bed.bedCode);
+
                 const activeOcc =
                   activeBedSlot.timeline?.activeOccupant ||
                   (activeBedSlot.bed.occupant &&
                    activeBedSlot.bed.occupant.lifecycleStatus !== "Booked" &&
-                   activeBedSlot.bed.occupant.lifecycleStatus !== "Past"
+                   activeBedSlot.bed.occupant.lifecycleStatus !== "Past" &&
+                   (!activeBedSlot.bed.occupant.bedCode || normalizeBedCode(activeBedSlot.bed.occupant.bedCode) === cleanSlotBd)
                     ? activeBedSlot.bed.occupant
                     : undefined);
 
@@ -1268,9 +1297,6 @@ function PropertyMapContent({
                     : rawNext;
 
                 const displayOcc = activeOcc || nextOcc;
-
-                const cleanSlotRm = activeBedSlot.roomNumber.toLowerCase().trim();
-                const cleanSlotBd = normalizeBedCode(activeBedSlot.bed.bedCode);
 
                 const activePendingSub = kycSubmissions.find((s) => {
                   if (s.status !== "PENDING") return false;
@@ -1345,32 +1371,55 @@ function PropertyMapContent({
                 }
 
                 if (isSlotKycInviteSent) {
+                  const slotRejectedSub = kycSubmissions.find((s) => {
+                    if (s.status !== "REJECTED") return false;
+                    const sRm = (s.roomNumber || "").toLowerCase().trim();
+                    const sBd = normalizeBedCode(s.bedCode);
+                    return (s.inviteId && activeInvite && s.inviteId === activeInvite.id) || (sRm === cleanSlotRm && sBd === cleanSlotBd);
+                  });
+
                   return (
                     <div className="space-y-5 text-xs text-center py-6">
-                      <div className="w-16 h-16 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center mx-auto text-2xl font-bold shadow-inner">
-                        ✉️
+                      <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto text-2xl font-bold shadow-inner ${
+                        slotRejectedSub ? "bg-amber-100 text-amber-700 ring-4 ring-amber-200/50" : "bg-blue-100 text-blue-700"
+                      }`}>
+                        {slotRejectedSub ? "⚠️" : "✉️"}
                       </div>
                       <div>
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-900 border border-blue-200 mb-2">
-                          BOOKED • SENT FOR KYC
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border mb-2 ${
+                          slotRejectedSub
+                            ? "bg-amber-100 text-amber-950 border-amber-300"
+                            : "bg-blue-100 text-blue-900 border-blue-200"
+                        }`}>
+                          {slotRejectedSub ? "⚠️ CORRECTION REQUESTED" : "BOOKED • SENT FOR KYC"}
                         </span>
                         <h4 className="font-serif font-bold text-lg text-gray-900">
-                          Bed Reserved for Incoming Resident
+                          {slotRejectedSub ? "Awaiting Applicant Document Revision" : "Bed Reserved for Incoming Resident"}
                         </h4>
                         <p className="text-gray-500 mt-1 max-w-xs mx-auto text-xs">
-                          A digital Self-KYC invite has been generated for {activeBedSlot.floorName} Room {activeBedSlot.roomNumber} ({activeBedSlot.bed.bedCode}). Bed cannot be booked by others until resolved.
+                          {slotRejectedSub
+                            ? `Applicant was asked to revise proofs for ${activeBedSlot.floorName} Room ${activeBedSlot.roomNumber} (${activeBedSlot.bed.bedCode}). Bed remains on hold.`
+                            : `A digital Self-KYC invite has been generated for ${activeBedSlot.floorName} Room ${activeBedSlot.roomNumber} (${activeBedSlot.bed.bedCode}). Bed cannot be booked by others until resolved.`}
                         </p>
                       </div>
 
                       {activeInvite && (
-                        <div className="p-3.5 rounded-2xl bg-blue-50/60 border border-blue-200 text-left space-y-1.5">
-                          <p className="font-bold text-blue-950 text-xs">
+                        <div className={`p-3.5 rounded-2xl text-left space-y-1.5 border ${
+                          slotRejectedSub ? "bg-amber-50/70 border-amber-200" : "bg-blue-50/60 border-blue-200"
+                        }`}>
+                          <p className="font-bold text-gray-900 text-xs">
                             Candidate: {activeInvite.candidateName}
                           </p>
                           {activeInvite.candidatePhone && (
-                            <p className="text-[11px] text-blue-800 font-mono">
+                            <p className="text-[11px] text-gray-700 font-mono">
                               Phone: {activeInvite.candidatePhone}
                             </p>
+                          )}
+                          {slotRejectedSub?.rejectionReason && (
+                            <div className="mt-2 p-2 rounded-xl bg-amber-100/80 border border-amber-300 text-[11px] text-amber-950 font-medium">
+                              <span className="font-bold block text-[10px] uppercase text-amber-800">Reason / Requested Fix:</span>
+                              &quot;{slotRejectedSub.rejectionReason}&quot;
+                            </div>
                           )}
                         </div>
                       )}

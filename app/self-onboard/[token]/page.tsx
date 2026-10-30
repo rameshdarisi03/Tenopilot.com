@@ -426,12 +426,6 @@ export default function TenantSelfOnboardingPage({
     e.preventDefault();
     setErrorMessage("");
 
-    if (!residentAgreedToTerms) {
-      setHighlightResidentTerms(true);
-      setErrorMessage("Please review and agree to the house rules and terms to continue.");
-      return;
-    }
-
     const cleanName = sanitizePlainText(candidateName, 100);
     if (!cleanName.trim()) {
       setErrorMessage("Please enter your full name as shown on your Aadhaar card.");
@@ -466,6 +460,28 @@ export default function TenantSelfOnboardingPage({
       setErrorMessage(
         "This email address is already registered with another resident in this property. If this is your email, please contact property management."
       );
+      return;
+    }
+
+    // 🛡️ Section 2 Mandatory Document & Identity Verification
+    if (!selfiePhoto) {
+      setErrorMessage("Please capture or upload your live resident photo / selfie.");
+      return;
+    }
+
+    if (!aadhaarFront) {
+      setErrorMessage("Please upload your Aadhaar card front photo.");
+      return;
+    }
+
+    if (!aadhaarBack) {
+      setErrorMessage("Please upload your Aadhaar card back photo.");
+      return;
+    }
+
+    if (!residentAgreedToTerms) {
+      setHighlightResidentTerms(true);
+      setErrorMessage("Please review and agree to the house rules and terms to continue.");
       return;
     }
 
@@ -579,6 +595,28 @@ export default function TenantSelfOnboardingPage({
 
     if (!selectedRoomNumber || !selectedBedCode) {
       setErrorMessage("Please select your room and bed accommodation.");
+      return;
+    }
+
+    // 🛡️ Section 2 Mandatory Document & Identity Verification
+    if (!selfiePhoto) {
+      setErrorMessage("Please capture or upload your live resident photo / selfie.");
+      return;
+    }
+
+    if (!aadhaarFront) {
+      setErrorMessage("Please upload your Aadhaar card front photo.");
+      return;
+    }
+
+    if (!aadhaarBack) {
+      setErrorMessage("Please upload your Aadhaar card back photo.");
+      return;
+    }
+
+    if (!residentAgreedToTerms) {
+      setHighlightResidentTerms(true);
+      setErrorMessage("Please review and agree to the house rules and terms to proceed.");
       return;
     }
 
@@ -1012,14 +1050,19 @@ export default function TenantSelfOnboardingPage({
 
               <div className="space-y-3.5 text-xs">
                 {/* Live Selfie Capture */}
-                <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-2">
+                <div className={`p-4 rounded-2xl border transition-all space-y-2 ${!selfiePhoto ? "bg-amber-50/40 border-amber-200/80" : "bg-gray-50 border-gray-200"}`}>
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-gray-800 flex items-center gap-2">
-                      <Camera className="w-4 h-4 text-purple-600" /> Live Resident Photo / Selfie
+                      <Camera className="w-4 h-4 text-purple-600" />
+                      <span>Live Resident Photo / Selfie <span className="text-red-500">*</span></span>
                     </span>
-                    {selfiePhoto && (
+                    {selfiePhoto ? (
                       <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                         ✓ Photo Captured
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                        Required
                       </span>
                     )}
                   </div>
@@ -1060,8 +1103,21 @@ export default function TenantSelfOnboardingPage({
 
                 {/* Aadhaar Front & Back */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-2">
-                    <span className="text-xs font-bold text-gray-800 block">Aadhaar Card Front Photo</span>
+                  <div className={`p-4 rounded-2xl border transition-all space-y-2 ${!aadhaarFront ? "bg-amber-50/40 border-amber-200/80" : "bg-gray-50 border-gray-200"}`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-gray-800">
+                        Aadhaar Front Photo <span className="text-red-500">*</span>
+                      </span>
+                      {aadhaarFront ? (
+                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          ✓ Uploaded
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                          Required
+                        </span>
+                      )}
+                    </div>
                     <input
                       type="file"
                       ref={frontInputRef}
@@ -1079,8 +1135,21 @@ export default function TenantSelfOnboardingPage({
                     </button>
                   </div>
 
-                  <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-2">
-                    <span className="text-xs font-bold text-gray-800 block">Aadhaar Card Back Photo</span>
+                  <div className={`p-4 rounded-2xl border transition-all space-y-2 ${!aadhaarBack ? "bg-amber-50/40 border-amber-200/80" : "bg-gray-50 border-gray-200"}`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-gray-800">
+                        Aadhaar Back Photo <span className="text-red-500">*</span>
+                      </span>
+                      {aadhaarBack ? (
+                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          ✓ Uploaded
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                          Required
+                        </span>
+                      )}
+                    </div>
                     <input
                       type="file"
                       ref={backInputRef}
@@ -1535,14 +1604,19 @@ export default function TenantSelfOnboardingPage({
 
               <div className="space-y-3.5 text-xs">
                 {/* Live Selfie Capture */}
-                <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-2">
+                <div className={`p-4 rounded-2xl border transition-all space-y-2 ${!selfiePhoto ? "bg-amber-50/40 border-amber-200/80" : "bg-gray-50 border-gray-200"}`}>
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-gray-800 flex items-center gap-2">
-                      <Camera className="w-4 h-4 text-purple-600" /> Live Resident Photo / Selfie
+                      <Camera className="w-4 h-4 text-purple-600" />
+                      <span>Live Resident Photo / Selfie <span className="text-red-500">*</span></span>
                     </span>
-                    {selfiePhoto && (
+                    {selfiePhoto ? (
                       <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                         ✓ Photo Captured
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                        Required
                       </span>
                     )}
                   </div>
@@ -1583,8 +1657,21 @@ export default function TenantSelfOnboardingPage({
 
                 {/* Aadhaar Front & Back */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-2">
-                    <span className="text-xs font-bold text-gray-800 block">Aadhaar Card Front Photo</span>
+                  <div className={`p-4 rounded-2xl border transition-all space-y-2 ${!aadhaarFront ? "bg-amber-50/40 border-amber-200/80" : "bg-gray-50 border-gray-200"}`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-gray-800">
+                        Aadhaar Front Photo <span className="text-red-500">*</span>
+                      </span>
+                      {aadhaarFront ? (
+                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          ✓ Uploaded
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                          Required
+                        </span>
+                      )}
+                    </div>
                     <input
                       type="file"
                       ref={frontInputRef}
@@ -1602,8 +1689,21 @@ export default function TenantSelfOnboardingPage({
                     </button>
                   </div>
 
-                  <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-2">
-                    <span className="text-xs font-bold text-gray-800 block">Aadhaar Card Back Photo</span>
+                  <div className={`p-4 rounded-2xl border transition-all space-y-2 ${!aadhaarBack ? "bg-amber-50/40 border-amber-200/80" : "bg-gray-50 border-gray-200"}`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-gray-800">
+                        Aadhaar Back Photo <span className="text-red-500">*</span>
+                      </span>
+                      {aadhaarBack ? (
+                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          ✓ Uploaded
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                          Required
+                        </span>
+                      )}
+                    </div>
                     <input
                       type="file"
                       ref={backInputRef}
