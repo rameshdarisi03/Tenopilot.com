@@ -381,6 +381,20 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
 
   // 1. If Meta Production / Sandbox credentials exist in environment, execute live HTTP call
   if (metaToken && phoneNumberId) {
+    // Meta Cloud API restriction: Senders cannot dispatch messages to their own business phone number
+    if (formattedPhone.endsWith("6360443162")) {
+      console.warn("Self-messaging detected: Meta WhatsApp Cloud API prohibits sending messages to the business sender number itself (+91 63604 43162).");
+      return {
+        success: false,
+        messageId: `self-msg-${Date.now()}`,
+        mode: "LIVE_META_API",
+        recipientPhone: formattedPhone,
+        recipientName: payload.recipientName,
+        error: "Meta WhatsApp Cloud API restriction: You cannot send a WhatsApp message to your own registered business sender number (+91 63604 43162). Please test with another recipient mobile number.",
+        timestamp: new Date().toISOString(),
+      };
+    }
+
     try {
       let requestBody: any;
 
@@ -974,6 +988,52 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
             ],
           },
         };
+      } else if (payload.type === "KYC_CORRECTION_REQUEST") {
+        const p = payload.params || {};
+        const pName = payload.propertyName || "TenoPilot PG & Living";
+        const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` (${p.bedCode})` : ""}`;
+        const rawReason = (p.rejectionReason || p.customMessage || "Please re-upload clear identity documents.").trim();
+        const rawDeskPhone = p.managerPhone || p.propertyPhone || p.ownerPhone || "9206651295";
+        const cleanDeskPhone = rawDeskPhone.replace(/\D/g, "").slice(-10) || "9206651295";
+        const onboardTokenParam = p.onboardUrl ? (p.onboardUrl.split("/self-onboard/")[1] || "") : "";
+
+        requestBody = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "template",
+          template: {
+            name: "pg_kyc_correction_actions_v1",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: pName },
+                  { type: "text", text: payload.recipientName || "Resident" },
+                  { type: "text", text: roomStay },
+                  { type: "text", text: rawReason },
+                ],
+              },
+              {
+                type: "button",
+                sub_type: "url",
+                index: "0",
+                parameters: [
+                  { type: "text", text: onboardTokenParam || "checkin" },
+                ],
+              },
+              {
+                type: "button",
+                sub_type: "url",
+                index: "1",
+                parameters: [
+                  { type: "text", text: cleanDeskPhone },
+                ],
+              },
+            ],
+          },
+        };
       } else {
         requestBody = {
           messaging_product: "whatsapp",
@@ -1515,6 +1575,100 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
           body: JSON.stringify(fallbackSubReceiptBody),
         });
         resData = await response.json();
+      }
+
+      // Automatic Graceful Fallback for KYC_CORRECTION_REQUEST: If pg_kyc_correction_actions_v1 is pending approval or fails, fallback to approved pg_self_kyc_invite_actions_v1
+      if (!response.ok && payload.type === "KYC_CORRECTION_REQUEST" && requestBody?.template?.name === "pg_kyc_correction_actions_v1") {
+        console.warn("Notice: pg_kyc_correction_actions_v1 pending approval or error, falling back to approved pg_self_kyc_invite_actions_v1:", resData?.error?.message);
+        const p = payload.params || {};
+        const pName = payload.propertyName || "TenoPilot PG & Living";
+        const rawReason = (p.rejectionReason || p.customMessage || "Please re-upload clear identity documents.").trim();
+        const roomStayWithReason = `${p.roomNumber || "N/A"}${p.bedCode ? ` (${p.bedCode})` : ""} [Correction: ${rawReason.slice(0, 45)}]`;
+        const rawDeskPhone = p.managerPhone || p.propertyPhone || p.ownerPhone || "9206651295";
+        const cleanDeskPhone = rawDeskPhone.replace(/\D/g, "").slice(-10) || "9206651295";
+        const onboardTokenParam = p.onboardUrl ? (p.onboardUrl.split("/self-onboard/")[1] || "") : "";
+        const tariffStr = String(p.amount || "10,000");
+
+        if (onboardTokenParam) {
+          const fallbackKycBody = {
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: formattedPhone,
+            type: "template",
+            template: {
+              name: "pg_self_kyc_invite_actions_v1",
+              language: { code: "en_US" },
+              components: [
+                {
+                  type: "body",
+                  parameters: [
+                    { type: "text", text: pName },
+                    { type: "text", text: payload.recipientName || "Resident" },
+                    { type: "text", text: roomStayWithReason },
+                    { type: "text", text: tariffStr },
+                  ],
+                },
+                {
+                  type: "button",
+                  sub_type: "url",
+                  index: "0",
+                  parameters: [
+                    { type: "text", text: onboardTokenParam },
+                  ],
+                },
+                {
+                  type: "button",
+                  sub_type: "url",
+                  index: "1",
+                  parameters: [
+                    { type: "text", text: cleanDeskPhone },
+                  ],
+                },
+              ],
+            },
+          };
+          response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${metaToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(fallbackKycBody),
+          });
+          resData = await response.json();
+        } else if (p.onboardUrl) {
+          const fallbackLinkBody = {
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: formattedPhone,
+            type: "template",
+            template: {
+              name: "pg_self_kyc_invite_link",
+              language: { code: "en_US" },
+              components: [
+                {
+                  type: "body",
+                  parameters: [
+                    { type: "text", text: pName },
+                    { type: "text", text: payload.recipientName || "Resident" },
+                    { type: "text", text: roomStayWithReason },
+                    { type: "text", text: tariffStr },
+                    { type: "text", text: p.onboardUrl },
+                  ],
+                },
+              ],
+            },
+          };
+          response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${metaToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(fallbackLinkBody),
+          });
+          resData = await response.json();
+        }
       }
 
       if (!response.ok) {
