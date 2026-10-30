@@ -70,7 +70,7 @@ export function PhoneAuthCard({
   // Clean 10 digit Indian number
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(/\D/g, "");
-    const clean = raw.length > 10 ? normalizePhoneNumber(raw) : raw;
+    const clean = raw.slice(0, 10);
     setPhoneNumber(clean);
     setError(null);
   };
@@ -339,7 +339,7 @@ export function PhoneAuthCard({
                 value={phoneNumber}
                 onChange={handlePhoneChange}
                 onPaste={handlePhonePaste}
-                maxLength={16}
+                maxLength={10}
                 disabled={isLoading}
                 className="flex-1 py-3 px-3.5 text-sm font-semibold text-gray-900 placeholder:text-gray-400 focus:outline-hidden tracking-wider bg-transparent"
               />

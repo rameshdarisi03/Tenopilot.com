@@ -40,11 +40,12 @@ export function normalizePhoneNumber(phone: string): string {
     digitsOnly = digitsOnly.slice(4);
   }
   if (digitsOnly.length === 10) return digitsOnly;
-  if (digitsOnly.length === 12 && digitsOnly.startsWith("91")) return digitsOnly.slice(2);
-  if (digitsOnly.length === 13 && digitsOnly.startsWith("091")) return digitsOnly.slice(3);
-  if (digitsOnly.length === 11 && digitsOnly.startsWith("0")) return digitsOnly.slice(1);
+  if (digitsOnly.length === 12 && digitsOnly.startsWith("91")) return digitsOnly.slice(2, 12);
+  if (digitsOnly.length === 13 && digitsOnly.startsWith("091")) return digitsOnly.slice(3, 13);
+  if (digitsOnly.length === 11 && digitsOnly.startsWith("0")) return digitsOnly.slice(1, 11);
   if (digitsOnly.length > 10) {
-    return digitsOnly.slice(-10);
+    // Clamps to the first 10 digits; never chops off leading digits (prevents sliding marquee/treadmill bug)
+    return digitsOnly.slice(0, 10);
   }
   return digitsOnly;
 }

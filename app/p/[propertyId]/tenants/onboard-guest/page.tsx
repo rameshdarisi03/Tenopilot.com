@@ -817,8 +817,9 @@ export default function OnboardGuestPage({
                     />
                     <input
                       type="tel"
+                      inputMode="numeric"
                       required
-                      maxLength={16}
+                      maxLength={10}
                       placeholder="9876543210"
                       value={phone}
                       onPaste={(e) => {
@@ -828,9 +829,7 @@ export default function OnboardGuestPage({
                         setPhone(clean);
                       }}
                       onChange={(e) => {
-                        const digits = e.target.value.replace(/\D/g, "");
-                        const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
-                        setPhone(clean);
+                        setPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
                       }}
                       className={`flex-1 px-3.5 py-3 rounded-xl border font-semibold text-gray-900 text-base md:text-xs focus:ring-1 transition-colors ${
                         phoneConflict
@@ -872,7 +871,8 @@ export default function OnboardGuestPage({
                     />
                     <input
                       type="tel"
-                      maxLength={16}
+                      inputMode="numeric"
+                      maxLength={10}
                       placeholder="9812345678 (Parent/Guardian)"
                       value={emergencyPhone}
                       onPaste={(e) => {
@@ -882,9 +882,7 @@ export default function OnboardGuestPage({
                         setEmergencyPhone(clean);
                       }}
                       onChange={(e) => {
-                        const digits = e.target.value.replace(/\D/g, "");
-                        const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
-                        setEmergencyPhone(clean);
+                        setEmergencyPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
                       }}
                       className="flex-1 px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
                     />

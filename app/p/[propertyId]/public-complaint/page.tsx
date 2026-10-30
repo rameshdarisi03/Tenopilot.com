@@ -339,8 +339,7 @@ export default function PublicTenantComplaintPage({
 
   // Strict As-of-Today Active Resident Verification Input Handler
   const handlePhoneChange = (inputPhone: string) => {
-    const digits = inputPhone.replace(/\D/g, "");
-    const cleanDigits = digits.length > 10 ? normalizePhoneNumber(digits) : digits.slice(0, 10);
+    const cleanDigits = normalizePhoneNumber(inputPhone);
     setTenantPhone(cleanDigits);
 
     if (cleanDigits.length === 10) {
@@ -604,8 +603,9 @@ export default function PublicTenantComplaintPage({
                       <Phone className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
                       <input
                         type="tel"
+                        inputMode="numeric"
                         required
-                        maxLength={16}
+                        maxLength={10}
                         value={tenantPhone}
                         onPaste={(e) => {
                           e.preventDefault();
@@ -908,7 +908,8 @@ export default function PublicTenantComplaintPage({
                 <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
                 <input
                   type="tel"
-                  maxLength={16}
+                  inputMode="numeric"
+                  maxLength={10}
                   value={tenantPhone}
                   onPaste={(e) => {
                     e.preventDefault();

@@ -3575,7 +3575,7 @@ Anil Verma   9812345678   Room 103   12000"
                             <input
                               type="text"
                               inputMode="numeric"
-                              maxLength={16}
+                              maxLength={10}
                               value={row.phone || ""}
                               onFocus={() => setActiveFocusedRow(idx)}
                               onBlur={() => setActiveFocusedRow(null)}
@@ -3587,9 +3587,8 @@ Anil Verma   9812345678   Room 103   12000"
                                 updateRowField(idx, "phone", clean);
                               }}
                               onChange={(e) => {
-                                const digits = e.target.value.replace(/\D/g, "");
-                                const clean = digits.length > 10 ? normalizeIndianPhoneNumber(digits) : digits;
-                                updateRowField(idx, "phone", clean);
+                                const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
+                                updateRowField(idx, "phone", digits);
                               }}
                               placeholder="10-digit mobile *"
                               className={`w-30 px-2.5 py-1.5 rounded-lg border font-mono text-xs focus:ring-1 focus:ring-[#c2652a] ${

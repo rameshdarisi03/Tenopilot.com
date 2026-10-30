@@ -521,9 +521,11 @@ export default function ApexCommandInvitesPage() {
                     </label>
                     <input
                       type="tel"
+                      inputMode="numeric"
                       required
+                      maxLength={10}
                       value={ownerPhone}
-                      onChange={(e) => setOwnerPhone(e.target.value)}
+                      onChange={(e) => setOwnerPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                       placeholder="e.g. 9876543210"
                       className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d0f12] border border-white/10 text-xs font-semibold text-white focus:outline-none focus:border-[#ff5436]"
                     />

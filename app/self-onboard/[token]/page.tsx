@@ -886,8 +886,9 @@ export default function TenantSelfOnboardingPage({
                       </span>
                       <input
                         type="tel"
+                        inputMode="numeric"
                         required
-                        maxLength={16}
+                        maxLength={10}
                         value={phone}
                         onPaste={(e) => {
                           e.preventDefault();
@@ -896,9 +897,7 @@ export default function TenantSelfOnboardingPage({
                           setPhone(clean);
                         }}
                         onChange={(e) => {
-                          const digits = e.target.value.replace(/\D/g, "");
-                          const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
-                          setPhone(clean);
+                          setPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
                         }}
                         placeholder="10-digit mobile number"
                         className={`w-full pl-12 pr-3.5 py-2.5 rounded-xl border font-mono font-bold text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 ${
@@ -981,8 +980,9 @@ export default function TenantSelfOnboardingPage({
                     <div>
                       <input
                         type="tel"
+                        inputMode="numeric"
                         required
-                        maxLength={16}
+                        maxLength={10}
                         value={emergencyPhone}
                         onPaste={(e) => {
                           e.preventDefault();
@@ -991,9 +991,7 @@ export default function TenantSelfOnboardingPage({
                           setEmergencyPhone(clean);
                         }}
                         onChange={(e) => {
-                          const digits = e.target.value.replace(/\D/g, "");
-                          const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
-                          setEmergencyPhone(clean);
+                          setEmergencyPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
                         }}
                         placeholder="10-digit phone number *"
                         className={`w-full px-3.5 py-2 rounded-xl border font-mono font-bold text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a] ${
@@ -1441,8 +1439,9 @@ export default function TenantSelfOnboardingPage({
                     </span>
                     <input
                       type="tel"
+                      inputMode="numeric"
                       required
-                      maxLength={16}
+                      maxLength={10}
                       value={phone}
                       onPaste={(e) => {
                         e.preventDefault();
@@ -1451,9 +1450,7 @@ export default function TenantSelfOnboardingPage({
                         setPhone(clean);
                       }}
                       onChange={(e) => {
-                        const digits = e.target.value.replace(/\D/g, "");
-                        const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
-                        setPhone(clean);
+                        setPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
                       }}
                       placeholder="10-digit mobile number"
                       className={`w-full pl-12 pr-3.5 py-2.5 rounded-xl border font-mono font-bold text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 ${
@@ -1535,8 +1532,9 @@ export default function TenantSelfOnboardingPage({
                     <div>
                       <input
                         type="tel"
+                        inputMode="numeric"
                         required
-                        maxLength={16}
+                        maxLength={10}
                         value={emergencyPhone}
                         onPaste={(e) => {
                           e.preventDefault();
@@ -1545,9 +1543,7 @@ export default function TenantSelfOnboardingPage({
                           setEmergencyPhone(clean);
                         }}
                         onChange={(e) => {
-                          const digits = e.target.value.replace(/\D/g, "");
-                          const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
-                          setEmergencyPhone(clean);
+                          setEmergencyPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
                         }}
                         placeholder="10-digit phone number *"
                         className={`w-full px-3.5 py-2 rounded-xl border font-mono font-bold text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a] ${

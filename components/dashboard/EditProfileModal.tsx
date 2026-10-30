@@ -450,7 +450,8 @@ export function EditProfileModal({
                 </div>
                 <input
                   type="tel"
-                  maxLength={16}
+                  inputMode="numeric"
+                  maxLength={10}
                   value={editPhone}
                   onPaste={(e) => {
                     e.preventDefault();
@@ -460,9 +461,7 @@ export function EditProfileModal({
                     setPhoneError("");
                   }}
                   onChange={(e) => {
-                    const digits = e.target.value.replace(/\D/g, "");
-                    const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
-                    setEditPhone(clean);
+                    setEditPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
                     setPhoneError("");
                   }}
                   placeholder="98765 43210"

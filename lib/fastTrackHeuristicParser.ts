@@ -85,16 +85,16 @@ export function normalizeIndianPhoneNumber(rawPhone: string | number | undefined
   if (digitsOnly.length === 11 && digitsOnly.startsWith("0")) {
     return digitsOnly.slice(1);
   }
-  // If more than 10 digits and starts with 91 or 0, extract the last 10 digits
+  // If more than 10 digits, check for country codes, otherwise clamp to first 10 digits
   if (digitsOnly.length > 10) {
-    if (digitsOnly.startsWith("91") || digitsOnly.startsWith("0")) {
-      return digitsOnly.slice(-10);
+    if (digitsOnly.startsWith("91") && digitsOnly.length <= 13) {
+      return digitsOnly.slice(2, 12);
     }
-    // If ends with 10 digits starting with valid mobile range [6-9]
-    if (/^[6-9]/.test(digitsOnly.slice(-10))) {
-      return digitsOnly.slice(-10);
+    if (digitsOnly.startsWith("0") && digitsOnly.length <= 12) {
+      return digitsOnly.slice(1, 11);
     }
-    return digitsOnly.slice(-10);
+    // Clamps to first 10 digits; never slices from end to prevent input shifting bug
+    return digitsOnly.slice(0, 10);
   }
   return digitsOnly;
 }

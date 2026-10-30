@@ -1845,7 +1845,8 @@ function SelfKycDeskContent({
                     />
                     <input
                       type="tel"
-                      maxLength={16}
+                      inputMode="numeric"
+                      maxLength={10}
                       placeholder="9876543210 (Optional if email entered)"
                       value={inviteCandidatePhone}
                       onPaste={(e) => {
@@ -1855,9 +1856,7 @@ function SelfKycDeskContent({
                         setInviteCandidatePhone(clean);
                       }}
                       onChange={(e) => {
-                        const digits = e.target.value.replace(/\D/g, "");
-                        const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
-                        setInviteCandidatePhone(clean);
+                        setInviteCandidatePhone(e.target.value.replace(/\D/g, "").slice(0, 10));
                       }}
                       className={`flex-1 px-3 py-2.5 rounded-xl border text-xs font-semibold text-gray-900 focus:ring-1 transition-colors ${
                         existingResidentConflict

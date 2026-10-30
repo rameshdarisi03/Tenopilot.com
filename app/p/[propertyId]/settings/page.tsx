@@ -655,7 +655,8 @@ export default function PropertySettingsPage({
                                 <span className="text-[10px] text-gray-500 font-bold">📲 WhatsApp:</span>
                                 <input
                                   type="tel"
-                                  maxLength={16}
+                                  inputMode="numeric"
+                                  maxLength={10}
                                   placeholder="10-digit mobile"
                                   value={partner.phone || ""}
                                   onPaste={(e) => {
@@ -666,8 +667,7 @@ export default function PropertySettingsPage({
                                     setPartners(updated);
                                   }}
                                   onChange={(e) => {
-                                    const digits = e.target.value.replace(/\D/g, "");
-                                    const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
+                                    const clean = e.target.value.replace(/\D/g, "").slice(0, 10);
                                     const updated = partners.map((p) => (p.id === partner.id ? { ...p, phone: clean } : p));
                                     setPartners(updated);
                                   }}
@@ -876,7 +876,8 @@ export default function PropertySettingsPage({
                             <span className="absolute left-3 top-2 text-xs font-bold text-gray-500">+91</span>
                             <input
                               type="tel"
-                              maxLength={16}
+                              inputMode="numeric"
+                              maxLength={10}
                               placeholder="e.g. 9876543210"
                               value={newQrPhone}
                               onPaste={(e) => {
@@ -886,9 +887,7 @@ export default function PropertySettingsPage({
                                 setNewQrPhone(clean);
                               }}
                               onChange={(e) => {
-                                const digits = e.target.value.replace(/\D/g, "");
-                                const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
-                                setNewQrPhone(clean);
+                                setNewQrPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
                               }}
                               className="w-full pl-11 pr-3 py-2 rounded-xl border border-gray-300 text-xs font-mono font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                             />
@@ -1345,8 +1344,9 @@ export default function PropertySettingsPage({
                       </label>
                       <input
                         type="tel"
+                        inputMode="numeric"
                         required
-                        maxLength={16}
+                        maxLength={10}
                         value={settings.managerPhone}
                         onPaste={(e) => {
                           e.preventDefault();
@@ -1355,9 +1355,7 @@ export default function PropertySettingsPage({
                           setSettings({ ...settings, managerPhone: clean });
                         }}
                         onChange={(e) => {
-                          const digits = e.target.value.replace(/\D/g, "");
-                          const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
-                          setSettings({ ...settings, managerPhone: clean });
+                          setSettings({ ...settings, managerPhone: e.target.value.replace(/\D/g, "").slice(0, 10) });
                         }}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                       />

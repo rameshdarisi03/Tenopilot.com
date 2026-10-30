@@ -393,8 +393,7 @@ export default function AdminComplaintsPage({
   };
 
   const handleWalkInPhoneChange = (inputPhone: string) => {
-    const digits = inputPhone.replace(/\D/g, "");
-    const cleanDigits = digits.length > 10 ? normalizePhoneNumber(digits) : digits.slice(0, 10);
+    const cleanDigits = normalizePhoneNumber(inputPhone);
     setLogTenantPhone(cleanDigits);
 
     if (cleanDigits.length === 10) {
@@ -1199,8 +1198,9 @@ export default function AdminComplaintsPage({
                   <Phone className="w-4 h-4 text-gray-400 absolute left-3 top-3 pointer-events-none" />
                   <input
                     type="tel"
+                    inputMode="numeric"
                     required
-                    maxLength={16}
+                    maxLength={10}
                     value={logTenantPhone}
                     onPaste={(e) => {
                       e.preventDefault();

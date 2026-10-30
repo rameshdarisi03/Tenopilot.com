@@ -5106,8 +5106,9 @@ export default function IndividualTenantProfilePage({
                       />
                       <input
                         type="tel"
+                        inputMode="numeric"
                         required
-                        maxLength={16}
+                        maxLength={10}
                         placeholder="9206651295"
                         value={editPhone}
                         onPaste={(e) => {
@@ -5117,9 +5118,7 @@ export default function IndividualTenantProfilePage({
                           setEditPhone(clean);
                         }}
                         onChange={(e) => {
-                          const digits = e.target.value.replace(/\D/g, "");
-                          const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
-                          setEditPhone(clean);
+                          setEditPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
                         }}
                         className="flex-1 px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                       />
@@ -5166,7 +5165,8 @@ export default function IndividualTenantProfilePage({
                       />
                       <input
                         type="tel"
-                        maxLength={16}
+                        inputMode="numeric"
+                        maxLength={10}
                         placeholder="e.g. 9812345678 (Parent/Guardian)"
                         value={editEmergencyPhone}
                         onPaste={(e) => {
@@ -5176,9 +5176,7 @@ export default function IndividualTenantProfilePage({
                           setEditEmergencyPhone(clean);
                         }}
                         onChange={(e) => {
-                          const digits = e.target.value.replace(/\D/g, "");
-                          const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
-                          setEditEmergencyPhone(clean);
+                          setEditEmergencyPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
                         }}
                         className="flex-1 px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                       />

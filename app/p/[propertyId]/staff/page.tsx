@@ -940,7 +940,8 @@ export default function StaffManagementPage({
                   <div className="relative flex-1">
                     <input
                       type="tel"
-                      maxLength={16}
+                      inputMode="numeric"
+                      maxLength={10}
                       value={editPhone}
                       onPaste={(e) => {
                         e.preventDefault();
@@ -949,9 +950,7 @@ export default function StaffManagementPage({
                         setEditPhone(clean);
                       }}
                       onChange={(e) => {
-                        const digits = e.target.value.replace(/\D/g, "");
-                        const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
-                        setEditPhone(clean);
+                        setEditPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
                       }}
                       placeholder="9876543210 (10 digits)"
                       className={`w-full px-3.5 py-2.5 pr-10 rounded-xl border font-medium text-gray-900 focus:ring-2 bg-white text-xs transition-colors ${

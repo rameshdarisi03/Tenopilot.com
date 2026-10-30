@@ -1098,7 +1098,7 @@ function WelcomeOnboardingContent() {
                             <input
                               type="tel"
                               inputMode="numeric"
-                              maxLength={16}
+                              maxLength={10}
                               placeholder="98765 43210"
                               value={phoneInput}
                               onPaste={(e) => {
@@ -1109,9 +1109,7 @@ function WelcomeOnboardingContent() {
                                 setPhoneError(null);
                               }}
                               onChange={(e) => {
-                                const digits = e.target.value.replace(/\D/g, "");
-                                const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
-                                setPhoneInput(clean);
+                                setPhoneInput(e.target.value.replace(/\D/g, "").slice(0, 10));
                                 setPhoneError(null);
                               }}
                               disabled={phoneOtpSent || isSendingPhoneOtp}
