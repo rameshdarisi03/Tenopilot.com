@@ -984,9 +984,16 @@ export default function PropertySetupPage({
                                     ? "grid-cols-4 sm:grid-cols-4"
                                     : "grid-cols-4 sm:grid-cols-5";
 
+                                const sortedBeds = [...(room.beds || [])].sort((a, b) =>
+                                  (a.bedCode || "").localeCompare(b.bedCode || "", undefined, {
+                                    numeric: true,
+                                    sensitivity: "base",
+                                  })
+                                );
+
                                 return (
                                   <div className={`grid ${gridCols} gap-2 pt-1`}>
-                                    {room.beds.map((bed) => {
+                                    {sortedBeds.map((bed) => {
                                       const info = resolveBedSlotInfo(room.roomNumber, bed);
 
                                       return (
