@@ -7,11 +7,12 @@ import { sanitizeForFirestore } from "@/lib/firestoreService";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { action, email, userId, propertyIds = [] } = body;
+    const { action, email, userId, propertyIds = [], selectedPropertyIds = [] } = body;
 
-    if (!action || !["RESET_TENANTS", "RESET_PROPERTY_CONFIG"].includes(action)) {
+    const validActions = ["RESET_TENANTS", "RESET_PROPERTY_CONFIG", "RESET_TENANTS_AND_BEDS"];
+    if (!action || !validActions.includes(action)) {
       return NextResponse.json(
-        { success: false, message: "⚠️ Valid action ('RESET_TENANTS' or 'RESET_PROPERTY_CONFIG') is required." },
+        { success: false, message: "⚠️ Valid action ('RESET_TENANTS', 'RESET_PROPERTY_CONFIG', or 'RESET_TENANTS_AND_BEDS') is required." },
         { status: 400 }
       );
     }
@@ -97,18 +98,116 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const targetProps = Array.from(propertyIdSet);
+    const chosenProps = Array.isArray(selectedPropertyIds) && selectedPropertyIds.length > 0
+      ? selectedPropertyIds.filter(Boolean)
+      : Array.from(propertyIdSet);
+
     let deletedTenantsCount = 0;
     let deletedPhotosCount = 0;
     let resetLayoutsCount = 0;
 
     // Guard against accidentally wiping master demo sandbox if it happens to be in list
-    const validTargetProps = targetProps.filter((pid) => pid && pid !== "sunshine-pg");
+    const validTargetProps = chosenProps.filter((pid: string) => pid && pid !== "sunshine-pg");
 
     if (validTargetProps.length === 0) {
       return NextResponse.json({
         success: false,
         message: "⚠️ No valid properties found to reset for this organization.",
+      });
+    }
+
+    // =========================================================================
+    // ACTION: RESET_TENANTS_AND_BEDS (UNIFIED FASTTRACK CLEAN SLATE)
+    // =========================================================================
+    if (action === "RESET_TENANTS_AND_BEDS") {
+      for (const propId of validTargetProps) {
+        // A. Delete all occupant records and their storage photos/documents
+        try {
+          const occupantsSnap = await getDocs(collection(db, "properties", propId, "occupants"));
+          for (const oDoc of occupantsSnap.docs) {
+            const oData = oDoc.data() as any;
+            const kycUrls = [
+              oData.photoUrl,
+              oData.avatar,
+              oData.aadhaarFrontUrl,
+              oData.aadhaarBackUrl,
+              oData.idProofUrl,
+            ].filter(Boolean);
+
+            for (const kUrl of kycUrls) {
+              try {
+                if (storage && typeof kUrl === "string" && kUrl.includes("firebasestorage")) {
+                  const kycRef = ref(storage, kUrl);
+                  await deleteObject(kycRef);
+                  deletedPhotosCount++;
+                }
+              } catch (storageErr) {
+                // Ignore storage missing errors
+              }
+            }
+
+            // Remove phone index if present
+            if (oData.phone) {
+              const cleanPhone = String(oData.phone).replace(/\D/g, "").slice(-10);
+              if (cleanPhone.length === 10) {
+                try {
+                  await deleteDoc(doc(db, "occupants_by_phone", cleanPhone));
+                } catch {}
+              }
+            }
+
+            await deleteDoc(doc(db, "properties", propId, "occupants", oDoc.id));
+            deletedTenantsCount++;
+          }
+        } catch (e) {
+          console.warn(`Error purging occupants for property ${propId}:`, e);
+        }
+
+        // B. Clear Self-KYC Invites & Submissions if any exist
+        try {
+          const invitesSnap = await getDocs(collection(db, "properties", propId, "self_kyc_invites"));
+          for (const invDoc of invitesSnap.docs) {
+            await deleteDoc(doc(db, "properties", propId, "self_kyc_invites", invDoc.id));
+          }
+        } catch (e) {}
+
+        try {
+          const subsSnap = await getDocs(collection(db, "properties", propId, "self_kyc_submissions"));
+          for (const sDoc of subsSnap.docs) {
+            await deleteDoc(doc(db, "properties", propId, "self_kyc_submissions", sDoc.id));
+          }
+        } catch (e) {}
+
+        // C. Overwrite layout structure with empty floors array explicitly (Ensures reactive UI clears)
+        try {
+          const layoutDocRef = doc(db, `properties/${propId}/layout/structure`);
+          await setDoc(layoutDocRef, {
+            floors: [],
+            updatedAt: new Date().toISOString(),
+          });
+          await deleteDoc(doc(db, `properties/${propId}/layout/floors`));
+          resetLayoutsCount++;
+        } catch (e) {
+          console.warn(`Error resetting layout structure for ${propId}:`, e);
+        }
+
+        // D. Clear property settings / floor configs
+        try {
+          await deleteDoc(doc(db, `properties/${propId}/settings/config`));
+        } catch (e) {
+          console.warn(`Error deleting settings for ${propId}:`, e);
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        action: "RESET_TENANTS_AND_BEDS",
+        deletedTenantsCount,
+        deletedPhotosCount,
+        resetLayoutsCount,
+        propertiesAffected: validTargetProps.length,
+        resetPropertyIds: validTargetProps,
+        message: `Successfully wiped ${deletedTenantsCount} tenant(s), ${deletedPhotosCount} KYC photo(s), and reset layout/bed configuration to a clean slate across ${validTargetProps.length} property(ies).`,
       });
     }
 
@@ -214,9 +313,13 @@ export async function POST(req: NextRequest) {
     // =========================================================================
     if (action === "RESET_PROPERTY_CONFIG") {
       for (const propId of validTargetProps) {
-        // A. Delete layout structure doc or reset to empty
+        // A. Reset layout structure doc to empty floors array
         try {
-          await deleteDoc(doc(db, `properties/${propId}/layout/structure`));
+          const layoutDocRef = doc(db, `properties/${propId}/layout/structure`);
+          await setDoc(layoutDocRef, {
+            floors: [],
+            updatedAt: new Date().toISOString(),
+          });
           await deleteDoc(doc(db, `properties/${propId}/layout/floors`));
           resetLayoutsCount++;
         } catch (e) {

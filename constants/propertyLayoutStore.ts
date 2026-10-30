@@ -258,18 +258,39 @@ export const propertyStore = {
               PROPERTY_LAYOUT_MAP.set(propertyId, normalized);
               if (typeof window !== "undefined") {
                 try {
-                  localStorage.setItem(`tenopilot_layout_${propertyId}`, JSON.stringify(normalized));
+                  if (normalized.length === 0) {
+                    localStorage.removeItem(`tenopilot_layout_${propertyId}`);
+                  } else {
+                    localStorage.setItem(`tenopilot_layout_${propertyId}`, JSON.stringify(normalized));
+                  }
                 } catch {}
               }
               // 🌟 Silently auto-heal Firestore if structure had duplicate/unsorted floors or rooms
-              if (JSON.stringify(normalized) !== JSON.stringify(data)) {
+              if (normalized.length > 0 && JSON.stringify(normalized) !== JSON.stringify(data)) {
                 try {
                   const sanitizedFloors = sanitizeForFirestore(normalized);
                   setDoc(docRef, { floors: sanitizedFloors, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
                 } catch (e) {}
               }
               this.notify();
+            } else {
+              PROPERTY_LAYOUT_MAP.set(propertyId, []);
+              if (typeof window !== "undefined") {
+                try {
+                  localStorage.removeItem(`tenopilot_layout_${propertyId}`);
+                } catch {}
+              }
+              this.notify();
             }
+          } else {
+            // Layout document deleted or cleared
+            PROPERTY_LAYOUT_MAP.set(propertyId, []);
+            if (typeof window !== "undefined") {
+              try {
+                localStorage.removeItem(`tenopilot_layout_${propertyId}`);
+              } catch {}
+            }
+            this.notify();
           }
         },
         (err) => {

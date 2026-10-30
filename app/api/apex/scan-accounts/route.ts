@@ -20,6 +20,7 @@ export interface ScannedAccountRecord {
   propertyIds: string[];
   primaryPropertyName?: string;
   propertyNames?: string[];
+  propertiesDetail?: { id: string; name: string }[];
   city?: string;
   plan?: string;
   totalBeds?: number;
@@ -46,8 +47,39 @@ export async function GET(req: NextRequest) {
     const processedEmails = new Set<string>();
     const processedPhones = new Set<string>();
 
-    // 1. Fetch Portfolio Properties to map properties by ownerEmail / organizationId
+    // 1. Fetch Properties (properties & portfolio_properties) to map properties by ownerEmail / organizationId
     const ownerPropertiesMap = new Map<string, { names: string[]; totalBeds: number; city: string; ids: string[] }>();
+    const globalPropertyNamesById = new Map<string, string>();
+
+    // 1a. Scan primary properties collection
+    try {
+      const livePropsSnap = await getDocs(collection(db, "properties"));
+      livePropsSnap.docs.forEach((d) => {
+        const data = d.data() as any;
+        const name = String(data.name || data.propertyName || data.title || d.id);
+        globalPropertyNamesById.set(d.id, name);
+
+        const ownerEmail = (data.ownerEmail || data.email || "").toLowerCase().trim();
+        const orgId = data.organizationId || "";
+        const ownerUid = data.ownerUid || "";
+        const beds = Number(data.totalBeds) || Number(data.approxBeds) || 40;
+        const city = String(data.city || data.location || "Bengaluru");
+
+        const keysToMap = [ownerEmail, orgId, ownerUid].filter(Boolean);
+        keysToMap.forEach((key) => {
+          const current: { names: string[]; totalBeds: number; city: string; ids: string[] } =
+            ownerPropertiesMap.get(key) || { names: [], totalBeds: 0, city: city, ids: [] };
+          if (!current.names.includes(name)) current.names.push(name);
+          if (!current.ids.includes(d.id)) current.ids.push(d.id);
+          current.totalBeds += beds;
+          ownerPropertiesMap.set(key, current);
+        });
+      });
+    } catch (e) {
+      console.warn("Scanner properties collection fetch warning:", e);
+    }
+
+    // 1b. Scan portfolio_properties collection
     try {
       const propSnap = await getDocs(collection(db, "portfolio_properties"));
       propSnap.docs.forEach((d) => {
@@ -55,6 +87,7 @@ export async function GET(req: NextRequest) {
         const ownerEmail = (data.ownerEmail || "").toLowerCase().trim();
         const orgId = data.organizationId || "";
         const name = String(data.name || data.propertyName || d.id);
+        if (!globalPropertyNamesById.has(d.id)) globalPropertyNamesById.set(d.id, name);
         const beds = Number(data.totalBeds) || Number(data.approxBeds) || 40;
         const city = String(data.city || data.location || "Bengaluru");
 
@@ -290,6 +323,11 @@ export async function GET(req: NextRequest) {
         const city = mappedProps?.city || founderClient?.city || vipInvite?.city || "Bengaluru";
         const totalBeds = mappedProps?.totalBeds || founderClient?.totalBeds || vipInvite?.approxBeds || 40;
 
+        const propertiesDetail = propIds.map((pid) => ({
+          id: pid,
+          name: globalPropertyNamesById.get(pid) || (mappedProps?.names[mappedProps.ids.indexOf(pid)]) || pid,
+        }));
+
         scannedAccounts.push({
           id: d.id,
           userId: d.id,
@@ -307,6 +345,7 @@ export async function GET(req: NextRequest) {
           propertyIds: propIds,
           primaryPropertyName: primaryPropName,
           propertyNames: mappedProps?.names || userPort?.names || (primaryPropName ? [primaryPropName] : []),
+          propertiesDetail: propertiesDetail,
           city: city,
           plan: subEvaluation.plan,
           totalBeds: totalBeds,

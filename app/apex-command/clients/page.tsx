@@ -78,18 +78,11 @@ export default function ApexCommandClientsPage() {
   const [purgeConfirmationInput, setPurgeConfirmationInput] = useState("");
   const [isPurging, setIsPurging] = useState(false);
 
-  // Selected account for Reset Tenants modal
-  const [accountToResetTenants, setAccountToResetTenants] = useState<ScannedAccountRecord | null>(null);
-  const [resetTenantsConfirmInput, setResetTenantsConfirmInput] = useState("");
-  const [isResettingTenants, setIsResettingTenants] = useState(false);
-
-  // Selected account for Reset Property Config modal
-  const [accountToResetConfig, setAccountToResetConfig] = useState<ScannedAccountRecord | null>(null);
-  const [resetConfigConfirmInput, setResetConfigConfirmInput] = useState("");
-  const [isResettingConfig, setIsResettingConfig] = useState(false);
-
-  // Track accounts where Reset Tenants was performed during this session
-  const [tenantsResetMap, setTenantsResetMap] = useState<Record<string, boolean>>({});
+  // Selected account for Unified Reset Tenants & Beds modal
+  const [accountToResetTenantsAndBeds, setAccountToResetTenantsAndBeds] = useState<ScannedAccountRecord | null>(null);
+  const [selectedPropertyIdsToReset, setSelectedPropertyIdsToReset] = useState<string[]>([]);
+  const [resetTenantsAndBedsConfirmInput, setResetTenantsAndBedsConfirmInput] = useState("");
+  const [isResettingTenantsAndBeds, setIsResettingTenantsAndBeds] = useState(false);
 
   // Selected account for 1-Click +10 Days Extension confirmation modal
   const [accountToExtend, setAccountToExtend] = useState<ScannedAccountRecord | null>(null);
@@ -629,29 +622,33 @@ export default function ApexCommandClientsPage() {
     }
   };
 
-  // Handle Reset Tenants Execution
-  const handleExecuteResetTenants = async () => {
-    if (!accountToResetTenants) return;
-    setIsResettingTenants(true);
+  // Handle Unified Reset Tenants & Beds Execution
+  const handleExecuteResetTenantsAndBeds = async () => {
+    if (!accountToResetTenantsAndBeds) return;
+    if (selectedPropertyIdsToReset.length === 0) {
+      triggerToast("⚠️ Please select at least one property to reset.");
+      return;
+    }
+    setIsResettingTenantsAndBeds(true);
 
     try {
       const res = await fetch("/api/apex/reset-organization", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "RESET_TENANTS",
-          email: accountToResetTenants.email,
-          userId: accountToResetTenants.userId,
-          propertyIds: accountToResetTenants.propertyIds,
+          action: "RESET_TENANTS_AND_BEDS",
+          email: accountToResetTenantsAndBeds.email,
+          userId: accountToResetTenantsAndBeds.userId,
+          propertyIds: accountToResetTenantsAndBeds.propertyIds,
+          selectedPropertyIds: selectedPropertyIdsToReset,
         }),
       });
 
       const data = await res.json();
       if (data.success) {
         triggerToast(`✓ ${data.message}`);
-        const emailKey = accountToResetTenants.email.toLowerCase().trim();
-        setTenantsResetMap((prev) => ({ ...prev, [emailKey]: true }));
-        // Update local state tenant count for this account to 0
+        const emailKey = accountToResetTenantsAndBeds.email.toLowerCase().trim();
+        // Update local state tenant and bed counts for this account
         setAccounts((prev) =>
           prev.map((a) =>
             a.email.toLowerCase() === emailKey
@@ -664,47 +661,16 @@ export default function ApexCommandClientsPage() {
             ? { ...prev, totalTenants: 0 }
             : prev
         );
-        setAccountToResetTenants(null);
-        setResetTenantsConfirmInput("");
+        setAccountToResetTenantsAndBeds(null);
+        setSelectedPropertyIdsToReset([]);
+        setResetTenantsAndBedsConfirmInput("");
       } else {
-        triggerToast(`⚠️ Reset Tenants error: ${data.message}`);
+        triggerToast(`⚠️ Reset Tenants & Beds error: ${data.message}`);
       }
     } catch (err: any) {
-      triggerToast(`⚠️ Reset Tenants failed: ${err.message}`);
+      triggerToast(`⚠️ Reset Tenants & Beds failed: ${err.message}`);
     } finally {
-      setIsResettingTenants(false);
-    }
-  };
-
-  // Handle Reset Property Config Execution
-  const handleExecuteResetConfig = async () => {
-    if (!accountToResetConfig) return;
-    setIsResettingConfig(true);
-
-    try {
-      const res = await fetch("/api/apex/reset-organization", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "RESET_PROPERTY_CONFIG",
-          email: accountToResetConfig.email,
-          userId: accountToResetConfig.userId,
-          propertyIds: accountToResetConfig.propertyIds,
-        }),
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        triggerToast(`✓ ${data.message}`);
-        setAccountToResetConfig(null);
-        setResetConfigConfirmInput("");
-      } else {
-        triggerToast(`⚠️ Reset Config error: ${data.message}`);
-      }
-    } catch (err: any) {
-      triggerToast(`⚠️ Reset Config failed: ${err.message}`);
-    } finally {
-      setIsResettingConfig(false);
+      setIsResettingTenantsAndBeds(false);
     }
   };
 
@@ -2947,76 +2913,31 @@ export default function ApexCommandClientsPage() {
                   </button>
                 </div>
 
-                {/* Reset Tenants */}
+                {/* Unified Reset Tenants & Beds */}
                 <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-500/40 flex items-center justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-amber-300">Reset Tenants</h4>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">FastTrack Rescue</span>
+                      <h4 className="font-bold text-amber-300">Reset Tenants & Beds</h4>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">FastTrack Clean Slate</span>
                     </div>
                     <p className="text-[11px] text-amber-200/70 mt-0.5">
-                      Wipes all tenant records and KYC files in Firestore leaving no trace. Resets all room beds to Available/Vacant.
+                      Wipes tenant records, KYC files, and room/bed layout configurations for selected properties. Restores a clean canvas ready for fresh setup or AI import.
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => {
-                      setAccountToResetTenants(selectedCustomer360);
+                      const allPids = selectedCustomer360.propertiesDetail?.map((p) => p.id) || selectedCustomer360.propertyIds || [];
+                      setSelectedPropertyIdsToReset([...allPids]);
+                      setAccountToResetTenantsAndBeds(selectedCustomer360);
                       setSelectedCustomer360(null);
                     }}
-                    className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-md shadow-amber-600/30 shrink-0 cursor-pointer transition-all active:scale-95"
+                    className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-md shadow-amber-600/30 shrink-0 cursor-pointer transition-all active:scale-95 flex items-center gap-1.5"
                   >
-                    Reset Tenants
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Reset Tenants & Beds</span>
                   </button>
                 </div>
-
-                {/* Reset Property Config */}
-                {(() => {
-                  const clientEmail = (selectedCustomer360.email || "").toLowerCase().trim();
-                  const isTenantsReset = Boolean(tenantsResetMap[clientEmail]) || (selectedCustomer360.totalTenants === 0);
-
-                  return (
-                    <div className={`p-4 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
-                      isTenantsReset
-                        ? "bg-purple-950/20 border-purple-500/40 opacity-100"
-                        : "bg-white/[0.02] border-white/5 opacity-40 cursor-not-allowed"
-                    }`}>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className={`font-bold ${isTenantsReset ? "text-purple-300" : "text-gray-400"}`}>Reset Property Config</h4>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                            isTenantsReset
-                              ? "bg-purple-500/20 text-purple-300 border-purple-500/30"
-                              : "bg-white/5 text-gray-500 border-white/10"
-                          }`}>
-                            Layout Wipe
-                          </span>
-                        </div>
-                        <p className={`text-[11px] mt-0.5 ${isTenantsReset ? "text-purple-200/70" : "text-gray-500"}`}>
-                          {isTenantsReset
-                            ? "Wipes floor and room layout configurations. Shows empty layout ready for fresh setup or AI import."
-                            : "🔒 Locked: Perform 'Reset Tenants' first to wipe tenant records before erasing property layout."}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        disabled={!isTenantsReset}
-                        onClick={() => {
-                          if (!isTenantsReset) return;
-                          setAccountToResetConfig(selectedCustomer360);
-                          setSelectedCustomer360(null);
-                        }}
-                        className={`px-4 py-2 rounded-xl font-bold text-xs shrink-0 transition-all ${
-                          isTenantsReset
-                            ? "bg-purple-600 hover:bg-purple-500 text-white shadow-md shadow-purple-600/30 cursor-pointer active:scale-95"
-                            : "bg-gray-800 text-gray-500 border border-white/5 cursor-not-allowed opacity-50"
-                        }`}
-                      >
-                        Reset Property Config
-                      </button>
-                    </div>
-                  );
-                })()}
 
                 {/* Zero-Footprint Deep Purge */}
                 <div className="p-4 rounded-2xl bg-rose-950/30 border border-rose-500/40 flex items-center justify-between gap-3">
@@ -3212,26 +3133,27 @@ export default function ApexCommandClientsPage() {
         </div>
       )}
 
-      {/* Reset Tenants Modal */}
-      {accountToResetTenants && (
+      {/* Unified Reset Tenants & Beds Modal with Multi-Property Checklist */}
+      {accountToResetTenantsAndBeds && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in-50">
-          <div className="w-full max-w-lg bg-[#161b22] border-2 border-amber-500/50 rounded-3xl p-6 sm:p-7 shadow-2xl space-y-5 text-white animate-in zoom-in-95">
+          <div className="w-full max-w-lg bg-[#161b22] border-2 border-amber-500/50 rounded-3xl p-6 sm:p-7 shadow-2xl space-y-5 text-white animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
-                  <Users className="w-6 h-6" />
+                  <Trash2 className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-lg text-white">Reset Tenants</h3>
-                  <p className="text-xs text-amber-300 font-mono">{accountToResetTenants.email}</p>
+                  <h3 className="font-bold text-lg text-white">Reset Tenants & Beds</h3>
+                  <p className="text-xs text-amber-300 font-mono">{accountToResetTenantsAndBeds.email}</p>
                 </div>
               </div>
               <button
                 onClick={() => {
-                  setAccountToResetTenants(null);
-                  setResetTenantsConfirmInput("");
+                  setAccountToResetTenantsAndBeds(null);
+                  setSelectedPropertyIdsToReset([]);
+                  setResetTenantsAndBedsConfirmInput("");
                 }}
-                disabled={isResettingTenants}
+                disabled={isResettingTenantsAndBeds}
                 className="text-gray-400 hover:text-white p-1 cursor-pointer disabled:opacity-50"
               >
                 <X className="w-5 h-5" />
@@ -3241,28 +3163,124 @@ export default function ApexCommandClientsPage() {
             <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-800/40 text-xs text-amber-200 space-y-2">
               <p className="font-bold flex items-center gap-1.5 text-amber-300">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
-                Warning: Zero-Trace Tenant Wipe
+                Warning: Clean-Slate Wipe on Selected Properties
               </p>
               <p className="leading-relaxed">
-                This will atomically wipe all tenant records across this organization&apos;s properties:
+                This will atomically wipe all tenant records, KYC files, and room/bed layout configurations for checked properties:
               </p>
               <ul className="list-disc pl-5 space-y-1 text-gray-300 text-[11px]">
-                <li><strong className="text-white">Firestore Tenants:</strong> Deletes all docs in <code className="text-amber-300">properties/&#123;propertyId&#125;/occupants</code></li>
+                <li><strong className="text-white">Firestore Tenants:</strong> Deletes all docs in <code className="text-amber-300">properties/&#123;id&#125;/occupants</code></li>
                 <li><strong className="text-white">KYC & Storage:</strong> Permanently deletes Aadhaar photos, profile avatars, and ID proofs</li>
-                <li><strong className="text-white">Bed Layout:</strong> Resets all beds in all rooms to <span className="text-emerald-400 font-bold">Vacant / Available</span></li>
-                <li><strong className="text-white">Properties:</strong> {accountToResetTenants.propertyIds.join(", ") || "All owned properties"}</li>
+                <li><strong className="text-white">Room & Bed Layout:</strong> Resets building structure to a clean canvas (<code className="text-purple-300">floors: []</code>)</li>
+                <li><strong className="text-white">Property Map & Setup:</strong> Immediately drops to 0 beds, ready for fresh setup or FastTrack import</li>
+                <li><strong className="text-emerald-400 font-bold">Preservation Guarantee:</strong> Any unchecked property is left 100% untouched.</li>
               </ul>
+            </div>
+
+            {/* Multi-Property Checklist */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <label className="font-bold text-gray-300 flex items-center gap-1.5">
+                  <span>Target Properties</span>
+                  <span className="text-gray-400 font-normal">
+                    ({selectedPropertyIdsToReset.length} of {(accountToResetTenantsAndBeds.propertiesDetail || accountToResetTenantsAndBeds.propertyIds).length} selected)
+                  </span>
+                </label>
+                {(accountToResetTenantsAndBeds.propertiesDetail || accountToResetTenantsAndBeds.propertyIds).length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allIds = (accountToResetTenantsAndBeds.propertiesDetail?.map((p) => p.id)) || accountToResetTenantsAndBeds.propertyIds || [];
+                      if (selectedPropertyIdsToReset.length === allIds.length) {
+                        setSelectedPropertyIdsToReset([]);
+                      } else {
+                        setSelectedPropertyIdsToReset([...allIds]);
+                      }
+                    }}
+                    className="text-[11px] text-amber-400 hover:text-amber-300 underline font-semibold cursor-pointer"
+                  >
+                    {selectedPropertyIdsToReset.length === (accountToResetTenantsAndBeds.propertiesDetail || accountToResetTenantsAndBeds.propertyIds).length
+                      ? "Deselect All"
+                      : "Select All"}
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {(() => {
+                  const propsList = accountToResetTenantsAndBeds.propertiesDetail && accountToResetTenantsAndBeds.propertiesDetail.length > 0
+                    ? accountToResetTenantsAndBeds.propertiesDetail
+                    : accountToResetTenantsAndBeds.propertyIds.map((pid, idx) => ({
+                        id: pid,
+                        name: accountToResetTenantsAndBeds.propertyNames?.[idx] || pid,
+                      }));
+
+                  if (propsList.length === 0) {
+                    return (
+                      <div className="p-3 rounded-xl bg-white/5 text-gray-400 text-xs text-center">
+                        No property IDs associated with this account.
+                      </div>
+                    );
+                  }
+
+                  return propsList.map((prop) => {
+                    const isChecked = selectedPropertyIdsToReset.includes(prop.id);
+                    return (
+                      <div
+                        key={prop.id}
+                        onClick={() => {
+                          setSelectedPropertyIdsToReset((prev) =>
+                            isChecked ? prev.filter((id) => id !== prop.id) : [...prev, prop.id]
+                          );
+                        }}
+                        className={`p-3 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all ${
+                          isChecked
+                            ? "bg-amber-950/30 border-amber-500/50 text-white"
+                            : "bg-white/[0.02] border-white/10 text-gray-400 opacity-60 hover:opacity-90"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {}}
+                            className="w-4 h-4 rounded text-amber-500 focus:ring-amber-500 cursor-pointer accent-amber-500 shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <p className="font-bold text-xs truncate text-white">{prop.name}</p>
+                            <p className="font-mono text-[10px] text-gray-400 truncate">{prop.id}</p>
+                          </div>
+                        </div>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 border ${
+                          isChecked
+                            ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
+                            : "bg-white/5 text-gray-400 border-white/10"
+                        }`}>
+                          {isChecked ? "WILL WIPE" : "PRESERVED"}
+                        </span>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+
+              {selectedPropertyIdsToReset.length === 0 && (
+                <p className="text-[11px] text-rose-400 flex items-center gap-1 mt-1">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Please select at least one property to reset.
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5 text-xs">
               <label className="block text-gray-400">
-                Type <span className="font-bold text-amber-400 font-mono">RESET TENANTS</span> to confirm:
+                Type <span className="font-bold text-amber-400 font-mono">RESET TENANTS AND BEDS</span> to confirm:
               </label>
               <input
                 type="text"
-                value={resetTenantsConfirmInput}
-                onChange={(e) => setResetTenantsConfirmInput(e.target.value.toUpperCase())}
-                placeholder="RESET TENANTS"
+                value={resetTenantsAndBedsConfirmInput}
+                onChange={(e) => setResetTenantsAndBedsConfirmInput(e.target.value.toUpperCase())}
+                placeholder="RESET TENANTS AND BEDS"
                 className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d1117] border border-amber-500/40 text-white font-mono font-bold text-xs focus:ring-2 focus:ring-amber-500"
               />
             </div>
@@ -3271,119 +3289,34 @@ export default function ApexCommandClientsPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setAccountToResetTenants(null);
-                  setResetTenantsConfirmInput("");
+                  setAccountToResetTenantsAndBeds(null);
+                  setSelectedPropertyIdsToReset([]);
+                  setResetTenantsAndBedsConfirmInput("");
                 }}
-                disabled={isResettingTenants}
+                disabled={isResettingTenantsAndBeds}
                 className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-bold text-xs cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={handleExecuteResetTenants}
-                disabled={resetTenantsConfirmInput !== "RESET TENANTS" || isResettingTenants}
+                onClick={handleExecuteResetTenantsAndBeds}
+                disabled={
+                  resetTenantsAndBedsConfirmInput !== "RESET TENANTS AND BEDS" ||
+                  selectedPropertyIdsToReset.length === 0 ||
+                  isResettingTenantsAndBeds
+                }
                 className="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-amber-600/30 transition-all"
               >
-                {isResettingTenants ? (
+                {isResettingTenantsAndBeds ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Wiping Tenants...</span>
+                    <span>Wiping Selected ({selectedPropertyIdsToReset.length})...</span>
                   </>
                 ) : (
                   <>
                     <Trash2 className="w-4 h-4" />
-                    <span>Confirm Reset Tenants</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Reset Property Config Modal */}
-      {accountToResetConfig && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in-50">
-          <div className="w-full max-w-lg bg-[#161b22] border-2 border-purple-500/50 rounded-3xl p-6 sm:p-7 shadow-2xl space-y-5 text-white animate-in zoom-in-95">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-purple-500/20 text-purple-400 flex items-center justify-center shrink-0">
-                  <HardDrive className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-lg text-white">Reset Property Config</h3>
-                  <p className="text-xs text-purple-300 font-mono">{accountToResetConfig.email}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setAccountToResetConfig(null);
-                  setResetConfigConfirmInput("");
-                }}
-                disabled={isResettingConfig}
-                className="text-gray-400 hover:text-white p-1 cursor-pointer disabled:opacity-50"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-purple-950/40 border border-purple-800/40 text-xs text-purple-200 space-y-2">
-              <p className="font-bold flex items-center gap-1.5 text-purple-300">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                Warning: Layout & Floor Configuration Wipe
-              </p>
-              <p className="leading-relaxed">
-                This will completely wipe all floor, room, and bed layout configurations for this organization&apos;s properties:
-              </p>
-              <ul className="list-disc pl-5 space-y-1 text-gray-300 text-[11px]">
-                <li><strong className="text-white">Layout Structure:</strong> Wipes <code className="text-purple-300">properties/&#123;propertyId&#125;/layout/structure</code></li>
-                <li><strong className="text-white">Property Settings:</strong> Clears custom floor counts and default room presets</li>
-                <li><strong className="text-white">Result:</strong> Property layout map will show completely empty, ready for fresh setup or FastTrack AI scan</li>
-                <li><strong className="text-white">Properties:</strong> {accountToResetConfig.propertyIds.join(", ") || "All owned properties"}</li>
-              </ul>
-            </div>
-
-            <div className="space-y-1.5 text-xs">
-              <label className="block text-gray-400">
-                Type <span className="font-bold text-purple-400 font-mono">RESET CONFIG</span> to confirm:
-              </label>
-              <input
-                type="text"
-                value={resetConfigConfirmInput}
-                onChange={(e) => setResetConfigConfirmInput(e.target.value.toUpperCase())}
-                placeholder="RESET CONFIG"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d1117] border border-purple-500/40 text-white font-mono font-bold text-xs focus:ring-2 focus:ring-purple-500"
-              />
-            </div>
-
-            <div className="flex items-center gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setAccountToResetConfig(null);
-                  setResetConfigConfirmInput("");
-                }}
-                disabled={isResettingConfig}
-                className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-bold text-xs cursor-pointer disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleExecuteResetConfig}
-                disabled={resetConfigConfirmInput !== "RESET CONFIG" || isResettingConfig}
-                className="flex-1 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-purple-600/30 transition-all"
-              >
-                {isResettingConfig ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Wiping Config...</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="w-4 h-4" />
-                    <span>Confirm Reset Config</span>
+                    <span>Confirm Reset ({selectedPropertyIdsToReset.length})</span>
                   </>
                 )}
               </button>
