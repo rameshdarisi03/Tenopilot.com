@@ -503,15 +503,16 @@ export function parseRawSpreadsheetText(
   const rawRowsBeforeMerge = parsedCsv.data.filter((r) => r && r.length > 0 && r.some((c) => c && c.trim()));
 
   // Fix accidental comma splits in unquoted currency numbers (e.g. ["Rs. 14", "000"] -> ["Rs. 14000"])
+  // Strictly requires explicit currency indicator (Rs/₹/$) so serial number "#" is NEVER merged with 3-digit room numbers!
   const rawRows = rawRowsBeforeMerge.map((row) => {
     const fixed: string[] = [];
     for (let i = 0; i < row.length; i++) {
       const current = (row[i] || "").trim();
       const next = (row[i + 1] || "").trim();
       const isPhoneLike = /^(?:\+?91|0)?[6-9]\d{8,10}$/.test(current.replace(/[\s\-]/g, ""));
-      const isCurrencyLike = /(?:₹|\$|Rs\.?|INR)/i.test(current) || (/^\d{1,3}$/.test(current) && /^\d{3}(?:\/-)?$/.test(next));
+      const isExplicitCurrency = /(?:₹|\$|Rs\.?|INR)/i.test(current);
 
-      if (!isPhoneLike && isCurrencyLike && /^\d{3}(?:\/-)?$/i.test(next)) {
+      if (!isPhoneLike && isExplicitCurrency && /^\d{1,3}$/.test(current.replace(/[^0-9]/g, "")) && /^\d{3}(?:\/-)?$/i.test(next)) {
         fixed.push(`${current}${next}`);
         i++; // skip next since it's merged
       } else {
@@ -560,12 +561,16 @@ export function parseRawSpreadsheetText(
   const phoneKeywords = /\b(?:mobile\s*number|mobile\s*no|phone\s*number|phone\s*no|contact\s*number|contact\s*no|whatsapp\s*no|cell\s*no|mobile|phone|contact|cell|whatsapp|wp|mob|tel)\b/i;
   const emailKeywords = /\b(?:email|e-mail|mail|gmail|email\s*id|mail\s*id)\b/i;
   const rentPaidKeywords = /\b(?:rent\s*paid|is_paid|paid\?|rent\s*status|payment\s*status|paid\s*status|current\s*rent\s*paid)\b/i;
+  const depositPaidKeywords = /\b(?:deposit\s*paid|dep\s*paid|is_deposit_paid|security\s*paid)\b/i;
   const rentKeywords = /\b(?:monthly\s*rent|rent\s*amount|monthly\s*fee|tariff\s*amount|tariff|bhadha|rent|monthly)\b/i;
   const depositKeywords = /\b(?:security\s*deposit|advance\s*amount|caution\s*deposit|deposit\s*amount|token\s*amount|deposit|advance|security|caution|token|adv|dep|sec\s*dep)\b/i;
   const arrearsKeywords = /\b(?:prior\s*arrears|arrears\s*amount|unpaid\s*dues|old\s*dues|pending\s*dues|arrears|dues|balance|pending\s*amount)\b/i;
   const dateKeywords = /\b(?:joining\s*date|join\s*date|move\s*in\s*date|check\s*in\s*date|entry\s*date|start\s*date|doj|admission\s*date|date\s*of\s*joining|joining|move\s*in|check\s*in|admit|date)\b/i;
   const sharingKeywords = /\b(?:sharing\s*type|room\s*sharing|room\s*type|bed\s*type|occupancy\s*type|sharing|occupancy|capacity|share)\b/i;
   const bedKeywords = /\b(?:bed\s*slot|bed\s*number|bed\s*no|cot\s*no|slot\s*no|cot|bed|slot|berth)\b/i;
+  const workplaceKeywords = /\b(?:workplace|office|company|college|university)\b/i;
+  const professionKeywords = /\b(?:profession|occupation|job|designation)\b/i;
+  const stayTypeKeywords = /\b(?:stay\s*type|type\s*of\s*stay|resident\s*type)\b/i;
 
   for (let rIdx = 0; rIdx < Math.min(rawRows.length, 8); rIdx++) {
     const row = rawRows[rIdx];
@@ -581,11 +586,15 @@ export function parseRawSpreadsheetText(
       if (emailKeywords.test(c)) matchedKeywords++;
       if (rentPaidKeywords.test(c)) matchedKeywords++;
       else if (rentKeywords.test(c)) matchedKeywords++;
-      if (depositKeywords.test(c)) matchedKeywords++;
+      if (depositPaidKeywords.test(c)) matchedKeywords++;
+      else if (depositKeywords.test(c)) matchedKeywords++;
       if (arrearsKeywords.test(c)) matchedKeywords++;
       if (dateKeywords.test(c)) matchedKeywords++;
       if (sharingKeywords.test(c)) matchedKeywords++;
       if (bedKeywords.test(c)) matchedKeywords++;
+      if (workplaceKeywords.test(c)) matchedKeywords++;
+      if (professionKeywords.test(c)) matchedKeywords++;
+      if (stayTypeKeywords.test(c)) matchedKeywords++;
     });
 
     if (matchedKeywords >= 2) {
@@ -601,27 +610,35 @@ export function parseRawSpreadsheetText(
   let roomCol = -1;
   let rentCol = -1;
   let depositCol = -1;
+  let depositPaidCol = -1;
   let dateCol = -1;
   let bedCol = -1;
   let sharingCol = -1;
   let rentPaidCol = -1;
   let arrearsCol = -1;
+  let workplaceCol = -1;
+  let professionCol = -1;
+  let stayTypeCol = -1;
 
   if (headerRowIndex !== -1) {
     const headerRow = rawRows[headerRowIndex];
     headerRow.forEach((cell, idx) => {
       const c = (cell || "").trim();
-      if (nameKeywords.test(c) && !depositKeywords.test(c) && !rentKeywords.test(c) && !arrearsKeywords.test(c)) nameCol = idx;
-      else if (rentPaidKeywords.test(c)) rentPaidCol = idx;
+      if (rentPaidKeywords.test(c)) rentPaidCol = idx;
+      else if (depositPaidKeywords.test(c)) depositPaidCol = idx;
       else if (arrearsKeywords.test(c)) arrearsCol = idx;
-      else if (depositKeywords.test(c)) depositCol = idx;
-      else if (rentKeywords.test(c)) rentCol = idx;
+      else if (depositKeywords.test(c) && !depositPaidKeywords.test(c)) depositCol = idx;
+      else if (rentKeywords.test(c) && !rentPaidKeywords.test(c)) rentCol = idx;
       else if (roomKeywords.test(c)) roomCol = idx;
       else if (phoneKeywords.test(c)) phoneCol = idx;
       else if (emailKeywords.test(c)) emailCol = idx;
       else if (sharingKeywords.test(c)) sharingCol = idx;
       else if (dateKeywords.test(c)) dateCol = idx;
       else if (bedKeywords.test(c)) bedCol = idx;
+      else if (workplaceKeywords.test(c)) workplaceCol = idx;
+      else if (professionKeywords.test(c)) professionCol = idx;
+      else if (stayTypeKeywords.test(c)) stayTypeCol = idx;
+      else if (nameKeywords.test(c) && !depositKeywords.test(c) && !rentKeywords.test(c) && !arrearsKeywords.test(c)) nameCol = idx;
     });
   }
 
@@ -721,7 +738,11 @@ export function parseRawSpreadsheetText(
     let rawDate = dateCol !== -1 ? (row[dateCol] || "").trim() : "";
     let rawBed = bedCol !== -1 ? (row[bedCol] || "").trim() : "";
     let rawRentPaid = rentPaidCol !== -1 ? (row[rentPaidCol] || "").trim() : "";
+    let rawDepositPaid = depositPaidCol !== -1 ? (row[depositPaidCol] || "").trim() : "";
     let rawArrears = arrearsCol !== -1 ? (row[arrearsCol] || "").trim() : "";
+    let rawWorkplace = workplaceCol !== -1 ? (row[workplaceCol] || "").trim() : "";
+    let rawOccupation = professionCol !== -1 ? (row[professionCol] || "").trim() : "";
+    let rawStayType = stayTypeCol !== -1 ? (row[stayTypeCol] || "").trim() : "";
 
     // Compound cell splitting: e.g. "Rahul (9876543210)" in name
     if (rawName && !rawPhone) {
@@ -771,8 +792,10 @@ export function parseRawSpreadsheetText(
     const depositNum = parseIndianCurrencyAmount(rawDeposit, 0);
 
     const cleanDate = normalizeDateToYYYYMMDD(rawDate);
-    const isPaid = /^(?:yes|true|paid|cleared|done)$/i.test(rawRentPaid);
-    const isDepositPaid = true; // Default deposit paid for migrated tenants
+    const isPaid = /^(?:yes|true|paid|cleared|done)/i.test(rawRentPaid);
+    const isDepositPaid = depositPaidCol !== -1
+      ? /^(?:yes|true|paid|cleared|done)/i.test(rawDepositPaid)
+      : true; // Default deposit paid if column absent
     const arrearsNum = parseIndianCurrencyAmount(rawArrears, 0);
     const cleanEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) ? rawEmail.toLowerCase() : "";
 
@@ -797,6 +820,9 @@ export function parseRawSpreadsheetText(
       isCurrentMonthRentPaid: isPaid,
       isSecurityDepositPaid: isDepositPaid,
       priorArrearsAmount: arrearsNum,
+      workplace: rawWorkplace || undefined,
+      occupation: rawOccupation || undefined,
+      stayType: rawStayType && rawStayType.toLowerCase().includes("guest") ? "Guest" : "Tenant",
       isValid: false,
       warnings: [],
       rawSource: rawLine,
