@@ -1095,7 +1095,13 @@ export function getBedOccupantsTimeline(
   const matching = allOccupants.filter((occ) => {
     const occRoom = (occ.roomNumber || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     const occBed = (occ.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    return occRoom === cleanRoom && occBed === cleanBed && occ.lifecycleStatus !== "Past";
+    
+    // Strict Bed Binding: An occupant with an assigned bedCode ONLY matches that exact bed
+    // If an occupant has no bedCode, they only match Bed A (never floating into Bed B/C)
+    const isPrimaryBed = cleanBed === "beda" || cleanBed === "bed1" || cleanBed === "a" || cleanBed === "1";
+    const bedMatches = occBed ? occBed === cleanBed : isPrimaryBed;
+
+    return occRoom === cleanRoom && bedMatches && occ.lifecycleStatus !== "Past";
   });
 
   const now = new Date();
@@ -1118,7 +1124,9 @@ export function getBedOccupantsTimeline(
     (bed.occupant &&
      bed.occupant.lifecycleStatus !== "Booked" &&
      bed.occupant.lifecycleStatus !== "Past" &&
-     (!bed.occupant.bedCode || (bed.occupant.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "") === cleanBed)
+     (bed.occupant.bedCode
+       ? (bed.occupant.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "") === cleanBed
+       : cleanBed === "beda" || cleanBed === "bed1" || cleanBed === "a" || cleanBed === "1")
       ? bed.occupant
       : undefined);
 

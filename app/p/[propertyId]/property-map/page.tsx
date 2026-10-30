@@ -335,40 +335,21 @@ function PropertyMapContent({
     return { total, available, occupied, vacating, booked, guest };
   }, [propertyGrid, propertyId, kycSubmissions, kycInvites]);
 
-  // Exact SVG Donut Ring Arc Calculations (Zero grey gaps - 100% split between color arcs)
-  const ringArcs = useMemo(() => {
+  // Seamless Donut Ring Gradient (100% circular, zero overlapping stroke caps, zero jagged notches)
+  const donutConicGradient = useMemo(() => {
     const total = bedCounts.total || 1;
-    const circumference = 238.76;
+    const occDeg = (bedCounts.occupied / total) * 360;
+    const availDeg = occDeg + (bedCounts.available / total) * 360;
+    const vacDeg = availDeg + (bedCounts.vacating / total) * 360;
+    const bookedDeg = vacDeg + (bedCounts.booked / total) * 360;
 
-    const pOccupied = (bedCounts.occupied / total) * circumference;
-    const pAvailable = (bedCounts.available / total) * circumference;
-    const pVacating = (bedCounts.vacating / total) * circumference;
-    const pBooked = (bedCounts.booked / total) * circumference;
-    const pGuest = (bedCounts.guest / total) * circumference;
-
-    let offset = 0;
-    const oOccupied = offset;
-    offset -= pOccupied;
-
-    const oAvailable = offset;
-    offset -= pAvailable;
-
-    const oVacating = offset;
-    offset -= pVacating;
-
-    const oBooked = offset;
-    offset -= pBooked;
-
-    const oGuest = offset;
-
-    return {
-      circumference,
-      occupied: { dash: `${pOccupied} ${circumference - pOccupied}`, offset: oOccupied },
-      available: { dash: `${pAvailable} ${circumference - pAvailable}`, offset: oAvailable },
-      vacating: { dash: `${pVacating} ${circumference - pVacating}`, offset: oVacating },
-      booked: { dash: `${pBooked} ${circumference - pBooked}`, offset: oBooked },
-      guest: { dash: `${pGuest} ${circumference - pGuest}`, offset: oGuest },
-    };
+    return `conic-gradient(
+      #c2652a 0deg ${occDeg}deg,
+      #10b981 ${occDeg}deg ${availDeg}deg,
+      #f97316 ${availDeg}deg ${vacDeg}deg,
+      #3b82f6 ${vacDeg}deg ${bookedDeg}deg,
+      #a855f7 ${bookedDeg}deg 360deg
+    )`;
   }, [bedCounts]);
 
   // Filtered Floors & Rooms according to Floor, Room, Status Pill, and In-Page Search
@@ -398,6 +379,7 @@ function PropertyMapContent({
 
             return {
               ...rm,
+              totalPhysicalBeds: rm.beds ? rm.beds.length : (rm.sharingType || 2),
               beds: sortedBeds.filter((bd) => {
                 const timeline = getBedOccupantsTimeline(rm.roomNumber, bd.bedCode, bd, propertyId);
                 let primaryOcc =
@@ -713,68 +695,20 @@ function PropertyMapContent({
               </div>
             </div>
 
-            {/* Right: Native SVG Donut Ring Chart */}
+            {/* Right: Seamless Donut Ring Chart */}
             <div className="relative flex items-center justify-center shrink-0 w-36 h-36">
-              <svg className="w-36 h-36 -rotate-90" viewBox="0 0 100 100">
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="38"
-                  stroke="#c2652a"
-                  strokeWidth="11"
-                  strokeDasharray={ringArcs.occupied.dash}
-                  strokeDashoffset={ringArcs.occupied.offset}
-                  fill="transparent"
-                />
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="38"
-                  stroke="#10b981"
-                  strokeWidth="11"
-                  strokeDasharray={ringArcs.available.dash}
-                  strokeDashoffset={ringArcs.available.offset}
-                  fill="transparent"
-                />
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="38"
-                  stroke="#f97316"
-                  strokeWidth="11"
-                  strokeDasharray={ringArcs.vacating.dash}
-                  strokeDashoffset={ringArcs.vacating.offset}
-                  fill="transparent"
-                />
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="38"
-                  stroke="#3b82f6"
-                  strokeWidth="11"
-                  strokeDasharray={ringArcs.booked.dash}
-                  strokeDashoffset={ringArcs.booked.offset}
-                  fill="transparent"
-                />
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="38"
-                  stroke="#a855f7"
-                  strokeWidth="11"
-                  strokeDasharray={ringArcs.guest.dash}
-                  strokeDashoffset={ringArcs.guest.offset}
-                  fill="transparent"
-                />
-              </svg>
-
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span suppressHydrationWarning className="font-serif text-2xl font-bold text-gray-900 leading-none">
-                  {bedCounts.total}
-                </span>
-                <span className="text-[9px] uppercase font-bold text-gray-400 tracking-wider mt-0.5">
-                  BEDS TOTAL
-                </span>
+              <div
+                className="w-36 h-36 rounded-full flex items-center justify-center p-3.5 shadow-2xs"
+                style={{ background: donutConicGradient }}
+              >
+                <div className="w-full h-full bg-white rounded-full flex flex-col items-center justify-center text-center shadow-xs">
+                  <span suppressHydrationWarning className="font-serif text-2xl font-bold text-gray-900 leading-none">
+                    {bedCounts.total}
+                  </span>
+                  <span className="text-[9px] uppercase font-bold text-gray-400 tracking-wider mt-0.5">
+                    BEDS TOTAL
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -817,7 +751,7 @@ function PropertyMapContent({
                       </span>
                     </div>
                     <span className="text-xs font-bold text-gray-400">
-                      {floor.rooms.reduce((a, b) => a + b.beds.length, 0)} BEDS TOTAL ({floor.floorName.toLowerCase()})
+                      {floor.totalBeds || floor.rooms.reduce((a, b) => a + ((b as any).totalPhysicalBeds || b.beds.length), 0)} BEDS TOTAL ({floor.floorName.toLowerCase()})
                     </span>
                   </div>
 
@@ -835,7 +769,7 @@ function PropertyMapContent({
                               Room {room.roomNumber}
                             </h3>
                             <span className="text-[10px] text-gray-400 uppercase font-bold">
-                              TOTAL BEDS: {room.beds.length}
+                              TOTAL BEDS: {(room as any).totalPhysicalBeds || room.sharingType || room.beds.length}
                             </span>
                           </div>
                           <span className="bg-orange-100 text-orange-800 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
