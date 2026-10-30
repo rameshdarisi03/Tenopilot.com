@@ -1057,10 +1057,6 @@ function PropertyMapContent({
                                         <>
                                           {isKycSubPending ? (
                                             <span className="text-[8.5px] font-bold px-2 py-0.5 rounded-full mt-0.5 truncate max-w-full bg-blue-600 text-white shadow-md flex items-center justify-center gap-1 animate-kyc-buzz cursor-pointer">
-                                              <span className="relative flex h-2 w-2 shrink-0">
-                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-                                              </span>
                                               <span className="animate-bell-wobble">🔔</span>
                                               <span className="tracking-wide">KYC Review Pending</span>
                                             </span>
