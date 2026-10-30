@@ -35,21 +35,33 @@ export function sanitizeSearchInput(input: string): string {
  */
 export function normalizePhoneNumber(phone: string): string {
   if (!phone) return "";
-  const digitsOnly = String(phone).replace(/\D/g, "");
+  let digitsOnly = String(phone).replace(/\D/g, "");
+  if (digitsOnly.length === 14 && digitsOnly.startsWith("9191")) {
+    digitsOnly = digitsOnly.slice(4);
+  }
   if (digitsOnly.length === 10) return digitsOnly;
   if (digitsOnly.length === 12 && digitsOnly.startsWith("91")) return digitsOnly.slice(2);
   if (digitsOnly.length === 13 && digitsOnly.startsWith("091")) return digitsOnly.slice(3);
   if (digitsOnly.length === 11 && digitsOnly.startsWith("0")) return digitsOnly.slice(1);
   if (digitsOnly.length > 10) {
-    if (digitsOnly.startsWith("91") || digitsOnly.startsWith("0")) {
-      return digitsOnly.slice(-10);
-    }
-    if (/^[6-9]/.test(digitsOnly.slice(-10))) {
-      return digitsOnly.slice(-10);
-    }
     return digitsOnly.slice(-10);
   }
   return digitsOnly;
+}
+
+/**
+ * Formats a phone number for clean UI presentation (e.g. '+91 9206651295').
+ * Strips duplicate country code prefixes ('+91 91...', '9191...') and guarantees standard format.
+ */
+export function formatDisplayPhone(phone?: string | null, countryCode = "+91"): string {
+  if (!phone) return "";
+  const clean10 = normalizePhoneNumber(phone);
+  if (clean10 && clean10.length === 10) {
+    const cc = (countryCode || "+91").trim();
+    const cleanCc = cc.startsWith("+") ? cc : `+${cc}`;
+    return `${cleanCc} ${clean10}`;
+  }
+  return phone;
 }
 
 /**

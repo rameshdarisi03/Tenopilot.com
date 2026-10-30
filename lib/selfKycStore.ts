@@ -25,6 +25,7 @@ import {
   sanitizeEmailAddress,
   sanitizeVehicleNumber,
   validateBase64Attachment,
+  normalizePhoneNumber,
 } from "@/utils/security";
 
 export interface SelfKycSubmission {
@@ -623,11 +624,15 @@ export const selfKycStore = {
     const cleanFront = rawSubmission.aadhaarFrontUrl ? validateBase64Attachment(rawSubmission.aadhaarFrontUrl) : null;
     const cleanBack = rawSubmission.aadhaarBackUrl ? validateBase64Attachment(rawSubmission.aadhaarBackUrl) : null;
 
+    const cleanPhone = normalizePhoneNumber(rawSubmission.phone) || sanitizeDigitsOnly(rawSubmission.phone, 10);
+    const cleanCountryCode = (rawSubmission.countryCode || "+91").trim();
+    const normalizedCc = cleanCountryCode.startsWith("+") ? cleanCountryCode : `+${cleanCountryCode}`;
+
     const submission: SelfKycSubmission = {
       ...rawSubmission,
       name: sanitizePlainText(rawSubmission.name, 100),
-      phone: sanitizeDigitsOnly(rawSubmission.phone, 15),
-      countryCode: rawSubmission.countryCode || "+91",
+      phone: cleanPhone,
+      countryCode: normalizedCc,
       email: rawSubmission.email ? sanitizeEmailAddress(rawSubmission.email) : undefined,
       workplace: rawSubmission.workplace ? sanitizePlainText(rawSubmission.workplace, 150) : undefined,
       occupation: rawSubmission.occupation ? sanitizePlainText(rawSubmission.occupation, 100) : undefined,
@@ -635,7 +640,7 @@ export const selfKycStore = {
       address: rawSubmission.address ? sanitizePlainText(rawSubmission.address, 300) : undefined,
       emergencyContact: {
         name: sanitizePlainText(rawSubmission.emergencyContact?.name || "Emergency Contact", 100),
-        phone: sanitizeDigitsOnly(rawSubmission.emergencyContact?.phone || "", 15),
+        phone: normalizePhoneNumber(rawSubmission.emergencyContact?.phone || "") || sanitizeDigitsOnly(rawSubmission.emergencyContact?.phone || "", 10),
         relation: rawSubmission.emergencyContact?.relation ? sanitizePlainText(rawSubmission.emergencyContact.relation, 50) : undefined,
       },
       vehicleNumbers: rawSubmission.vehicleNumbers?.map((v) => sanitizeVehicleNumber(v)).filter(Boolean),
@@ -728,15 +733,16 @@ export const selfKycStore = {
 
     // Create unique occupant ID
     const newOccupantId = `occ-${Date.now()}`;
-    const cleanPrimaryPhone = submission.phone.replace(/\D/g, "");
-    const cleanCountryCode = submission.countryCode || "+91";
+    const cleanPrimaryPhone = normalizePhoneNumber(submission.phone);
+    const cleanCountryCode = (submission.countryCode || "+91").trim();
+    const normalizedCc = cleanCountryCode.startsWith("+") ? cleanCountryCode : `+${cleanCountryCode}`;
 
     const newResident: Occupant = {
       id: newOccupantId,
       name: submission.name.trim(),
       avatar: submission.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(submission.name)}`,
-      phone: `${cleanCountryCode} ${cleanPrimaryPhone}`,
-      countryCode: cleanCountryCode,
+      phone: `${normalizedCc} ${cleanPrimaryPhone}`,
+      countryCode: normalizedCc,
       email: submission.email?.trim() || `${cleanPrimaryPhone}@resident.tenopilot.com`,
       stayType: submission.stayType,
       roomNumber: submission.roomNumber,
@@ -755,7 +761,7 @@ export const selfKycStore = {
       aadhaarNumber: submission.aadhaarNumber || "",
       emergencyContact: {
         name: submission.emergencyContact?.name || "Parent / Guardian",
-        phone: submission.emergencyContact?.phone || "",
+        phone: normalizePhoneNumber(submission.emergencyContact?.phone || "") || submission.emergencyContact?.phone || "",
         relation: submission.emergencyContact?.relation || "Family",
       },
       kycVerified: true,

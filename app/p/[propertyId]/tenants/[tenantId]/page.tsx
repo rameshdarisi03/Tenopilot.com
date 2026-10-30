@@ -33,7 +33,7 @@ import { complianceLogStore } from "@/constants/complianceLogStore";
 import { sanitizeOccupantForCompliance } from "@/utils/dpdpRetentionEngine";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
 import { generateReceiptNumber } from "@/lib/invoiceNumberEngine";
-import { buildWhatsAppUrl, sanitizeVehicleNumber, normalizePhoneNumber } from "@/utils/security";
+import { buildWhatsAppUrl, sanitizeVehicleNumber, normalizePhoneNumber, formatDisplayPhone } from "@/utils/security";
 import { generatePayToken } from "@/lib/paymentToken";
 import { RentReceiptModal } from "@/components/RentReceiptModal";
 import { VoidReceiptModal } from "@/components/dashboard/VoidReceiptModal";
@@ -185,13 +185,18 @@ function parsePhoneAndCountryCode(rawPhone?: string, existingCountryCode?: strin
     } else if (national.startsWith(cleanCc.replace("+", ""))) {
       national = national.slice(cleanCc.length - 1).trim();
     }
+    const clean10 = normalizePhoneNumber(national);
     return {
       countryCode: cleanCc,
-      nationalNumber: national.replace(/\D/g, ""),
+      nationalNumber: clean10 || national.replace(/\D/g, ""),
     };
   }
 
   const trimmed = (rawPhone || "").trim();
+  const clean10 = normalizePhoneNumber(trimmed);
+  if (clean10 && clean10.length === 10) {
+    return { countryCode: "+91", nationalNumber: clean10 };
+  }
 
   // If starts with + (e.g. "+91 9206651295" or "+919206651295" or "+1 5551234567")
   if (trimmed.startsWith("+")) {
@@ -199,7 +204,8 @@ function parsePhoneAndCountryCode(rawPhone?: string, existingCountryCode?: strin
     if (parts.length >= 2) {
       const cc = parts[0].startsWith("+") ? parts[0] : `+${parts[0]}`;
       const national = parts.slice(1).join("").replace(/\D/g, "");
-      return { countryCode: cc, nationalNumber: national };
+      const cleanNational = normalizePhoneNumber(national);
+      return { countryCode: cc, nationalNumber: cleanNational || national };
     }
 
     // No space between + and digits: e.g. "+919206651295"
@@ -2858,24 +2864,24 @@ export default function IndividualTenantProfilePage({
                   <div className="flex justify-between items-center">
                     <span className="text-gray-500 font-medium">Phone</span>
                     <a
-                      href={`tel:${occupantState.phone.replace(/\s+/g, "")}`}
+                      href={`tel:${normalizePhoneNumber(occupantState.phone).length === 10 ? `+91${normalizePhoneNumber(occupantState.phone)}` : occupantState.phone.replace(/\s+/g, "")}`}
                       onClick={(e) => handlePhoneLinkClick(e, occupantState.phone)}
                       className="font-bold text-gray-900 hover:text-[#c2652a] hover:underline flex items-center gap-1 transition-colors cursor-pointer"
                       title="Click to dial on phone or copy on desktop"
                     >
-                      <Phone className="w-3.5 h-3.5 text-[#c2652a]" /> {occupantState.phone}
+                      <Phone className="w-3.5 h-3.5 text-[#c2652a]" /> {formatDisplayPhone(occupantState.phone, occupantState.countryCode)}
                     </a>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-gray-500 font-medium">Emergency Contact</span>
                     {occupantState.emergencyContact?.phone ? (
                       <a
-                        href={`tel:${occupantState.emergencyContact.phone.replace(/\s+/g, "")}`}
+                        href={`tel:${normalizePhoneNumber(occupantState.emergencyContact.phone).length === 10 ? `+91${normalizePhoneNumber(occupantState.emergencyContact.phone)}` : occupantState.emergencyContact.phone.replace(/\s+/g, "")}`}
                         onClick={(e) => handlePhoneLinkClick(e, occupantState.emergencyContact.phone)}
                         className="font-bold text-gray-900 hover:text-rose-600 hover:underline flex items-center gap-1 transition-colors cursor-pointer"
                         title="Click to dial on phone or copy on desktop"
                       >
-                        <PhoneCall className="w-3.5 h-3.5 text-rose-500" /> {occupantState.emergencyContact.phone}
+                        <PhoneCall className="w-3.5 h-3.5 text-rose-500" /> {formatDisplayPhone(occupantState.emergencyContact.phone)}
                       </a>
                     ) : (
                       <span className="text-gray-400 font-normal italic text-xs">Not Provided</span>

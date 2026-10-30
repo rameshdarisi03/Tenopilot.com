@@ -1,4 +1,5 @@
 import { saveOccupantToFirestore, deleteOccupantFromFirestore } from "@/lib/firestoreService";
+import { normalizePhoneNumber } from "@/utils/security";
 
 export interface PaymentHistoryItem {
   id: string;
@@ -429,6 +430,20 @@ export const occupantStore = {
               updated.arrearsBalance = 0;
               mutated = true;
             }
+            // Fix double country code or unnormalized phone numbers (e.g. "+91 919206651295" -> "+91 9206651295")
+            if (updated.phone) {
+              const clean10 = normalizePhoneNumber(updated.phone);
+              if (clean10 && clean10.length === 10) {
+                const cc = (updated.countryCode || "+91").trim();
+                const cleanCc = cc.startsWith("+") ? cc : `+${cc}`;
+                const correctPhone = `${cleanCc} ${clean10}`;
+                if (updated.phone !== correctPhone) {
+                  updated.phone = correctPhone;
+                  mutated = true;
+                  if (propertyId) saveOccupantToFirestore(propertyId, updated).catch(console.warn);
+                }
+              }
+            }
             return updated;
           });
           if (mutated) {
@@ -451,14 +466,31 @@ export const occupantStore = {
       (o) => !LEGACY_PURGE_KEYS.some((key) => o.id.startsWith(key) || o.id === key)
     );
 
+    const sanitizedFirestoreList = filteredFirestoreList.map((o) => {
+      let updated = { ...o };
+      if (updated.phone) {
+        const clean10 = normalizePhoneNumber(updated.phone);
+        if (clean10 && clean10.length === 10) {
+          const cc = (updated.countryCode || "+91").trim();
+          const cleanCc = cc.startsWith("+") ? cc : `+${cc}`;
+          const correctPhone = `${cleanCc} ${clean10}`;
+          if (updated.phone !== correctPhone) {
+            updated.phone = correctPhone;
+            if (propertyId) saveOccupantToFirestore(propertyId, updated).catch(console.warn);
+          }
+        }
+      }
+      return updated;
+    });
+
     if (propertyId) {
-      PROPERTY_OCCUPANTS_MAP.set(propertyId, filteredFirestoreList);
+      PROPERTY_OCCUPANTS_MAP.set(propertyId, sanitizedFirestoreList);
     }
 
     if (typeof window !== "undefined" && propertyId) {
       try {
         const savedKey = `tenopilot_occupants_${propertyId}`;
-        localStorage.setItem(savedKey, JSON.stringify(filteredFirestoreList));
+        localStorage.setItem(savedKey, JSON.stringify(sanitizedFirestoreList));
       } catch (e) {
         console.warn("Failed to update cache with Cloud Firestore SSOT:", e);
       }

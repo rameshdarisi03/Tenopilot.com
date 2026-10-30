@@ -492,7 +492,7 @@ export default function TenantSelfOnboardingPage({
         guestCheckoutDate: invite.stayType === "Guest" ? guestCheckoutDate : undefined,
         joiningDate: joiningDate || new Date().toISOString().split("T")[0],
         name: cleanName,
-        phone: invite.candidatePhone || `+91 ${cleanCandPhone}`,
+        phone: cleanCandPhone,
         countryCode: "+91",
         email: email.trim() ? sanitizeEmailAddress(email) : undefined,
         emergencyContact: {

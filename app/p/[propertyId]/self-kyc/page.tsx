@@ -52,7 +52,7 @@ import { propertyStore } from "@/constants/propertyLayoutStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { SelfKycDeskStandeeModal } from "@/components/SelfKycDeskStandeeModal";
-import { buildWhatsAppUrl, normalizePhoneNumber } from "@/utils/security";
+import { buildWhatsAppUrl, normalizePhoneNumber, formatDisplayPhone } from "@/utils/security";
 import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
 import { getCanonicalPortalOrigin } from "@/utils/urlUtils";
 import { useAuth } from "@/providers/AuthProvider";
@@ -511,7 +511,7 @@ function SelfKycDeskContent({
       triggerToast("Please select an available room and bed.", "error");
       return;
     }
-    const cleanPhone = inviteCandidatePhone.replace(/\D/g, "");
+    const cleanPhone = normalizePhoneNumber(inviteCandidatePhone);
     const cleanEmail = inviteCandidateEmail.trim().toLowerCase();
 
     if (!cleanPhone && !cleanEmail) {
@@ -1450,7 +1450,7 @@ function SelfKycDeskContent({
                               {sub.name}
                             </h4>
                             <p className="text-xs text-gray-500 font-mono truncate">
-                              {sub.phone}
+                              {formatDisplayPhone(sub.phone, sub.countryCode)}
                             </p>
                             <span className="text-[10px] text-gray-400 block mt-0.5">
                               {sub.submissionType === "WALK_IN_QR" ? "Lobby QR Scan" : "Invite Link"}
@@ -1571,7 +1571,7 @@ function SelfKycDeskContent({
                               </div>
                             </td>
                             <td className="py-3.5 px-4 font-mono font-semibold text-gray-700">
-                              {sub.phone}
+                              {formatDisplayPhone(sub.phone, sub.countryCode)}
                             </td>
                             <td className="py-3.5 px-4 font-bold text-gray-900">
                               Room {sub.roomNumber} ({formatBedLabel(sub.bedCode)})
@@ -2091,7 +2091,7 @@ function SelfKycDeskContent({
                       <div className="flex justify-between items-center">
                         <span className="text-gray-500 font-medium">Primary Mobile:</span>
                         <div className="flex items-center gap-1.5">
-                          <span className="font-mono font-bold text-gray-900">{activeReviewSubmission.phone}</span>
+                          <span className="font-mono font-bold text-gray-900">{formatDisplayPhone(activeReviewSubmission.phone, activeReviewSubmission.countryCode)}</span>
                           {isPhoneDifferent && (
                             <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300">
                               ⚠️ Form mismatch
@@ -2139,7 +2139,7 @@ function SelfKycDeskContent({
                       <div className="flex justify-between items-center pt-1 border-t border-gray-100">
                         <span className="text-gray-500 font-medium">Emergency Contact:</span>
                         <span className="font-mono font-bold text-rose-700">
-                          {activeReviewSubmission.emergencyContact?.phone || "Not Provided"}
+                          {formatDisplayPhone(activeReviewSubmission.emergencyContact?.phone) || "Not Provided"}
                         </span>
                       </div>
                       {activeReviewSubmission.workplace && (

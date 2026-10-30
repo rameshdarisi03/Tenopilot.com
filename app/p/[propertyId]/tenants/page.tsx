@@ -13,7 +13,7 @@ import { runAutoCheckInEngine } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore, DEFAULT_QR_PROFILES, PaymentQRProfile, PAY_BY_CASH_PROFILE } from "@/constants/propertySettings";
 import { partnerStore, PaymentAccountConfig, PartnerConfig } from "@/constants/partnerStore";
 import { subscribeOccupantsFromFirestore, saveOccupantToFirestore, updateOccupantInFirestore, deleteOccupantFromFirestore, purgeAllMockOccupantsFromFirestore, isGenuineOccupantId } from "@/lib/firestoreService";
-import { sanitizeSearchInput, normalizePhoneNumber, formatWhatsAppPhone, buildWhatsAppUrl, sanitizeVehicleNumber } from "@/utils/security";
+import { sanitizeSearchInput, normalizePhoneNumber, formatWhatsAppPhone, formatDisplayPhone, buildWhatsAppUrl, sanitizeVehicleNumber } from "@/utils/security";
 import { calculateOccupantFinancialStatement, calculateProRataRent, resolveOccupantLastPaidInfo, resolveOccupantPaymentDueDate, parseOccupantDate } from "@/utils/domainSSOT";
 import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot, doc, setDoc, getDoc } from "firebase/firestore";
@@ -2668,7 +2668,7 @@ export default function TenantsDirectoryPage({
                                 </span>
                               ) : (
                                 <span className="text-[10px] text-gray-500 font-mono block">
-                                  📞 {occ.phone}
+                                  📞 {formatDisplayPhone(occ.phone, occ.countryCode)}
                                 </span>
                               )}
                               {(() => {
