@@ -26,8 +26,11 @@ import {
   canonicalBedKey,
   normalizeRoomNumber,
   matchesTenoPilotSearch,
+  calculateOccupantFinancialStatement,
 } from "@/utils/domainSSOT";
 import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
+import { AnimatedNumberCounter } from "@/components/motion/AnimatedNumberCounter";
+import { MagneticGlowCard } from "@/components/motion/MagneticGlowCard";
 import {
   ChevronLeft,
   Settings,
@@ -57,6 +60,10 @@ import {
   AlertTriangle,
   RotateCcw,
   Send,
+  Clock,
+  Users,
+  ArrowUpDown,
+  Banknote,
 } from "lucide-react";
 
 import { selfKycStore, SelfKycSubmission, SelfKycInvite } from "@/lib/selfKycStore";
@@ -216,11 +223,11 @@ function PropertyMapContent({
     }
   }, [propertyId, kycInvites, kycSubmissions]);
 
-  // Filters state (Hold is now unified into Booked)
+  // Filters state (Hold is now unified into Booked, Financial filters: Due & Overdue)
   const [selectedFloor, setSelectedFloor] = useState<string>("ALL FLOORS");
   const [selectedRoom, setSelectedRoom] = useState<string>("ALL ROOMS");
   const [activeFilterStatus, setActiveFilterStatus] = useState<
-    "ALL" | "Available" | "Occupied" | "Vacating" | "Booked" | "Guest"
+    "ALL" | "Available" | "Occupied" | "Vacating" | "Booked" | "Guest" | "Due" | "Overdue"
   >(() => {
     const f = searchParams?.get("filter")?.toLowerCase();
     if (f === "available" || f === "vacant") return "Available";
@@ -228,8 +235,53 @@ function PropertyMapContent({
     if (f === "vacating") return "Vacating";
     if (f === "booked" || f === "hold" || f === "onhold") return "Booked";
     if (f === "guest" || f === "guests") return "Guest";
+    if (f === "due" || f === "pending" || f === "pendingdue") return "Due";
+    if (f === "overdue") return "Overdue";
     return "ALL";
   });
+
+  // Interactive Sorting state (Default: Room Number Low to High)
+  const [sortColumn, setSortColumn] = useState<
+    "room" | "duePriority" | "overduePriority" | "name"
+  >("room");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
+  const sortDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  // Single clubbed sort options matching Tenants Operations
+  const sortOptions = useMemo(() => [
+    { id: "room-asc", label: "Room: Low to High", shortLabel: "Room (1→9)", column: "room" as const, direction: "asc" as const, icon: "🏢" },
+    { id: "room-desc", label: "Room: High to Low", shortLabel: "Room (9→1)", column: "room" as const, direction: "desc" as const, icon: "🏢" },
+    { id: "due-priority-desc", label: "Due: High to Low Priority", shortLabel: "Due: High→Low", column: "duePriority" as const, direction: "desc" as const, icon: "⏳" },
+    { id: "due-priority-asc", label: "Due: Low to High Priority", shortLabel: "Due: Low→High", column: "duePriority" as const, direction: "asc" as const, icon: "⏳" },
+    { id: "overdue-priority-desc", label: "Overdue: High to Low Priority", shortLabel: "Overdue: High→Low", column: "overduePriority" as const, direction: "desc" as const, icon: "🚨" },
+    { id: "overdue-priority-asc", label: "Overdue: Low to High Priority", shortLabel: "Overdue: Low→High", column: "overduePriority" as const, direction: "asc" as const, icon: "🚨" },
+    { id: "name-asc", label: "Name: A to Z", shortLabel: "Name (A→Z)", column: "name" as const, direction: "asc" as const, icon: "🔤" },
+    { id: "name-desc", label: "Name: Z to A", shortLabel: "Name (Z→A)", column: "name" as const, direction: "desc" as const, icon: "🔤" },
+  ], []);
+
+  const currentSortOption = useMemo(() => {
+    return (
+      sortOptions.find((opt) => opt.column === sortColumn && opt.direction === sortDirection) ||
+      sortOptions[0]
+    );
+  }, [sortOptions, sortColumn, sortDirection]);
+
+  // Close sort dropdown when clicking outside
+  useEffect(() => {
+    if (!isSortDropdownOpen) return;
+    const handleGlobalClick = (e: MouseEvent | TouchEvent) => {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(e.target as Node)) {
+        setIsSortDropdownOpen(false);
+      }
+    };
+    window.addEventListener("mousedown", handleGlobalClick);
+    window.addEventListener("touchstart", handleGlobalClick);
+    return () => {
+      window.removeEventListener("mousedown", handleGlobalClick);
+      window.removeEventListener("touchstart", handleGlobalClick);
+    };
+  }, [isSortDropdownOpen]);
 
   // Dynamic Floor & Room Filter options derived from propertyStore
   const availableFloors = useMemo(() => propertyStore.getFloorNames(propertyId), [propertyGrid, propertyId]);
@@ -281,6 +333,10 @@ function PropertyMapContent({
       setActiveFilterStatus("Booked");
     } else if (f === "guest" || f === "guests") {
       setActiveFilterStatus("Guest");
+    } else if (f === "due" || f === "pending" || f === "pendingdue") {
+      setActiveFilterStatus("Due");
+    } else if (f === "overdue") {
+      setActiveFilterStatus("Overdue");
     }
   }, [searchParams]);
 
@@ -347,6 +403,50 @@ function PropertyMapContent({
     }
   };
 
+  // Dynamic Rent & Financial SSOT Metrics Calculations (Matching Tenants Operations)
+  const rentMetrics = useMemo(() => {
+    const billableOccupants = occupants.filter(
+      (o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice"
+    );
+
+    let dueCount = 0;
+    let dueSum = 0;
+    let overdueCount = 0;
+    let overdueSum = 0;
+    let sumCollected = 0;
+    let totalExpected = 0;
+
+    billableOccupants.forEach((curr) => {
+      const stmt = calculateOccupantFinancialStatement(curr, propertySettings);
+      totalExpected += stmt.proRataRent + stmt.priorArrears;
+      sumCollected += stmt.totalRentPaid;
+
+      if (!stmt.isFullyPaid) {
+        const netDue = stmt.netOutstandingBalance;
+        const isActuallyOverdue = stmt.isOverdue && !stmt.statusBadgeText.startsWith("DUE");
+        if (isActuallyOverdue) {
+          overdueCount++;
+          overdueSum += netDue;
+        } else {
+          dueCount++;
+          dueSum += netDue;
+        }
+      }
+    });
+
+    const collectionPct = totalExpected > 0 ? Number(((sumCollected / totalExpected) * 100).toFixed(1)) : 0;
+
+    return {
+      dueCount,
+      dueSum,
+      overdueCount,
+      overdueSum,
+      collectionPct,
+      sumCollected,
+      totalExpected,
+    };
+  }, [occupants, propertySettings]);
+
   // Compute exact bed counts for Donut Ring Chart & Filter Badges (scoped to selected floor when chosen)
   const bedCounts = useMemo(() => {
     let available = 0;
@@ -354,6 +454,8 @@ function PropertyMapContent({
     let vacating = 0;
     let booked = 0;
     let guest = 0;
+    let due = 0;
+    let overdue = 0;
 
     const targetFloors = selectedFloor === "ALL FLOORS"
       ? propertyGrid
@@ -437,14 +539,27 @@ function PropertyMapContent({
           else if (effectiveStatus === "Booked") booked++;
           else if (effectiveStatus === "Guest") guest++;
           else available++;
+
+          // Financial counts for bed
+          if (primaryOcc) {
+            const stmt = calculateOccupantFinancialStatement(primaryOcc, propertySettings);
+            if (!stmt.isFullyPaid) {
+              const isActuallyOverdue = stmt.isOverdue && !stmt.statusBadgeText.startsWith("DUE");
+              if (isActuallyOverdue) {
+                overdue++;
+              } else {
+                due++;
+              }
+            }
+          }
         });
       });
     });
 
     const total = available + occupied + vacating + booked + guest;
 
-    return { total, available, occupied, vacating, booked, guest };
-  }, [propertyGrid, propertyId, kycSubmissions, kycInvites, occupants, selectedFloor]);
+    return { total, available, occupied, vacating, booked, guest, due, overdue };
+  }, [propertyGrid, propertyId, kycSubmissions, kycInvites, occupants, selectedFloor, propertySettings]);
 
   // Seamless Donut Ring Gradient (100% circular, zero overlapping stroke caps, zero jagged notches)
   const donutConicGradient = useMemo(() => {
@@ -551,6 +666,17 @@ function PropertyMapContent({
                 ? "Booked"
                 : "Available";
 
+              // 💳 SSOT Financial Calculation for Bed
+              const finStmt = primaryOcc
+                ? calculateOccupantFinancialStatement(primaryOcc, propertySettings)
+                : undefined;
+              const isRentOverdue = Boolean(
+                finStmt && !finStmt.isFullyPaid && finStmt.isOverdue && !finStmt.statusBadgeText.startsWith("DUE")
+              );
+              const isRentDue = Boolean(finStmt && !finStmt.isFullyPaid && !isRentOverdue);
+              const isRentPaid = Boolean(finStmt && finStmt.isFullyPaid);
+              const outstandingBalance = finStmt?.netOutstandingBalance || 0;
+
               // Direct bed search matching (specific bed code, occupant name, phone, vehicle)
               const bdCodeMatch = query ? bd.bedCode?.toLowerCase().includes(query) : false;
               const primaryMatch = query && primaryOcc ? matchesTenoPilotSearch(primaryOcc, query) : false;
@@ -563,14 +689,25 @@ function PropertyMapContent({
                 resolvedOccupant: primaryOcc,
                 timeline,
                 isDirectSearchMatch,
+                financialStatement: finStmt,
+                isRentOverdue,
+                isRentDue,
+                isRentPaid,
+                outstandingBalance,
               };
             });
 
             // 🌟 STRICT ISOLATION FILTERING:
-            // 1. If activeFilterStatus is NOT "ALL", strictly isolate only beds with that status!
-            // 2. If search query is active and does NOT match the room number directly, filter to matching beds!
+            // 1. If activeFilterStatus is "Due", strictly isolate beds with pending dues!
+            // 2. If activeFilterStatus is "Overdue", strictly isolate overdue beds!
+            // 3. If activeFilterStatus is not "ALL", isolate beds matching status!
+            // 4. If search query is active, isolate direct matches!
             const visibleBeds = enrichedBeds.filter((bd) => {
-              if (activeFilterStatus !== "ALL" && bd.effectiveStatus !== activeFilterStatus) {
+              if (activeFilterStatus === "Due") {
+                if (!bd.isRentDue && !bd.isRentOverdue) return false;
+              } else if (activeFilterStatus === "Overdue") {
+                if (!bd.isRentOverdue) return false;
+              } else if (activeFilterStatus !== "ALL" && bd.effectiveStatus !== activeFilterStatus) {
                 return false;
               }
               if (query && !roomMatchesQuery && !bd.isDirectSearchMatch) {
@@ -579,23 +716,95 @@ function PropertyMapContent({
               return true;
             });
 
+            const roomTotalDue = enrichedBeds.reduce((sum, bd) => sum + (bd.outstandingBalance || 0), 0);
+            const hasOverdueBed = enrichedBeds.some((bd) => bd.isRentOverdue);
+            const hasDueBed = enrichedBeds.some((bd) => bd.isRentDue);
+            const firstOccName = enrichedBeds.find((bd) => bd.resolvedOccupant)?.resolvedOccupant?.name || "";
+
             return {
               ...rm,
               isRoomIncluded: visibleBeds.length > 0,
               totalPhysicalBeds: rm.beds ? rm.beds.length : (rm.sharingType || 2),
               allPhysicalBeds: rm.beds || [],
               beds: visibleBeds,
+              roomTotalDue,
+              hasOverdueBed,
+              hasDueBed,
+              firstOccName,
             };
           })
           .filter((rm) => rm.isRoomIncluded);
 
+        // Sort matching rooms within the floor based on sortColumn and sortDirection
+        matchingRooms.sort((a, b) => {
+          if (sortColumn === "room") {
+            const aNum = parseInt(a.roomNumber.replace(/\D/g, ""), 10) || 0;
+            const bNum = parseInt(b.roomNumber.replace(/\D/g, ""), 10) || 0;
+            return sortDirection === "asc" ? aNum - bNum : bNum - aNum;
+          }
+          if (sortColumn === "duePriority") {
+            const aDue = a.roomTotalDue || 0;
+            const bDue = b.roomTotalDue || 0;
+            if (aDue !== bDue) {
+              return sortDirection === "desc" ? bDue - aDue : aDue - bDue;
+            }
+            const aNum = parseInt(a.roomNumber.replace(/\D/g, ""), 10) || 0;
+            const bNum = parseInt(b.roomNumber.replace(/\D/g, ""), 10) || 0;
+            return aNum - bNum;
+          }
+          if (sortColumn === "overduePriority") {
+            const aOverdue = a.hasOverdueBed ? 1 : 0;
+            const bOverdue = b.hasOverdueBed ? 1 : 0;
+            if (aOverdue !== bOverdue) {
+              return sortDirection === "desc" ? bOverdue - aOverdue : aOverdue - bOverdue;
+            }
+            const aDue = a.roomTotalDue || 0;
+            const bDue = b.roomTotalDue || 0;
+            return sortDirection === "desc" ? bDue - aDue : aDue - bDue;
+          }
+          if (sortColumn === "name") {
+            const aName = a.firstOccName || "";
+            const bName = b.firstOccName || "";
+            return sortDirection === "asc"
+              ? aName.localeCompare(bName)
+              : bName.localeCompare(aName);
+          }
+          return 0;
+        });
+
+        const floorTotalDue = matchingRooms.reduce((sum, r) => sum + (r.roomTotalDue || 0), 0);
+        const floorHasOverdue = matchingRooms.some((r) => r.hasOverdueBed);
+
         return {
           ...fl,
           rooms: matchingRooms,
+          floorTotalDue,
+          floorHasOverdue,
         };
       })
-      .filter((fl) => fl.rooms.length > 0);
-  }, [propertyGrid, selectedFloor, selectedRoom, activeFilterStatus, rawSearchTerm, kycSubmissions, kycInvites, occupants]);
+      .filter((fl) => fl.rooms.length > 0)
+      .sort((a, b) => {
+        // If sorting by duePriority or overduePriority across all floors, bring floors with due/overdue to top
+        if (sortColumn === "duePriority") {
+          const aDue = a.floorTotalDue || 0;
+          const bDue = b.floorTotalDue || 0;
+          if (aDue !== bDue) {
+            return sortDirection === "desc" ? bDue - aDue : aDue - bDue;
+          }
+        }
+        if (sortColumn === "overduePriority") {
+          const aOv = a.floorHasOverdue ? 1 : 0;
+          const bOv = b.floorHasOverdue ? 1 : 0;
+          if (aOv !== bOv) {
+            return sortDirection === "desc" ? bOv - aOv : aOv - bOv;
+          }
+          const aDue = a.floorTotalDue || 0;
+          const bDue = b.floorTotalDue || 0;
+          return sortDirection === "desc" ? bDue - aDue : aDue - bDue;
+        }
+        return 0;
+      });
+  }, [propertyGrid, selectedFloor, selectedRoom, activeFilterStatus, rawSearchTerm, kycSubmissions, kycInvites, occupants, sortColumn, sortDirection, propertySettings]);
 
   return (
     <div className="flex min-h-screen bg-[#fcf9f8] text-gray-900 font-sans selection:bg-[#c2652a]/20 selection:text-[#c2652a]">
@@ -666,6 +875,125 @@ function PropertyMapContent({
             </div>
           )}
 
+          {/* 📊 Operational Financial Metrics Row - Matching Tenants Operations */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+            {/* 1. Active Members & Total Beds */}
+            <MagneticGlowCard
+              glowColor="rgba(150, 68, 7, 0.15)"
+              onClick={() => {
+                setActiveFilterStatus("ALL");
+                setRawSearchTerm("");
+              }}
+              className={`bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border shadow-xs flex flex-col justify-between cursor-pointer transition-all ${
+                activeFilterStatus === "ALL"
+                  ? "border-[#c2652a]/40 ring-2 ring-[#c2652a]/20"
+                  : "border-gray-100 hover:border-[#c2652a]/30"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
+                <p className="text-[10px] sm:text-[11px] uppercase font-bold text-[#964407] tracking-wider truncate">
+                  Active Members
+                </p>
+                <div className="bg-orange-50 text-[#964407] p-1.5 sm:p-2 h-7 w-7 sm:h-9 sm:w-9 flex items-center justify-center rounded-lg shrink-0">
+                  <Users className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+                </div>
+              </div>
+              <div>
+                <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
+                  <AnimatedNumberCounter value={bedCounts.occupied + bedCounts.vacating + bedCounts.guest} />
+                </p>
+                <p className="text-[10px] sm:text-xs text-gray-500 font-medium truncate mt-0.5">
+                  {bedCounts.occupied} Active • {bedCounts.available} Available Beds
+                </p>
+              </div>
+            </MagneticGlowCard>
+
+            {/* 2. Collected This Month */}
+            <MagneticGlowCard
+              glowColor="rgba(16, 185, 129, 0.15)"
+              className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-gray-100 shadow-xs flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
+                <p className="text-[10px] sm:text-[11px] uppercase font-bold text-emerald-600 tracking-wider truncate">
+                  Collected
+                </p>
+                <div className="bg-emerald-50 text-emerald-600 p-1.5 sm:p-2 h-7 w-7 sm:h-9 sm:w-9 flex items-center justify-center rounded-lg shrink-0">
+                  <CheckCircle2 className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+                </div>
+              </div>
+              <div>
+                <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
+                  {isPrivacyMode ? "₹••••••" : <AnimatedNumberCounter value={rentMetrics.sumCollected} prefix="₹" />}
+                </p>
+                <p className="text-[10px] sm:text-xs text-gray-500 font-medium truncate mt-0.5">
+                  <AnimatedNumberCounter value={rentMetrics.collectionPct} suffix="%" decimals={1} /> of Expected
+                </p>
+              </div>
+            </MagneticGlowCard>
+
+            {/* 3. Rent Pending Due */}
+            <MagneticGlowCard
+              glowColor="rgba(245, 158, 11, 0.15)"
+              onClick={() => {
+                setActiveFilterStatus((prev) => (prev === "Due" ? "ALL" : "Due"));
+                setRawSearchTerm("");
+              }}
+              className={`bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border shadow-xs flex flex-col justify-between cursor-pointer transition-all ${
+                activeFilterStatus === "Due"
+                  ? "border-amber-400 ring-2 ring-amber-400/50 bg-amber-50/20"
+                  : "border-gray-100 hover:border-amber-200"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
+                <p className="text-[10px] sm:text-[11px] uppercase font-bold text-amber-600 tracking-wider truncate">
+                  Pending Due
+                </p>
+                <div className="bg-amber-50 text-amber-600 p-1.5 sm:p-2 h-7 w-7 sm:h-9 sm:w-9 flex items-center justify-center rounded-lg shrink-0">
+                  <Clock className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+                </div>
+              </div>
+              <div>
+                <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
+                  {isPrivacyMode ? "₹••••" : <AnimatedNumberCounter value={rentMetrics.dueSum} prefix="₹" />}
+                </p>
+                <p className="text-[10px] sm:text-xs text-gray-500 font-medium truncate mt-0.5">
+                  <AnimatedNumberCounter value={rentMetrics.dueCount} /> Pending Bill{rentMetrics.dueCount === 1 ? "" : "s"}
+                </p>
+              </div>
+            </MagneticGlowCard>
+
+            {/* 4. Overdue Rent */}
+            <MagneticGlowCard
+              glowColor="rgba(220, 38, 38, 0.15)"
+              onClick={() => {
+                setActiveFilterStatus((prev) => (prev === "Overdue" ? "ALL" : "Overdue"));
+                setRawSearchTerm("");
+              }}
+              className={`bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border shadow-xs flex flex-col justify-between cursor-pointer transition-all ${
+                activeFilterStatus === "Overdue"
+                  ? "border-red-400 ring-2 ring-red-400/50 bg-red-50/20"
+                  : "border-gray-100 hover:border-red-200"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
+                <p className="text-[10px] sm:text-[11px] uppercase font-bold text-red-600 tracking-wider truncate">
+                  Overdue Rent
+                </p>
+                <div className="bg-red-100 text-red-600 p-1.5 sm:p-2 h-7 w-7 sm:h-9 sm:w-9 flex items-center justify-center rounded-lg shrink-0">
+                  <AlertTriangle className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+                </div>
+              </div>
+              <div>
+                <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
+                  {isPrivacyMode ? "₹••••" : <AnimatedNumberCounter value={rentMetrics.overdueSum} prefix="₹" />}
+                </p>
+                <p className="text-[10px] sm:text-xs text-gray-500 font-medium truncate mt-0.5">
+                  <AnimatedNumberCounter value={rentMetrics.overdueCount} /> Overdue Account{rentMetrics.overdueCount === 1 ? "" : "s"}
+                </p>
+              </div>
+            </MagneticGlowCard>
+          </div>
+
           {/* Compact Floor Navigation & Native Donut Ring Header Card */}
           <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-xs flex flex-col lg:flex-row items-center justify-between gap-6">
             {/* Left Controls & Status Filters */}
@@ -709,6 +1037,51 @@ function PropertyMapContent({
                       </option>
                     ))}
                   </select>
+                </div>
+
+                {/* ⇅ Interactive Sort Dropdown (Matching Tenants Operations) */}
+                <div className="relative" ref={sortDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsSortDropdownOpen(!isSortDropdownOpen)}
+                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 shadow-2xs transition-all cursor-pointer"
+                    title="Sort rooms by number, pending dues, overdue priority, or resident name"
+                  >
+                    <ArrowUpDown className="w-3.5 h-3.5 text-[#c2652a]" />
+                    <span>{currentSortOption.icon} {currentSortOption.shortLabel}</span>
+                    <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isSortDropdownOpen ? "rotate-180" : ""}`} />
+                  </button>
+
+                  {isSortDropdownOpen && (
+                    <div className="absolute left-0 sm:right-0 sm:left-auto mt-2 w-56 bg-white rounded-xl border border-gray-200 shadow-xl py-1.5 z-50 text-xs font-semibold text-gray-800 animate-in fade-in">
+                      <div className="px-3 py-1.5 text-[10px] uppercase font-bold text-gray-400 tracking-wider border-b border-gray-100">
+                        Sort Property Map
+                      </div>
+                      {sortOptions.map((opt) => {
+                        const isSelected = opt.column === sortColumn && opt.direction === sortDirection;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => {
+                              setSortColumn(opt.column);
+                              setSortDirection(opt.direction);
+                              setIsSortDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-3.5 py-2 flex items-center justify-between transition-colors cursor-pointer ${
+                              isSelected ? "bg-orange-50 text-[#c2652a] font-bold" : "hover:bg-gray-50 text-gray-700"
+                            }`}
+                          >
+                            <span className="flex items-center gap-2">
+                              <span>{opt.icon}</span>
+                              <span>{opt.label}</span>
+                            </span>
+                            {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-[#c2652a]" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* ↺ Reset All Active Filters Button */}
@@ -761,7 +1134,7 @@ function PropertyMapContent({
                 </button>
               </div>
 
-              {/* Color-Coded Bed Status Filter Pills */}
+              {/* Color-Coded Bed Status & Financial Filter Pills */}
               <div className="flex flex-wrap items-center gap-2 text-xs font-bold pt-1">
                 <button
                   onClick={() => {
@@ -803,6 +1176,36 @@ function PropertyMapContent({
                   }`}
                 >
                   <span className="w-2 h-2 rounded-full bg-amber-700"></span> OCCUPIED (<span suppressHydrationWarning>{bedCounts.occupied}</span>)
+                </button>
+
+                {/* ⏳ PENDING DUE FILTER PILL */}
+                <button
+                  onClick={() => {
+                    setActiveFilterStatus((prev) => (prev === "Due" ? "ALL" : "Due"));
+                    setRawSearchTerm("");
+                  }}
+                  className={`px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all cursor-pointer ${
+                    activeFilterStatus === "Due"
+                      ? "bg-amber-600 text-white shadow-xs"
+                      : "bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200"
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5 text-amber-600" /> PENDING DUE (<span suppressHydrationWarning>{bedCounts.due}</span>)
+                </button>
+
+                {/* 🚨 OVERDUE RENT FILTER PILL */}
+                <button
+                  onClick={() => {
+                    setActiveFilterStatus((prev) => (prev === "Overdue" ? "ALL" : "Overdue"));
+                    setRawSearchTerm("");
+                  }}
+                  className={`px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all cursor-pointer ${
+                    activeFilterStatus === "Overdue"
+                      ? "bg-red-600 text-white shadow-xs"
+                      : "bg-red-50 text-red-700 hover:bg-red-100 border border-red-200"
+                  }`}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-600" /> OVERDUE (<span suppressHydrationWarning>{bedCounts.overdue}</span>)
                 </button>
 
                 <button
@@ -910,11 +1313,19 @@ function PropertyMapContent({
                     Room: {selectedRoom}
                   </span>
                 )}
-                {activeFilterStatus !== "ALL" && (
+                {activeFilterStatus === "Due" ? (
+                  <span className="bg-amber-100 text-amber-900 px-2.5 py-1 rounded-lg border border-amber-300 font-bold text-[11px] flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-amber-700" /> Status: PENDING DUE
+                  </span>
+                ) : activeFilterStatus === "Overdue" ? (
+                  <span className="bg-red-100 text-red-900 px-2.5 py-1 rounded-lg border border-red-300 font-bold text-[11px] flex items-center gap-1 animate-pulse">
+                    <AlertTriangle className="w-3 h-3 text-red-600" /> Status: OVERDUE RENT
+                  </span>
+                ) : activeFilterStatus !== "ALL" ? (
                   <span className="bg-white px-2.5 py-1 rounded-lg border border-orange-200 text-[#c2652a] font-bold text-[11px]">
                     Status: {activeFilterStatus.toUpperCase()}
                   </span>
-                )}
+                ) : null}
                 {rawSearchTerm && (
                   <span className="bg-white px-2.5 py-1 rounded-lg border border-orange-200 text-gray-700 font-bold text-[11px]">
                     Search: &ldquo;{rawSearchTerm}&rdquo;
@@ -976,9 +1387,33 @@ function PropertyMapContent({
                               TOTAL BEDS: {(room as any).totalPhysicalBeds || room.sharingType || room.beds.length}
                             </span>
                           </div>
-                          <span className="bg-orange-100 text-orange-800 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
-                            {room.sharingType} SHARING
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            {(room as any).roomTotalDue > 0 && (
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border flex items-center gap-1 shadow-2xs ${
+                                  (room as any).hasOverdueBed
+                                    ? "bg-red-50 text-red-700 border-red-300 animate-pulse"
+                                    : "bg-amber-50 text-amber-800 border-amber-300"
+                                }`}
+                                title={(room as any).hasOverdueBed ? "Room has overdue rent accounts" : "Room has pending rent dues"}
+                              >
+                                {(room as any).hasOverdueBed ? (
+                                  <>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping" />
+                                    <span>OVERDUE {isPrivacyMode ? "₹••••" : `₹${(room as any).roomTotalDue.toLocaleString("en-IN")}`}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Clock className="w-3 h-3 text-amber-600" />
+                                    <span>DUE {isPrivacyMode ? "₹••••" : `₹${(room as any).roomTotalDue.toLocaleString("en-IN")}`}</span>
+                                  </>
+                                )}
+                              </span>
+                            )}
+                            <span className="bg-orange-100 text-orange-800 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
+                              {room.sharingType} SHARING
+                            </span>
+                          </div>
                         </div>
 
                         {/* Bed Slots Grid (Dynamic sizing based on bed count) */}
@@ -1154,8 +1589,13 @@ function PropertyMapContent({
                                       ? `Overdue (${primaryOcc?.name || "Move-Out"})`
                                       : `Vacating (${primaryOcc?.name || "Notice"})`;
                                   } else if (primaryOcc) {
-                                    badgeStyle =
-                                      "bg-[#f7f2ee] text-amber-900 border-amber-200 hover:bg-amber-100";
+                                    if ((bed as any).isRentOverdue) {
+                                      badgeStyle = "bg-red-50/70 text-red-950 border-2 border-red-400 hover:bg-red-100 shadow-sm ring-1 ring-red-400/30";
+                                    } else if ((bed as any).isRentDue) {
+                                      badgeStyle = "bg-amber-50/70 text-amber-950 border border-amber-300 hover:bg-amber-100 shadow-2xs";
+                                    } else {
+                                      badgeStyle = "bg-[#f7f2ee] text-amber-900 border-amber-200 hover:bg-amber-100";
+                                    }
                                     statusLabel = primaryOcc.name;
                                   } else {
                                     badgeStyle =
@@ -1231,6 +1671,28 @@ function PropertyMapContent({
                                       <span className="text-[9px] font-semibold opacity-90 leading-tight truncate w-full">
                                         {primaryOcc ? primaryOcc.name : statusLabel}
                                       </span>
+
+                                      {/* 🟢/⏳/🚨 SSOT Rent Payment Status Badge */}
+                                      {primaryOcc && !isBookedBed && (
+                                        <div className="w-full flex items-center justify-center mt-0.5">
+                                          {(bed as any).isRentOverdue ? (
+                                            <span className="text-[7.5px] font-extrabold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-300 flex items-center gap-1 shadow-2xs animate-pulse">
+                                              <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping" />
+                                              <span>OVERDUE {isPrivacyMode ? "₹••••" : `₹${(bed as any).outstandingBalance?.toLocaleString("en-IN")}`}</span>
+                                            </span>
+                                          ) : (bed as any).isRentDue ? (
+                                            <span className="text-[7.5px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1 shadow-2xs">
+                                              <Clock className="w-2.5 h-2.5 text-amber-700 shrink-0" />
+                                              <span>DUE {isPrivacyMode ? "₹••••" : `₹${(bed as any).outstandingBalance?.toLocaleString("en-IN")}`}</span>
+                                            </span>
+                                          ) : (
+                                            <span className="text-[7.5px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1 shadow-2xs">
+                                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                                              <span>PAID</span>
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
 
                                       {/* Active Occupant / Booked Status Badge (Styled with exact solid blue filter theme) */}
                                       {isBookedBed && (
@@ -1666,7 +2128,14 @@ function PropertyMapContent({
                       isVacatingOverdue = today > parsedVac;
                     }
                   }
-                  const isPaymentOverdue = !isBooked && displayOcc.paymentStatus === "Overdue";
+                  // 💳 SSOT Financial Statement for Drawer Occupant
+                  const displayOccStmt = !isBooked ? calculateOccupantFinancialStatement(displayOcc, propertySettings) : undefined;
+                  const isRentOverdue = Boolean(
+                    displayOccStmt && !displayOccStmt.isFullyPaid && displayOccStmt.isOverdue && !displayOccStmt.statusBadgeText.startsWith("DUE")
+                  );
+                  const isRentDue = Boolean(displayOccStmt && !displayOccStmt.isFullyPaid && !isRentOverdue);
+                  const isRentPaid = Boolean(displayOccStmt && displayOccStmt.isFullyPaid);
+                  const netOutstanding = displayOccStmt?.netOutstandingBalance || 0;
 
                   return (
                     <div className="space-y-6 text-xs">
@@ -1676,6 +2145,10 @@ function PropertyMapContent({
                             ? isGuest
                               ? "bg-purple-50/80 border-purple-200"
                               : "bg-blue-50/80 border-blue-200"
+                            : isRentOverdue
+                            ? "bg-red-50/70 border-red-300 ring-1 ring-red-400/30"
+                            : isRentDue
+                            ? "bg-amber-50/60 border-amber-300"
                             : "bg-gray-50 border-gray-200"
                         }`}
                       >
@@ -1753,42 +2226,62 @@ function PropertyMapContent({
                         </div>
                       )}
 
-                      <div className="space-y-3 p-4 rounded-2xl border border-gray-200 bg-white">
+                      <div className="space-y-3 p-4 rounded-2xl border border-gray-200 bg-white shadow-2xs">
                         <div className="flex justify-between items-center">
                           <span className="text-gray-500 font-medium">Rent Status</span>
                           <span
                             className={`font-bold flex items-center gap-1.5 ${
-                              isPaymentOverdue
+                              isRentOverdue
                                 ? "text-red-600"
                                 : isBooked
                                 ? isGuest
                                   ? "text-purple-700"
                                   : "text-blue-700"
-                                : displayOcc.paymentStatus === "Paid"
-                                ? "text-green-600"
-                                : "text-amber-600"
+                                : isRentDue
+                                ? "text-amber-600"
+                                : "text-emerald-600"
                             }`}
                           >
-                            {isPaymentOverdue ? (
+                            {isRentOverdue ? (
                               <>
                                 <span className="w-2 h-2 rounded-full bg-red-600 animate-ping" />
-                                RENT OVERDUE 🚨
+                                <span>OVERDUE {isPrivacyMode ? "₹••••" : `(₹${netOutstanding.toLocaleString("en-IN")})`} 🚨</span>
                               </>
                             ) : isBooked ? (
                               "CONFIRMED RESERVATION 🔵"
-                            ) : displayOcc.paymentStatus === "Paid" ? (
-                              "PAID 🟢"
+                            ) : isRentDue ? (
+                              <>
+                                <Clock className="w-3.5 h-3.5 text-amber-600" />
+                                <span>DUE {isPrivacyMode ? "₹••••" : `(₹${netOutstanding.toLocaleString("en-IN")})`} ⏳</span>
+                              </>
                             ) : (
-                              "RENT PENDING 🟡"
+                              "PAID 🟢"
                             )}
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-gray-500 font-medium">Monthly Rent</span>
                           <span className="font-mono font-bold text-[#c2652a]">
-                            ₹{(displayOcc.rentAmount || 0).toLocaleString("en-IN")}
+                            {isPrivacyMode ? "₹••••" : `₹${(displayOcc.rentAmount || 0).toLocaleString("en-IN")}`}
                           </span>
                         </div>
+
+                        {displayOccStmt && !isRentPaid && (
+                          <div className="flex justify-between items-center bg-amber-50/70 p-2.5 rounded-xl border border-amber-200">
+                            <div className="space-y-0.5">
+                              <span className="text-amber-950 font-bold block text-xs">Total Outstanding</span>
+                              {displayOccStmt.remainingDepositDue > 0 && (
+                                <span className="text-[10px] text-amber-700 block">
+                                  Incl. ₹{displayOccStmt.remainingDepositDue.toLocaleString("en-IN")} deposit
+                                </span>
+                              )}
+                            </div>
+                            <span className="font-mono font-black text-amber-900 text-sm">
+                              {isPrivacyMode ? "₹••••" : `₹${netOutstanding.toLocaleString("en-IN")}`}
+                            </span>
+                          </div>
+                        )}
+
                         <div className="flex justify-between items-center">
                           <span className="text-gray-500 font-medium">
                             {isBooked ? "Scheduled Move-In Date" : isGuest ? "Check-In Date" : "Move-In / Joining Date"}
@@ -1818,11 +2311,37 @@ function PropertyMapContent({
                           <div className="flex justify-between items-center">
                             <span className="text-gray-500 font-medium">Security Deposit</span>
                             <span className="font-mono font-bold text-gray-800">
-                              ₹{(displayOcc.securityDeposit || 0).toLocaleString("en-IN")}
+                              {isPrivacyMode ? "₹••••" : `₹${(displayOcc.securityDeposit || 0).toLocaleString("en-IN")}`}
                             </span>
                           </div>
                         )}
                       </div>
+
+                      {/* ⚡ Instant 1-Tap Financial Actions */}
+                      {displayOccStmt && !isRentPaid && (
+                        <div className="space-y-2 pt-1">
+                          <Link
+                            href={`/p/${propertyId}/tenants?collectRent=${displayOcc.id}`}
+                            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
+                          >
+                            <CreditCard className="w-4 h-4" />
+                            <span>Collect Rent ({isPrivacyMode ? "₹••••" : `₹${netOutstanding.toLocaleString("en-IN")}`})</span>
+                          </Link>
+
+                          <a
+                            href={buildWhatsAppUrl(
+                              displayOcc.phone,
+                              `Hi ${displayOcc.name}, this is a gentle payment reminder from ${propertySettings.propertyName || "TenoPilot PG"}. Your rent of ₹${netOutstanding.toLocaleString("en-IN")} for Room ${activeBedSlot.roomNumber} (${activeBedSlot.bed.bedCode}) is due. Please clear your dues at your earliest convenience. Thank you!`
+                            )}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full py-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 hover:bg-emerald-100 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer text-center"
+                          >
+                            <MessageSquare className="w-4 h-4 text-emerald-600" />
+                            <span>Send WhatsApp Rent Reminder</span>
+                          </a>
+                        </div>
+                      )}
 
                       {/* If there is an active resident AND an upcoming next booking */}
                       {activeOcc && nextOcc && (
