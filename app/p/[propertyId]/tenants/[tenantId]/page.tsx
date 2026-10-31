@@ -741,8 +741,14 @@ export default function IndividualTenantProfilePage({
     return occupantState?.vehicleNumber ? [occupantState.vehicleNumber] : [""];
   });
   const initialParsedEmergency = parsePhoneAndCountryCode(occupantState?.emergencyContact?.phone);
+  const initialPrimaryPhoneDigits = (occupantState?.phone || "").replace(/\D/g, "").slice(-10);
+  const initialEmergencyPhoneDigits = (initialParsedEmergency.nationalNumber || "").replace(/\D/g, "").slice(-10);
   const [editEmergencyCountryCode, setEditEmergencyCountryCode] = useState<string>(initialParsedEmergency.countryCode || "+91");
-  const [editEmergencyPhone, setEditEmergencyPhone] = useState<string>(initialParsedEmergency.nationalNumber || "");
+  const [editEmergencyPhone, setEditEmergencyPhone] = useState<string>(
+    initialEmergencyPhoneDigits && initialEmergencyPhoneDigits === initialPrimaryPhoneDigits
+      ? ""
+      : (initialParsedEmergency.nationalNumber || "")
+  );
   const [editNotes, setEditNotes] = useState<string>(occupantState?.notes || "");
 
   // 📝 Custom Notes / Owner Remarks Inline State
@@ -1895,7 +1901,16 @@ export default function IndividualTenantProfilePage({
     const parsed = parsePhoneAndCountryCode(occupantState.phone, occupantState.countryCode);
     setEditCountryCode(parsed.countryCode);
     setEditPhone(parsed.nationalNumber);
-    setEditEmail(occupantState.email);
+
+    // Keep email empty if placeholder or not explicitly set
+    const rawEmail = occupantState.email || "";
+    const isPlaceholderEmail =
+      rawEmail.includes("resident.tenopilot.com") ||
+      rawEmail.includes("example.com") ||
+      rawEmail.includes("tenopilot.auth") ||
+      rawEmail.startsWith("phone_");
+    setEditEmail(isPlaceholderEmail ? "" : rawEmail);
+
     setEditJoiningDate(toDateInputValue(occupantState.joiningDate));
     setEditCustomDueDay(
       occupantState.customDueDay !== undefined && occupantState.customDueDay !== null
@@ -1925,9 +1940,18 @@ export default function IndividualTenantProfilePage({
     } else {
       setEditVehicleNumbers([""]);
     }
+
     const parsedEmergency = parsePhoneAndCountryCode(occupantState.emergencyContact?.phone);
     setEditEmergencyCountryCode(parsedEmergency.countryCode || "+91");
-    setEditEmergencyPhone(parsedEmergency.nationalNumber || "");
+    const primaryDigits = parsed.nationalNumber.replace(/\D/g, "").slice(-10);
+    const emergencyDigits = (parsedEmergency.nationalNumber || "").replace(/\D/g, "").slice(-10);
+    // If emergency contact is empty OR matches primary mobile, keep it EMPTY!
+    if (!emergencyDigits || emergencyDigits === primaryDigits) {
+      setEditEmergencyPhone("");
+    } else {
+      setEditEmergencyPhone(parsedEmergency.nationalNumber || "");
+    }
+
     setEditNotes(occupantState.notes || "");
     setShowEditProfileModal(true);
   };
@@ -1952,18 +1976,17 @@ export default function IndividualTenantProfilePage({
     const fullPhoneNumber = `${cleanCc} ${cleanNationalPhone}`;
     const cleanVehicles = editVehicleNumbers.map((v) => sanitizeVehicleNumber(v)).filter(Boolean);
 
+    // If emergency contact is empty OR matches primary mobile, keep it empty without blocking other changes
     const cleanEmergencyDigits = editEmergencyPhone.trim().replace(/\D/g, "");
-    if (cleanEmergencyDigits && cleanNationalPhone === cleanEmergencyDigits) {
-      triggerToast("⚠️ Emergency contact cannot be the same as primary mobile number!", "error");
-      return;
-    }
+    const isDuplicateEmergency = cleanEmergencyDigits && cleanNationalPhone === cleanEmergencyDigits;
+    const effectiveEmergencyDigits = isDuplicateEmergency ? "" : cleanEmergencyDigits;
 
     const cleanEmergencyCc = editEmergencyCountryCode.trim().startsWith("+")
       ? editEmergencyCountryCode.trim()
       : `+${editEmergencyCountryCode.trim() || "91"}`;
-    const fullEmergencyPhone = cleanEmergencyDigits
-      ? `${cleanEmergencyCc} ${cleanEmergencyDigits}`
-      : (occupantState.emergencyContact?.phone || "");
+    const fullEmergencyPhone = effectiveEmergencyDigits
+      ? `${cleanEmergencyCc} ${effectiveEmergencyDigits}`
+      : "";
 
     // Check if security deposit is being increased or adjusted
     const currentStmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
@@ -1995,9 +2018,9 @@ export default function IndividualTenantProfilePage({
       securityDeposit: editDeposit,
       depositStatus: updatedDepositStatus,
       emergencyContact: {
-        name: occupantState.emergencyContact?.name || "Emergency Contact",
-        phone: fullEmergencyPhone,
-        relation: occupantState.emergencyContact?.relation || "Family",
+        name: fullEmergencyPhone ? (occupantState.emergencyContact?.name || "Emergency Contact") : "",
+        phone: fullEmergencyPhone || "",
+        relation: fullEmergencyPhone ? (occupantState.emergencyContact?.relation || "Family") : "",
       },
       occupation: editOccupation.trim() || undefined,
       workplace: editWorkplace.trim() || undefined,
@@ -5267,12 +5290,12 @@ export default function IndividualTenantProfilePage({
 
                   <div>
                     <label className="block font-bold text-gray-700 mb-1">
-                      Email Address *
+                      Email Address <span className="text-gray-400 font-normal text-xs">(Optional)</span>
                     </label>
                     <input
                       type="email"
-                      required
                       value={editEmail}
+                      placeholder="e.g. resident@example.com (Optional)"
                       onChange={(e) => setEditEmail(e.target.value)}
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                     />
@@ -5280,7 +5303,7 @@ export default function IndividualTenantProfilePage({
 
                   <div>
                     <label className="block font-bold text-gray-700 mb-1">
-                      Emergency Contact Number (Mobile)
+                      Emergency Contact Number (Mobile) <span className="text-gray-400 font-normal text-xs">(Optional)</span>
                     </label>
                     <div className="flex gap-2">
                       <input
@@ -5304,7 +5327,7 @@ export default function IndividualTenantProfilePage({
                         type="tel"
                         inputMode="numeric"
                         maxLength={10}
-                        placeholder="e.g. 9812345678 (Parent/Guardian)"
+                        placeholder="e.g. 9812345678 (Parent/Guardian - Optional)"
                         value={editEmergencyPhone}
                         onPaste={(e) => {
                           e.preventDefault();
@@ -5320,10 +5343,14 @@ export default function IndividualTenantProfilePage({
                     </div>
                     {editPhone.replace(/\D/g, "") &&
                       editEmergencyPhone.replace(/\D/g, "") &&
-                      editPhone.replace(/\D/g, "") === editEmergencyPhone.replace(/\D/g, "") && (
-                        <span className="text-[10px] text-red-600 font-bold mt-1 block">
-                          ⚠️ Emergency contact number cannot match primary mobile number!
+                      editPhone.replace(/\D/g, "") === editEmergencyPhone.replace(/\D/g, "") ? (
+                        <span className="text-[10px] text-amber-600 font-semibold mt-1 block">
+                          💡 Matches primary mobile. You can leave this empty if unknown.
                         </span>
+                    ) : (
+                      <span className="text-[10px] text-gray-400 mt-1 block">
+                        Optional. Leave empty if parent/guardian contact is not yet provided.
+                      </span>
                     )}
                   </div>
 
