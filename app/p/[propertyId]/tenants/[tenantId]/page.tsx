@@ -2744,8 +2744,11 @@ export default function IndividualTenantProfilePage({
                 if (jDate && !isNaN(jDate.getTime())) anniversaryDay = jDate.getDate();
               }
               const dueDay = occupantState.customDueDay ?? (isAnniversary ? anniversaryDay : (propertySettings?.desiredDueDate ?? occupantState.dueDay ?? 5));
-              const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, dueDay);
-              const nextMonthStr = `${String(dueDay).padStart(2, "0")} ${nextMonth.toLocaleString("default", { month: "short", year: "numeric" })}`;
+              const targetNextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+              const daysInNextMonth = new Date(targetNextMonthDate.getFullYear(), targetNextMonthDate.getMonth() + 1, 0).getDate();
+              const safeNextDueDay = Math.min(dueDay, daysInNextMonth);
+              const nextMonth = new Date(targetNextMonthDate.getFullYear(), targetNextMonthDate.getMonth(), safeNextDueDay);
+              const nextMonthStr = `${String(safeNextDueDay).padStart(2, "0")} ${nextMonth.toLocaleString("default", { month: "short", year: "numeric" })}`;
               const currentCycleDueDateStr = resolveOccupantPaymentDueDate(occupantState, propertySettings);
 
               let displayDueDate = currentCycleDueDateStr || occupantState.dueDate;
