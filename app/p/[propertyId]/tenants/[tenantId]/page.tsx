@@ -5,7 +5,7 @@ import Link from "next/link";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { GuestProfileView } from "@/components/dashboard/GuestProfileView";
-import { MOCK_OCCUPANTS_200, occupantStore, Occupant, PaymentHistoryItem } from "@/constants/mockOccupants";
+import { MOCK_OCCUPANTS_200, occupantStore, Occupant, PaymentHistoryItem, RoomTransferRecord } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { subscribeOccupantsFromFirestore, saveOccupantToFirestore, updateOccupantInFirestore } from "@/lib/firestoreService";
 import { db } from "@/lib/firebase";
@@ -875,6 +875,20 @@ export default function IndividualTenantProfilePage({
       revisedVacatingDate = formatIsoToDisplayDate(conflictModalData.pendingDate);
     }
 
+    const formattedTransferDate = formatIsoToDisplayDate(transferEffectiveDate) || transferEffectiveDate;
+    const newTransferRecord: RoomTransferRecord = {
+      id: `trf_${Date.now()}`,
+      transferDate: formattedTransferDate,
+      fromRoom: oldRoomNumber,
+      fromBed: oldBedCode,
+      toRoom: transferRoomNumber,
+      toBed: transferBedCode,
+      previousRent: occupantState.rentAmount,
+      newRent: targetRent,
+      createdAt: new Date().toISOString(),
+    };
+    const updatedTransfers = [...(occupantState.roomTransfers || []), newTransferRecord];
+
     let updatedOccupant: Occupant;
 
     if (isGuest) {
@@ -892,6 +906,7 @@ export default function IndividualTenantProfilePage({
         bedCode: transferBedCode,
         rentAmount: guestCalc.revisedTotalTariff,
         vacatingDate: revisedVacatingDate,
+        roomTransfers: updatedTransfers,
       };
     } else {
       const tenantCalc = calculateRoomTransferProRata(
@@ -908,11 +923,13 @@ export default function IndividualTenantProfilePage({
         rentAmount: targetRent,
         vacatingDate: revisedVacatingDate,
         arrearsBalance: (occupantState.arrearsBalance || 0) + tenantCalc.adjustmentAmount,
+        roomTransfers: updatedTransfers,
       };
     }
 
     setOccupantState(updatedOccupant);
     occupantStore.updateOccupant(updatedOccupant, propertyId);
+    saveOccupantToFirestore(propertyId, updatedOccupant).catch(console.error);
 
     // 4. DDS-13 Dynamic Cascading Mutation across Property Store!
     // Vacates OLD bed slot (Available 🟢) and occupies TARGET bed slot (Occupied 🟤 / Guest 🟣)
@@ -3627,6 +3644,23 @@ export default function IndividualTenantProfilePage({
                         {occupantState.lifecycleStatus === "Booked" ? "Pending Check-In" : occupantState.joiningDate}
                       </span>
                     </div>
+
+                    {/* Dynamic Room Transfer Milestones */}
+                    {occupantState.roomTransfers && occupantState.roomTransfers.length > 0 && occupantState.roomTransfers.map((trf, trfIdx) => (
+                      <div key={trf.id || trfIdx} className="relative z-10 flex flex-col items-center">
+                        <div
+                          className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs mb-1 shadow-sm ring-2 ring-indigo-100"
+                          title={`Room Transfer: Moved from Room ${trf.fromRoom} (${trf.fromBed}) to Room ${trf.toRoom} (${trf.toBed})`}
+                        >
+                          <ArrowRightLeft className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="text-[11px] font-bold text-indigo-900 whitespace-nowrap">Room Transfer</span>
+                        <span className="text-[9px] font-bold text-indigo-700 whitespace-nowrap">
+                          Rm {trf.fromRoom} ({trf.fromBed}) → Rm {trf.toRoom} ({trf.toBed})
+                        </span>
+                        <span className="text-[9px] text-gray-400 whitespace-nowrap">{trf.transferDate}</span>
+                      </div>
+                    ))}
 
                     {/* 3. Notice Logged Milestone */}
                     <div

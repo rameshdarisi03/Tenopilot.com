@@ -1850,6 +1850,16 @@ export default function TenantsDirectoryPage({
       }
       if (roomFilter !== "All Rooms" && occ.roomNumber !== roomFilter) return false;
 
+      // ⚡ Priority Collection Filters: Exclude settled / non-overdue residents when collection sort is active
+      if (sortColumn === "duePriority") {
+        const stmt = calculateOccupantFinancialStatement(occ, currentSettings);
+        if (stmt.isFullyPaid || stmt.netOutstandingBalance <= 0) return false;
+      }
+      if (sortColumn === "overduePriority") {
+        const stmt = calculateOccupantFinancialStatement(occ, currentSettings);
+        if (!stmt.isOverdue || stmt.netOutstandingBalance <= 0) return false;
+      }
+
       return true;
     });
 
@@ -2419,15 +2429,17 @@ export default function TenantsDirectoryPage({
               </div>
             )}
 
-            {paymentStatusFilter === "Due" && (
+            {(paymentStatusFilter === "Due" || sortColumn === "duePriority") && (
               <div className="flex items-center gap-2">
                 <div className="bg-amber-500/15 text-amber-900 px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-amber-300 font-bold">
-                  <span>⚡ Showing Pending Dues ({filteredOccupants.length} Residents)</span>
+                  <span>⚡ Showing Pending Dues ({filteredOccupants.length} {filteredOccupants.length === 1 ? "Resident" : "Residents"})</span>
                   <X
                     className="w-3.5 h-3.5 cursor-pointer hover:text-red-600"
                     onClick={() => {
                       setPaymentStatusFilter("All");
                       setPaymentDueFilter("All");
+                      setSortColumn("room");
+                      setSortDirection("asc");
                       setSelectedIds([]);
                       setIsMobileMultiSelectMode(false);
                       if (typeof window !== "undefined") {
@@ -2457,15 +2469,17 @@ export default function TenantsDirectoryPage({
               </div>
             )}
 
-            {paymentStatusFilter === "Overdue" && (
+            {(paymentStatusFilter === "Overdue" || sortColumn === "overduePriority") && (
               <div className="flex items-center gap-2">
                 <div className="bg-red-500/15 text-red-900 px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-red-300 font-bold">
-                  <span>🚨 Showing Overdue Accounts ({filteredOccupants.length} Residents)</span>
+                  <span>🚨 Showing Overdue Accounts ({filteredOccupants.length} {filteredOccupants.length === 1 ? "Resident" : "Residents"})</span>
                   <X
                     className="w-3.5 h-3.5 cursor-pointer hover:text-red-600"
                     onClick={() => {
                       setPaymentStatusFilter("All");
                       setPaymentDueFilter("All");
+                      setSortColumn("room");
+                      setSortDirection("asc");
                       setSelectedIds([]);
                       setIsMobileMultiSelectMode(false);
                       if (typeof window !== "undefined") {
@@ -2500,7 +2514,18 @@ export default function TenantsDirectoryPage({
           <div className="flex items-center justify-between gap-3 pt-2 pb-1 border-b border-gray-100 relative">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-gray-700 tracking-wide">
-                {filteredOccupants.length} {filteredOccupants.length === 1 ? "Resident" : "Residents"}
+                {filteredOccupants.length}{" "}
+                {sortColumn === "duePriority"
+                  ? filteredOccupants.length === 1
+                    ? "Resident with Dues"
+                    : "Residents with Dues"
+                  : sortColumn === "overduePriority"
+                  ? filteredOccupants.length === 1
+                    ? "Overdue Account"
+                    : "Overdue Accounts"
+                  : filteredOccupants.length === 1
+                  ? "Resident"
+                  : "Residents"}
               </span>
             </div>
 
@@ -2959,7 +2984,7 @@ export default function TenantsDirectoryPage({
                 ) : (
                   <tr>
                     <td colSpan={7} className="py-12 text-center text-xs">
-                      {paymentStatusFilter === "Overdue" || paymentDueFilter === "Overdue" ? (
+                      {paymentStatusFilter === "Overdue" || paymentDueFilter === "Overdue" || sortColumn === "overduePriority" ? (
                         <div className="max-w-md mx-auto space-y-2 py-4">
                           <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center shadow-2xs">
                             <CheckCircle2 className="w-6 h-6" />
@@ -2975,13 +3000,15 @@ export default function TenantsDirectoryPage({
                             onClick={() => {
                               setPaymentStatusFilter("All");
                               setPaymentDueFilter("All");
+                              setSortColumn("room");
+                              setSortDirection("asc");
                             }}
                             className="mt-2 px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs transition-all cursor-pointer shadow-2xs active:scale-95"
                           >
                             View All Residents
                           </button>
                         </div>
-                      ) : paymentStatusFilter === "Due" ? (
+                      ) : paymentStatusFilter === "Due" || sortColumn === "duePriority" ? (
                         <div className="max-w-md mx-auto space-y-2 py-4">
                           <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center shadow-2xs">
                             <CheckCircle2 className="w-6 h-6" />
@@ -2997,6 +3024,8 @@ export default function TenantsDirectoryPage({
                             onClick={() => {
                               setPaymentStatusFilter("All");
                               setPaymentDueFilter("All");
+                              setSortColumn("room");
+                              setSortDirection("asc");
                             }}
                             className="mt-2 px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs transition-all cursor-pointer shadow-2xs active:scale-95"
                           >
@@ -3409,7 +3438,7 @@ Scroll vertically to browse all residents without pagination limits
               })
             ) : (
               <div className="p-6 sm:p-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200 space-y-2.5">
-                {paymentStatusFilter === "Overdue" || paymentDueFilter === "Overdue" ? (
+                {paymentStatusFilter === "Overdue" || paymentDueFilter === "Overdue" || sortColumn === "overduePriority" ? (
                   <>
                     <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center shadow-2xs mb-1">
                       <CheckCircle2 className="w-6 h-6" />
@@ -3425,13 +3454,15 @@ Scroll vertically to browse all residents without pagination limits
                       onClick={() => {
                         setPaymentStatusFilter("All");
                         setPaymentDueFilter("All");
+                        setSortColumn("room");
+                        setSortDirection("asc");
                       }}
                       className="mt-2 px-4 py-2 rounded-xl bg-white border border-gray-200 hover:bg-gray-100 text-gray-800 font-bold text-xs transition-all cursor-pointer shadow-2xs active:scale-95"
                     >
                       View All Residents
                     </button>
                   </>
-                ) : paymentStatusFilter === "Due" ? (
+                ) : paymentStatusFilter === "Due" || sortColumn === "duePriority" ? (
                   <>
                     <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center shadow-2xs mb-1">
                       <CheckCircle2 className="w-6 h-6" />
@@ -3447,6 +3478,8 @@ Scroll vertically to browse all residents without pagination limits
                       onClick={() => {
                         setPaymentStatusFilter("All");
                         setPaymentDueFilter("All");
+                        setSortColumn("room");
+                        setSortDirection("asc");
                       }}
                       className="mt-2 px-4 py-2 rounded-xl bg-white border border-gray-200 hover:bg-gray-100 text-gray-800 font-bold text-xs transition-all cursor-pointer shadow-2xs active:scale-95"
                     >

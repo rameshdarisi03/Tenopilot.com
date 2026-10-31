@@ -50,6 +50,19 @@ export interface CheckoutSettlementAudit {
   notes?: string;
 }
 
+export interface RoomTransferRecord {
+  id: string;
+  transferDate: string; // e.g. "15 Oct 2026" or ISO
+  fromRoom: string;
+  fromBed: string;
+  toRoom: string;
+  toBed: string;
+  previousRent: number;
+  newRent: number;
+  reason?: string;
+  createdAt?: string;
+}
+
 export interface Occupant {
   id: string;
   name: string;
@@ -100,6 +113,7 @@ export interface Occupant {
   parkingCharges?: number;
   isParkingException?: boolean;
   paymentHistory?: PaymentHistoryItem[];
+  roomTransfers?: RoomTransferRecord[];
   checkoutSettlement?: CheckoutSettlementAudit;
   notes?: string;
 }
