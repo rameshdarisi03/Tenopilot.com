@@ -27,6 +27,7 @@ import {
   Clock,
   Check,
   Zap,
+  FileText,
 } from "lucide-react";
 import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
 import { selfKycStore, SelfKycInvite, SelfKycSubmission } from "@/lib/selfKycStore";
@@ -809,38 +810,49 @@ export default function TenantSelfOnboardingPage({
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {/* 1. Assigned Room & Bed */}
+                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 flex flex-col justify-between">
                   <span className="text-[10px] font-bold uppercase text-gray-400 block">Assigned Room & Bed</span>
-                  <span className="font-serif font-bold text-base sm:text-lg text-gray-900 block">
+                  <span className="font-serif font-bold text-sm sm:text-base text-gray-900 block truncate mt-1">
                     Room {invite.roomNumber} ({formatBedLabel(invite.bedCode)})
-                  </span>
-                  <span className="text-[10px] font-semibold text-emerald-700 block mt-0.5">
-                    Locked on Hold 🔒
                   </span>
                 </div>
 
-                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200">
+                {/* 2. Monthly Tariff / Daily Rate */}
+                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 flex flex-col justify-between">
                   <span className="text-[10px] font-bold uppercase text-gray-400 block">
                     {invite.stayType === "Tenant" ? "Monthly Tariff" : "Daily Rate"}
                   </span>
-                  <span className="font-mono font-bold text-base sm:text-lg text-emerald-700 block">
-                    ₹{(invite.rentAmount ?? 0).toLocaleString("en-IN")}
-                  </span>
-                  <span className="text-[10px] text-gray-400 block">
-                    {invite.stayType === "Tenant" ? "/ month" : "/ day"}
+                  <div className="mt-1">
+                    <span className="font-mono font-bold text-sm sm:text-base text-emerald-700 inline">
+                      ₹{(invite.rentAmount ?? 0).toLocaleString("en-IN")}
+                    </span>
+                    <span className="text-[10px] text-gray-400 ml-1">
+                      {invite.stayType === "Tenant" ? "/mo" : "/day"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3. Security Deposit */}
+                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 flex flex-col justify-between">
+                  <span className="text-[10px] font-bold uppercase text-gray-400 block">Security Deposit</span>
+                  <span className="font-mono font-bold text-sm sm:text-base text-purple-700 block mt-1">
+                    ₹{((invite.securityDeposit ?? (invite.rentAmount ?? 0) * 2)).toLocaleString("en-IN")}
                   </span>
                 </div>
 
-                {invite.stayType === "Tenant" && (
-                  <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 col-span-2 sm:col-span-1">
-                    <span className="text-[10px] font-bold uppercase text-gray-400 block">Security Deposit</span>
-                    <span className="font-mono font-bold text-base sm:text-lg text-purple-700 block">
-                      ₹{((invite.securityDeposit ?? (invite.rentAmount ?? 0) * 2)).toLocaleString("en-IN")}
-                    </span>
-                    <span className="text-[10px] text-gray-400 block">Refundable on exit</span>
-                  </div>
-                )}
+                {/* 4. Joining / Check-In Date */}
+                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 flex flex-col justify-between">
+                  <span className="text-[10px] font-bold uppercase text-gray-400 block">Check-In Date *</span>
+                  <input
+                    type="date"
+                    required
+                    value={joiningDate}
+                    onChange={(e) => setJoiningDate(e.target.value)}
+                    className="w-full mt-1 px-2 py-1 rounded-xl border border-gray-300 bg-white font-mono font-bold text-xs text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a] outline-none"
+                  />
+                </div>
               </div>
             </div>
 
@@ -935,16 +947,6 @@ export default function TenantSelfOnboardingPage({
                   )}
                 </div>
 
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Joining / Check-In Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={joiningDate}
-                    onChange={(e) => setJoiningDate(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a]"
-                  />
-                </div>
 
                 {invite.stayType === "Guest" && (
                   <div>
@@ -1153,14 +1155,38 @@ export default function TenantSelfOnboardingPage({
                       onChange={(e) => handleFileUpload(e, setAadhaarFront)}
                       className="hidden"
                     />
-                    <button
-                      type="button"
-                      onClick={() => frontInputRef.current?.click()}
-                      className="w-full py-2.5 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      {aadhaarFront ? "✓ Front Uploaded" : "Upload Front Side"}
-                    </button>
+                    {aadhaarFront ? (
+                      <div className="flex items-center gap-3">
+                        {aadhaarFront.startsWith("data:application/pdf") || aadhaarFront.endsWith(".pdf") ? (
+                          <div className="w-16 h-16 rounded-2xl bg-rose-50 border border-rose-200 flex flex-col items-center justify-center text-rose-700 shadow-xs shrink-0">
+                            <FileText className="w-6 h-6" />
+                            <span className="text-[9px] font-bold mt-0.5">PDF</span>
+                          </div>
+                        ) : (
+                          <img
+                            src={aadhaarFront}
+                            alt="Front Document Preview"
+                            className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs shrink-0"
+                          />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => frontInputRef.current?.click()}
+                          className="py-2 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs"
+                        >
+                          Change / Retake
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => frontInputRef.current?.click()}
+                        className="w-full py-2.5 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Upload Front Side</span>
+                      </button>
+                    )}
                   </div>
 
                   <div className={`p-4 rounded-2xl border transition-all space-y-2 ${!aadhaarBack ? "bg-amber-50/40 border-amber-200/80" : "bg-gray-50 border-gray-200"}`}>
@@ -1185,14 +1211,38 @@ export default function TenantSelfOnboardingPage({
                       onChange={(e) => handleFileUpload(e, setAadhaarBack)}
                       className="hidden"
                     />
-                    <button
-                      type="button"
-                      onClick={() => backInputRef.current?.click()}
-                      className="w-full py-2.5 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      {aadhaarBack ? "✓ Back Uploaded" : "Upload Back Side"}
-                    </button>
+                    {aadhaarBack ? (
+                      <div className="flex items-center gap-3">
+                        {aadhaarBack.startsWith("data:application/pdf") || aadhaarBack.endsWith(".pdf") ? (
+                          <div className="w-16 h-16 rounded-2xl bg-rose-50 border border-rose-200 flex flex-col items-center justify-center text-rose-700 shadow-xs shrink-0">
+                            <FileText className="w-6 h-6" />
+                            <span className="text-[9px] font-bold mt-0.5">PDF</span>
+                          </div>
+                        ) : (
+                          <img
+                            src={aadhaarBack}
+                            alt="Back Document Preview"
+                            className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs shrink-0"
+                          />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => backInputRef.current?.click()}
+                          className="py-2 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs"
+                        >
+                          Change / Retake
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => backInputRef.current?.click()}
+                        className="w-full py-2.5 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Upload Back Side</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -1487,16 +1537,6 @@ export default function TenantSelfOnboardingPage({
                   )}
                 </div>
 
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Joining / Check-In Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={joiningDate}
-                    onChange={(e) => setJoiningDate(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a]"
-                  />
-                </div>
 
                 {stayType === "Guest" && (
                   <div>
@@ -1705,14 +1745,38 @@ export default function TenantSelfOnboardingPage({
                       onChange={(e) => handleFileUpload(e, setAadhaarFront)}
                       className="hidden"
                     />
-                    <button
-                      type="button"
-                      onClick={() => frontInputRef.current?.click()}
-                      className="w-full py-2.5 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      {aadhaarFront ? "✓ Front Uploaded" : "Upload Front Side"}
-                    </button>
+                    {aadhaarFront ? (
+                      <div className="flex items-center gap-3">
+                        {aadhaarFront.startsWith("data:application/pdf") || aadhaarFront.endsWith(".pdf") ? (
+                          <div className="w-16 h-16 rounded-2xl bg-rose-50 border border-rose-200 flex flex-col items-center justify-center text-rose-700 shadow-xs shrink-0">
+                            <FileText className="w-6 h-6" />
+                            <span className="text-[9px] font-bold mt-0.5">PDF</span>
+                          </div>
+                        ) : (
+                          <img
+                            src={aadhaarFront}
+                            alt="Front Document Preview"
+                            className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs shrink-0"
+                          />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => frontInputRef.current?.click()}
+                          className="py-2 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs"
+                        >
+                          Change / Retake
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => frontInputRef.current?.click()}
+                        className="w-full py-2.5 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Upload Front Side</span>
+                      </button>
+                    )}
                   </div>
 
                   <div className={`p-4 rounded-2xl border transition-all space-y-2 ${!aadhaarBack ? "bg-amber-50/40 border-amber-200/80" : "bg-gray-50 border-gray-200"}`}>
@@ -1737,14 +1801,38 @@ export default function TenantSelfOnboardingPage({
                       onChange={(e) => handleFileUpload(e, setAadhaarBack)}
                       className="hidden"
                     />
-                    <button
-                      type="button"
-                      onClick={() => backInputRef.current?.click()}
-                      className="w-full py-2.5 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      {aadhaarBack ? "✓ Back Uploaded" : "Upload Back Side"}
-                    </button>
+                    {aadhaarBack ? (
+                      <div className="flex items-center gap-3">
+                        {aadhaarBack.startsWith("data:application/pdf") || aadhaarBack.endsWith(".pdf") ? (
+                          <div className="w-16 h-16 rounded-2xl bg-rose-50 border border-rose-200 flex flex-col items-center justify-center text-rose-700 shadow-xs shrink-0">
+                            <FileText className="w-6 h-6" />
+                            <span className="text-[9px] font-bold mt-0.5">PDF</span>
+                          </div>
+                        ) : (
+                          <img
+                            src={aadhaarBack}
+                            alt="Back Document Preview"
+                            className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs shrink-0"
+                          />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => backInputRef.current?.click()}
+                          className="py-2 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs"
+                        >
+                          Change / Retake
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => backInputRef.current?.click()}
+                        className="w-full py-2.5 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Upload Back Side</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 

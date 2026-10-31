@@ -28,6 +28,7 @@ import {
   Clock,
   Check,
   Zap,
+  FileText,
 } from "lucide-react";
 import { propertyStore, FloorConfig, RoomConfig, BedSlotConfig } from "@/constants/propertyLayoutStore";
 import { selfKycStore, SelfKycSubmission } from "@/lib/selfKycStore";
@@ -1242,14 +1243,38 @@ export default function WalkInSelfKycCheckinPage({
                       onChange={(e) => handleFileUpload(e, setAadhaarFront)}
                       className="hidden"
                     />
-                    <button
-                      type="button"
-                      onClick={() => frontInputRef.current?.click()}
-                      className="w-full py-2.5 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      {aadhaarFront ? "✓ Front Uploaded" : "Upload Front Side"}
-                    </button>
+                    {aadhaarFront ? (
+                      <div className="flex items-center gap-3">
+                        {aadhaarFront.startsWith("data:application/pdf") || aadhaarFront.endsWith(".pdf") ? (
+                          <div className="w-16 h-16 rounded-2xl bg-rose-50 border border-rose-200 flex flex-col items-center justify-center text-rose-700 shadow-xs shrink-0">
+                            <FileText className="w-6 h-6" />
+                            <span className="text-[9px] font-bold mt-0.5">PDF</span>
+                          </div>
+                        ) : (
+                          <img
+                            src={aadhaarFront}
+                            alt="Front Document Preview"
+                            className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs shrink-0"
+                          />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => frontInputRef.current?.click()}
+                          className="py-2 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs"
+                        >
+                          Change / Retake
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => frontInputRef.current?.click()}
+                        className="w-full py-2.5 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Upload Front Side</span>
+                      </button>
+                    )}
                   </div>
 
                   <div className={`p-4 rounded-2xl border transition-all space-y-2 ${!aadhaarBack ? "bg-amber-50/40 border-amber-200/80" : "bg-gray-50 border-gray-200"}`}>
@@ -1274,14 +1299,38 @@ export default function WalkInSelfKycCheckinPage({
                       onChange={(e) => handleFileUpload(e, setAadhaarBack)}
                       className="hidden"
                     />
-                    <button
-                      type="button"
-                      onClick={() => backInputRef.current?.click()}
-                      className="w-full py-2.5 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      {aadhaarBack ? "✓ Back Uploaded" : "Upload Back Side"}
-                    </button>
+                    {aadhaarBack ? (
+                      <div className="flex items-center gap-3">
+                        {aadhaarBack.startsWith("data:application/pdf") || aadhaarBack.endsWith(".pdf") ? (
+                          <div className="w-16 h-16 rounded-2xl bg-rose-50 border border-rose-200 flex flex-col items-center justify-center text-rose-700 shadow-xs shrink-0">
+                            <FileText className="w-6 h-6" />
+                            <span className="text-[9px] font-bold mt-0.5">PDF</span>
+                          </div>
+                        ) : (
+                          <img
+                            src={aadhaarBack}
+                            alt="Back Document Preview"
+                            className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs shrink-0"
+                          />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => backInputRef.current?.click()}
+                          className="py-2 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs"
+                        >
+                          Change / Retake
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => backInputRef.current?.click()}
+                        className="w-full py-2.5 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Upload Back Side</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
