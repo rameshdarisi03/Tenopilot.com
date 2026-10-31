@@ -1213,12 +1213,18 @@ export function allocateRoomOccupantsToBeds(
     if (!isAlreadyAssigned && remainingOccupants.length > 0) {
       // Find the next eligible unassigned occupant:
       // Either an occupant with no bedCode, or whose canonical index matches this bed
-      const eligibleIdx = remainingOccupants.findIndex((o) => {
+      let eligibleIdx = remainingOccupants.findIndex((o) => {
         const occIdx = getCanonicalBedIndex(o.bedCode);
         return occIdx === -1 || occIdx === targetIdx;
       });
 
-      if (eligibleIdx !== -1) {
+      // 🏨 PMS Graceful Allocation: If two roommates in the same room were both tagged with the same bed (e.g. Bed B duplicate),
+      // allocate the unassigned roommate to the vacant bed in their room so no paying resident is left unassigned!
+      if (eligibleIdx === -1) {
+        eligibleIdx = 0;
+      }
+
+      if (eligibleIdx !== -1 && eligibleIdx < remainingOccupants.length) {
         const [match] = remainingOccupants.splice(eligibleIdx, 1);
         assignedOccIds.add(match.id);
         if (b.id) bedMap.set(b.id, match);
@@ -1273,26 +1279,18 @@ export function getBedOccupantsTimeline(
 
   // 1. Primary Active or Notice Resident physically living in bed right now,
   // OR a Booked resident whose joining date has reached/passed (today >= joiningDate)
-  const activeOccupant =
-    matchingOccupants.find((occ) => {
-      if (occ.lifecycleStatus === "Active" || occ.lifecycleStatus === "Notice") return true;
-      if (occ.lifecycleStatus === "Booked") {
-        const joinD = parseOccupantDate(occ.joiningDate);
-        if (joinD) {
-          const joinMidnight = new Date(joinD.getFullYear(), joinD.getMonth(), joinD.getDate()).getTime();
-          return todayMidnight >= joinMidnight;
-        }
+  // 🌟 PURE SSOT: Active occupants are derived SOLELY from the live occupants collection.
+  const activeOccupant = matchingOccupants.find((occ) => {
+    if (occ.lifecycleStatus === "Active" || occ.lifecycleStatus === "Notice") return true;
+    if (occ.lifecycleStatus === "Booked") {
+      const joinD = parseOccupantDate(occ.joiningDate);
+      if (joinD) {
+        const joinMidnight = new Date(joinD.getFullYear(), joinD.getMonth(), joinD.getDate()).getTime();
+        return todayMidnight >= joinMidnight;
       }
-      return false;
-    }) ||
-    (bed.occupant &&
-     bed.occupant.lifecycleStatus !== "Booked" &&
-     bed.occupant.lifecycleStatus !== "Past" &&
-     (bed.occupant.bedCode
-       ? (targetBedIdx !== -1 && getCanonicalBedIndex(bed.occupant.bedCode) === targetBedIdx) || canonicalBedKey(bed.occupant.bedCode) === targetKey
-       : targetBedIdx === 0)
-      ? bed.occupant
-      : undefined);
+    }
+    return false;
+  });
 
   // 2. Chronological list of upcoming pre-booked reservations strictly in the FUTURE (today < joiningDate)
   const bookedList = matchingOccupants
@@ -1311,13 +1309,6 @@ export function getBedOccupantsTimeline(
       const dateB = new Date(b.joiningDate).getTime() || 0;
       return dateA - dateB;
     });
-
-  if (bookedList.length === 0 && (bed.status === "Booked" || bed.occupant?.lifecycleStatus === "Booked") && bed.occupant && bed.occupant.id !== activeOccupant?.id && bed.occupant.name?.toLowerCase() !== activeOccupant?.name?.toLowerCase()) {
-    const bedJoinD = parseOccupantDate(bed.occupant.joiningDate);
-    if (!bedJoinD || todayMidnight < new Date(bedJoinD.getFullYear(), bedJoinD.getMonth(), bedJoinD.getDate()).getTime()) {
-      bookedList.push(bed.occupant);
-    }
-  }
 
   const nextBooking = bookedList[0];
 

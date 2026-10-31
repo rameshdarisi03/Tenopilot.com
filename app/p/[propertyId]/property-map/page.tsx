@@ -733,14 +733,7 @@ function PropertyMapContent({
           const cleanBd = normalizeBedCode(bed.bedCode);
           const bedCanonicalIdx = getCanonicalBedIndex(bed.bedCode);
 
-          let primaryOcc =
-            timeline.activeOccupant ||
-            (bed.occupant &&
-             bed.occupant.lifecycleStatus !== "Past" &&
-             bed.occupant.lifecycleStatus !== "Booked" &&
-             (!bed.occupant.bedCode || (bedCanonicalIdx !== -1 && getCanonicalBedIndex(bed.occupant.bedCode) === bedCanonicalIdx) || normalizeBedCode(bed.occupant.bedCode) === cleanBd)
-              ? bed.occupant
-              : undefined);
+          let primaryOcc = timeline.activeOccupant;
 
           // Deduplicate: If this occupant was already claimed by an earlier bed in this room, do not duplicate
           if (primaryOcc) {
@@ -750,11 +743,7 @@ function PropertyMapContent({
               roomClaimedOccIds.add(primaryOcc.id);
             }
           }
-          const rawNext =
-            timeline.nextBooking ||
-            (bed.occupant && bed.occupant.lifecycleStatus === "Booked"
-              ? bed.occupant
-              : undefined);
+          const rawNext = timeline.nextBooking;
           const nextOcc =
             rawNext && primaryOcc && (rawNext.id === primaryOcc.id || rawNext.name?.toLowerCase() === primaryOcc.name?.toLowerCase())
               ? undefined
@@ -867,14 +856,7 @@ function PropertyMapContent({
               const bdCanonicalIdx = getCanonicalBedIndex(bd.bedCode);
 
               const timeline = getBedOccupantsTimeline(rm.roomNumber, bd.bedCode, bd, propertyId, rm.beds);
-              let primaryOcc =
-                timeline.activeOccupant ||
-                (bd.occupant &&
-                 bd.occupant.lifecycleStatus !== "Past" &&
-                 bd.occupant.lifecycleStatus !== "Booked" &&
-                 (!bd.occupant.bedCode || (bdCanonicalIdx !== -1 && getCanonicalBedIndex(bd.occupant.bedCode) === bdCanonicalIdx) || normalizeBedCode(bd.occupant.bedCode) === cleanBd)
-                  ? bd.occupant
-                  : undefined);
+              let primaryOcc = timeline.activeOccupant;
 
               if (primaryOcc) {
                 if (rmClaimedOccIds.has(primaryOcc.id)) {
@@ -883,11 +865,7 @@ function PropertyMapContent({
                   rmClaimedOccIds.add(primaryOcc.id);
                 }
               }
-              const rawNext =
-                timeline.nextBooking ||
-                (bd.occupant && bd.occupant.lifecycleStatus === "Booked"
-                  ? bd.occupant
-                  : undefined);
+              const rawNext = timeline.nextBooking;
               const nextOcc =
                 rawNext && primaryOcc && (rawNext.id === primaryOcc.id || rawNext.name?.toLowerCase() === primaryOcc.name?.toLowerCase())
                   ? undefined
@@ -1586,15 +1564,8 @@ function PropertyMapContent({
                                   const isAvailableLocked = preResolvedStatus === "Available";
 
                                   let primaryOcc = isAvailableLocked
-                                    ? undefined
-                                    : ((bed as any).resolvedOccupant ||
-                                       timeline.activeOccupant ||
-                                       (bed.occupant &&
-                                        bed.occupant.lifecycleStatus !== "Past" &&
-                                        bed.occupant.lifecycleStatus !== "Booked" &&
-                                        (!bed.occupant.bedCode || (bedCanonicalIdx !== -1 && getCanonicalBedIndex(bed.occupant.bedCode) === bedCanonicalIdx) || normalizeBedCode(bed.occupant.bedCode) === cleanBd)
-                                         ? bed.occupant
-                                         : undefined));
+                                     ? undefined
+                                     : ((bed as any).resolvedOccupant || timeline.activeOccupant);
 
                                   // Deduplicate: If an occupant was already rendered on an earlier bed in this room, do NOT duplicate
                                   if (primaryOcc) {
@@ -1604,11 +1575,7 @@ function PropertyMapContent({
                                       roomCardClaimedOccIds.add(primaryOcc.id);
                                     }
                                   }
-                                  const rawNext =
-                                    timeline.nextBooking ||
-                                    (bed.occupant && bed.occupant.lifecycleStatus === "Booked"
-                                      ? bed.occupant
-                                      : undefined);
+                                  const rawNext = timeline.nextBooking;
                                   const nextOcc =
                                     rawNext && primaryOcc && (rawNext.id === primaryOcc.id || rawNext.name?.toLowerCase() === primaryOcc.name?.toLowerCase())
                                       ? undefined
@@ -2129,21 +2096,11 @@ function PropertyMapContent({
 
                 const activeOcc = isExplicitlyVacant
                   ? undefined
-                  : (activeBedSlot.resolvedOccupant ||
-                     activeBedSlot.timeline?.activeOccupant ||
-                     (activeBedSlot.bed.occupant &&
-                      activeBedSlot.bed.occupant.lifecycleStatus !== "Booked" &&
-                      activeBedSlot.bed.occupant.lifecycleStatus !== "Past" &&
-                      (!activeBedSlot.bed.occupant.bedCode || (slotCanonicalIdx !== -1 && getCanonicalBedIndex(activeBedSlot.bed.occupant.bedCode) === slotCanonicalIdx) || normalizeBedCode(activeBedSlot.bed.occupant.bedCode) === cleanSlotBd)
-                       ? activeBedSlot.bed.occupant
-                       : undefined));
+                  : (activeBedSlot.resolvedOccupant || activeBedSlot.timeline?.activeOccupant);
 
                 const rawNext = isExplicitlyVacant
                   ? undefined
-                  : (activeBedSlot.timeline?.nextBooking ||
-                     (activeBedSlot.bed.occupant?.lifecycleStatus === "Booked"
-                       ? activeBedSlot.bed.occupant
-                       : undefined));
+                  : activeBedSlot.timeline?.nextBooking;
 
                 const nextOcc =
                   rawNext && activeOcc && (rawNext.id === activeOcc.id || rawNext.name?.toLowerCase() === activeOcc.name?.toLowerCase())

@@ -480,12 +480,10 @@ function SelfKycDeskContent({
               o.lifecycleStatus !== "Past"
           );
 
-          const isDirectlyAvailable =
-            (bd.status === "Available" || (!bd.status && !bd.occupant)) && !currentResident;
+          const isDirectlyAvailable = !currentResident;
           const isVacatingBeforeTarget =
-            (bd.status === "Occupied" || bd.status === "Booked" || Boolean(currentResident)) &&
-            Boolean(bd.vacatingDate || currentResident?.vacatingDate) &&
-            (bd.vacatingDate || currentResident?.vacatingDate || "") <= targetDate;
+            Boolean(currentResident?.vacatingDate) &&
+            (currentResident?.vacatingDate || "") <= targetDate;
 
           if (isDirectlyAvailable || isVacatingBeforeTarget) {
             list.push({

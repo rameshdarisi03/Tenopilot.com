@@ -166,14 +166,7 @@ export default function PropertySetupPage({
     const timeline = getBedOccupantsTimeline(roomNumber, bed.bedCode, bed, propertyId, allRoomBeds);
 
     // 1. Live occupant lookup (highest priority)
-    let liveOcc =
-      timeline.activeOccupant ||
-      (bed.occupant &&
-       bed.occupant.lifecycleStatus !== "Past" &&
-       bed.occupant.lifecycleStatus !== "Booked" &&
-       (!bed.occupant.bedCode || (bedCanonicalIdx !== -1 && getCanonicalBedIndex(bed.occupant.bedCode) === bedCanonicalIdx) || normalizeBedCode(bed.occupant.bedCode) === cleanBd)
-        ? bed.occupant
-        : undefined);
+    let liveOcc = timeline.activeOccupant;
 
     // 🔒 Enterprise Occupant Deduplication: Prevent a resident from being replicated across multiple beds in the same room!
     if (liveOcc) {
@@ -219,13 +212,7 @@ export default function PropertySetupPage({
     else if (isGuest) effectiveStatus = "Guest";
     else if (isLiveOccupied) effectiveStatus = "Occupied";
     else if (isBooked) effectiveStatus = "Booked";
-    else if (
-      bed.status === "Occupied" &&
-      bed.occupant &&
-      (!bed.occupant.bedCode || (bedCanonicalIdx !== -1 && getCanonicalBedIndex(bed.occupant.bedCode) === bedCanonicalIdx) || normalizeBedCode(bed.occupant.bedCode) === cleanBd)
-    ) {
-      effectiveStatus = "Occupied";
-    }
+    // 🌟 PURE SSOT: Only live occupants dictate Occupied state
 
     let badgeStyle = "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100";
     let statusBadge = "VACANT";
@@ -234,7 +221,7 @@ export default function PropertySetupPage({
     if (effectiveStatus === "Occupied") {
       badgeStyle = "bg-[#f7f2ee] text-amber-900 border-amber-200 hover:bg-amber-100";
       statusBadge = "OCCUPIED";
-      displayName = liveOcc?.name || bed.occupant?.name || "Occupied";
+      displayName = liveOcc?.name || "Occupied";
     } else if (effectiveStatus === "Vacating") {
       badgeStyle = "bg-orange-50 text-orange-950 border-2 border-orange-400 hover:bg-orange-100 shadow-2xs";
       statusBadge = "NOTICE";
@@ -252,7 +239,7 @@ export default function PropertySetupPage({
     return {
       isOccupied: effectiveStatus !== "Available",
       effectiveStatus,
-      occupant: liveOcc || bed.occupant,
+      occupant: liveOcc,
       displayName,
       statusBadge,
       badgeStyle,
