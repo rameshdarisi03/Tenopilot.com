@@ -1203,8 +1203,8 @@ export function allocateRoomOccupantsToBeds(
   });
 
   // Pass 2: Fill ANY remaining empty beds with remaining unassigned/duplicate occupants in room
+  // Safety rule: Never force an occupant with a distinct explicit bedCode (e.g. Bed A) onto a different empty bed (e.g. Bed B)
   const remainingOccupants = roomOccupants.filter((o) => !assignedOccIds.has(o.id));
-  let remIdx = 0;
   sortedBeds.forEach((b) => {
     const targetIdx = getCanonicalBedIndex(b.bedCode);
     const targetKey = canonicalBedKey(b.bedCode);
@@ -1214,13 +1214,22 @@ export function allocateRoomOccupantsToBeds(
       bedMap.has(targetKey) ||
       (targetIdx !== -1 ? bedMap.has(`idx_${targetIdx}`) : false);
 
-    if (!isAlreadyAssigned && remIdx < remainingOccupants.length) {
-      const match = remainingOccupants[remIdx++];
-      assignedOccIds.add(match.id);
-      if (b.id) bedMap.set(b.id, match);
-      bedMap.set(b.bedCode, match);
-      bedMap.set(targetKey, match);
-      if (targetIdx !== -1) bedMap.set(`idx_${targetIdx}`, match);
+    if (!isAlreadyAssigned && remainingOccupants.length > 0) {
+      // Find the next eligible unassigned occupant:
+      // Either an occupant with no bedCode, or whose canonical index matches this bed
+      const eligibleIdx = remainingOccupants.findIndex((o) => {
+        const occIdx = getCanonicalBedIndex(o.bedCode);
+        return occIdx === -1 || occIdx === targetIdx;
+      });
+
+      if (eligibleIdx !== -1) {
+        const [match] = remainingOccupants.splice(eligibleIdx, 1);
+        assignedOccIds.add(match.id);
+        if (b.id) bedMap.set(b.id, match);
+        bedMap.set(b.bedCode, match);
+        bedMap.set(targetKey, match);
+        if (targetIdx !== -1) bedMap.set(`idx_${targetIdx}`, match);
+      }
     }
   });
 

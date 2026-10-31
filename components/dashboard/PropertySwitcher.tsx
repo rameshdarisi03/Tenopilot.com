@@ -280,12 +280,17 @@ export function PropertySwitcher({
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <span className="font-extrabold text-xs text-[#201a17] truncate block group-hover:text-[#964407] transition-colors">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span
+                className={`font-extrabold text-[#201a17] block group-hover:text-[#964407] transition-colors leading-snug line-clamp-2 break-words ${
+                  activeName.length > 22 ? "text-[11px]" : "text-xs"
+                }`}
+                title={activeName}
+              >
                 {activeName}
               </span>
             </div>
-            <div className="flex items-center gap-1 text-[10px] text-[#554339] truncate">
+            <div className="flex items-center gap-1 text-[10px] text-[#554339] truncate mt-0.5">
               {activeRole === "receptionist" ? (
                 <span className="flex items-center gap-0.5 text-purple-700 font-semibold">
                   <Lock className="w-2.5 h-2.5" />

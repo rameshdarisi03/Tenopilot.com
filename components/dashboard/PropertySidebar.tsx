@@ -118,7 +118,7 @@ export function PropertySidebar({
   }, [propertyId]);
 
   const sidebarContent = (
-    <div className="flex flex-col h-full bg-[#fff8f6] border-r border-[#d7c2b9]/60 select-none">
+    <div className="flex flex-col h-full bg-[#fff8f6] border-r border-[#d7c2b9]/60 select-none w-64 min-w-[16rem] max-w-[16rem] overflow-hidden">
       {/* Sidebar Header */}
       <div className="p-5 border-b border-[#d7c2b9]/40 flex items-center justify-between">
         <Link
@@ -278,7 +278,7 @@ export function PropertySidebar({
   return (
     <>
       {/* Desktop Sidebar (hidden on mobile, visible on lg screens) */}
-      <aside className="hidden lg:flex lg:w-64 h-screen sticky top-0 shrink-0 z-40">
+      <aside className="hidden lg:flex lg:w-64 min-w-[16rem] max-w-[16rem] h-screen sticky top-0 shrink-0 z-40 overflow-hidden">
         {sidebarContent}
       </aside>
 

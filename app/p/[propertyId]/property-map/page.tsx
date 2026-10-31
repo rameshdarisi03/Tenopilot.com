@@ -582,6 +582,7 @@ function PropertyMapContent({
               ...rm,
               isRoomIncluded: visibleBeds.length > 0,
               totalPhysicalBeds: rm.beds ? rm.beds.length : (rm.sharingType || 2),
+              allPhysicalBeds: rm.beds || [],
               beds: visibleBeds,
             };
           })
@@ -1004,15 +1005,27 @@ function PropertyMapContent({
                                   const cleanBd = normalizeBedCode(bed.bedCode);
                                   const bedCanonicalIdx = getCanonicalBedIndex(bed.bedCode);
 
-                                  const timeline = getBedOccupantsTimeline(room.roomNumber, bed.bedCode, bed, propertyId, room.beds);
-                                  let primaryOcc =
-                                    timeline.activeOccupant ||
-                                    (bed.occupant &&
-                                     bed.occupant.lifecycleStatus !== "Past" &&
-                                     bed.occupant.lifecycleStatus !== "Booked" &&
-                                     (!bed.occupant.bedCode || (bedCanonicalIdx !== -1 && getCanonicalBedIndex(bed.occupant.bedCode) === bedCanonicalIdx) || normalizeBedCode(bed.occupant.bedCode) === cleanBd)
-                                      ? bed.occupant
-                                      : undefined);
+                                  // SSOT: Always evaluate room against its COMPLETE physical bed layout, never the filtered subset!
+                                  const physicalRoomBeds = (room as any).allPhysicalBeds && (room as any).allPhysicalBeds.length > 0
+                                    ? (room as any).allPhysicalBeds
+                                    : (room.beds || []);
+
+                                  const timeline = (bed as any).timeline || getBedOccupantsTimeline(room.roomNumber, bed.bedCode, bed, propertyId, physicalRoomBeds);
+
+                                  // SSOT: If bed was pre-resolved as Available in enrichedBeds, enforce Available status!
+                                  const preResolvedStatus = (bed as any).effectiveStatus;
+                                  const isAvailableLocked = preResolvedStatus === "Available";
+
+                                  let primaryOcc = isAvailableLocked
+                                    ? undefined
+                                    : ((bed as any).resolvedOccupant ||
+                                       timeline.activeOccupant ||
+                                       (bed.occupant &&
+                                        bed.occupant.lifecycleStatus !== "Past" &&
+                                        bed.occupant.lifecycleStatus !== "Booked" &&
+                                        (!bed.occupant.bedCode || (bedCanonicalIdx !== -1 && getCanonicalBedIndex(bed.occupant.bedCode) === bedCanonicalIdx) || normalizeBedCode(bed.occupant.bedCode) === cleanBd)
+                                         ? bed.occupant
+                                         : undefined));
 
                                   // Deduplicate: If an occupant was already rendered on an earlier bed in this room, do NOT duplicate
                                   if (primaryOcc) {
@@ -1072,7 +1085,9 @@ function PropertyMapContent({
                                     isKycInviteSent ||
                                     bed.status === "Booked";
 
-                                  const effectiveStatus = primaryOcc
+                                  const effectiveStatus = isAvailableLocked
+                                    ? "Available"
+                                    : primaryOcc
                                     ? primaryOcc.lifecycleStatus === "Notice"
                                       ? "Vacating"
                                       : primaryOcc.stayType === "Guest"
@@ -1162,7 +1177,7 @@ function PropertyMapContent({
                                           );
                                           return;
                                         }
-                                        const isVacant = effectiveStatus === "Available" || (!primaryOcc && !nextOcc && !isKycSubPending && !isKycInviteSent);
+                                        const isVacant = isAvailableLocked || effectiveStatus === "Available" || (!primaryOcc && !nextOcc && !isKycSubPending && !isKycInviteSent);
                                         setActiveBedSlot({
                                           bed,
                                           roomNumber: room.roomNumber,
