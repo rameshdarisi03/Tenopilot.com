@@ -137,7 +137,7 @@ export function FastTrackImportModal({
 
   // Options
   const [autoProvisionBuilding, setAutoProvisionBuilding] = useState<boolean>(true);
-  const [importMode, setImportMode] = useState<"MERGE" | "REBUILD">("MERGE");
+  const [importMode, setImportMode] = useState<"MERGE" | "REBUILD">("REBUILD");
   const [markDepositsPaid, setMarkDepositsPaid] = useState<boolean>(true);
   const [markCurrentMonthRentPaid, setMarkCurrentMonthRentPaid] = useState<boolean>(false);
 
