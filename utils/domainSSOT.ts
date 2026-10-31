@@ -571,13 +571,13 @@ export function resolveOccupantBillingCycleContext(
     }
   }
 
-  // Bound desiredDueDay to valid month calendar days (1 to 31)
-  const rawDueDay = Math.max(1, Math.min(31, desiredDueDay));
+  // Bound desiredDueDay to valid month days
+  desiredDueDay = Math.max(1, Math.min(28, desiredDueDay));
 
   let targetDueDate: Date;
   let resetDate: Date;
 
-  if (rawDueDay === 1) {
+  if (desiredDueDay === 1) {
     const daysInCurrentMonth = new Date(year, month + 1, 0).getDate();
     if (day === daysInCurrentMonth) {
       // (n-1) day for 1st of upcoming month! Resets today.
@@ -590,16 +590,15 @@ export function resolveOccupantBillingCycleContext(
       resetDate = new Date(year, month - 1, daysInPrevMonth);
     }
   } else {
-    // desiredDueDay > 1 (e.g. 5th, 30th) -> (n-1) day is 4th, 29th
-    const targetMonthOffset = day >= rawDueDay - 1 ? 0 : -1;
-    const targetMonthDate = new Date(year, month + targetMonthOffset, 1);
-    const targetYear = targetMonthDate.getFullYear();
-    const targetMonth = targetMonthDate.getMonth();
-    const daysInTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
-    const safeDueDay = Math.min(rawDueDay, daysInTargetMonth);
-
-    targetDueDate = new Date(targetYear, targetMonth, safeDueDay);
-    resetDate = new Date(targetYear, targetMonth, Math.max(1, safeDueDay - 1));
+    // desiredDueDay > 1 (e.g. 5th or 6th) -> (n-1) day is 4th or 5th
+    if (day >= desiredDueDay - 1) {
+      targetDueDate = new Date(year, month, desiredDueDay);
+      resetDate = new Date(year, month, desiredDueDay - 1);
+    } else {
+      // Prior to (n-1) day in the current calendar month
+      targetDueDate = new Date(year, month - 1, desiredDueDay);
+      resetDate = new Date(year, month - 1, desiredDueDay - 1);
+    }
   }
 
   // Grace cutoff: Due Date + (graceDays - 1) day end-of-day.
@@ -618,7 +617,7 @@ export function resolveOccupantBillingCycleContext(
   // Choice B: If occupant has custom due day in the current month (e.g. 6th),
   // and today is strictly before their reset day (e.g. 1st - 4th of month),
   // they are postponed to a future date in this month.
-  const isCustomFuturePostponed = hasCustomDueOverride && day < rawDueDay - 1;
+  const isCustomFuturePostponed = hasCustomDueOverride && day < desiredDueDay - 1;
 
   return {
     targetDueDate,
