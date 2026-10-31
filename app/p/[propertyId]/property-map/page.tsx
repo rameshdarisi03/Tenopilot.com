@@ -289,6 +289,8 @@ function PropertyMapContent({
     roomNumber: string;
     floorName: string;
     timeline?: BedOccupantsTimeline;
+    resolvedOccupant?: Occupant;
+    isVacant?: boolean;
   } | null>(null);
 
   // Global Price Privacy Mode Toggle state (Masks prices as ₹ ••••• when showing screen to tenants)
@@ -548,39 +550,39 @@ function PropertyMapContent({
                 ? "Booked"
                 : "Available";
 
-              const matchesStatus = activeFilterStatus === "ALL" || effStatus === activeFilterStatus;
-
-              let matchesSearch = true;
-              if (query) {
-                if (roomMatchesQuery) {
-                  matchesSearch = true;
-                } else {
-                  const bdCodeMatch = bd.bedCode?.toLowerCase().includes(query);
-                  const primaryMatch = primaryOcc && matchesTenoPilotSearch(primaryOcc, query);
-                  const nextMatch = nextOcc && matchesTenoPilotSearch(nextOcc, query);
-                  matchesSearch = Boolean(bdCodeMatch || primaryMatch || nextMatch);
-                }
-              }
+              // Direct bed search matching (specific bed code, occupant name, phone, vehicle)
+              const bdCodeMatch = query ? bd.bedCode?.toLowerCase().includes(query) : false;
+              const primaryMatch = query && primaryOcc ? matchesTenoPilotSearch(primaryOcc, query) : false;
+              const nextMatch = query && nextOcc ? matchesTenoPilotSearch(nextOcc, query) : false;
+              const isDirectSearchMatch = Boolean(bdCodeMatch || primaryMatch || nextMatch);
 
               return {
                 ...bd,
                 effectiveStatus: effStatus,
-                matchesStatus,
-                matchesSearch,
+                resolvedOccupant: primaryOcc,
+                timeline,
+                isDirectSearchMatch,
               };
             });
 
-            // A room is included if:
-            // 1. It contains at least one bed matching the active status filter
-            // 2. If a search query is active, the room or at least one bed matches the search
-            const hasStatusMatch = activeFilterStatus === "ALL" || enrichedBeds.some((b) => b.matchesStatus);
-            const hasSearchMatch = !query || roomMatchesQuery || enrichedBeds.some((b) => b.matchesSearch);
+            // 🌟 STRICT ISOLATION FILTERING:
+            // 1. If activeFilterStatus is NOT "ALL", strictly isolate only beds with that status!
+            // 2. If search query is active and does NOT match the room number directly, filter to matching beds!
+            const visibleBeds = enrichedBeds.filter((bd) => {
+              if (activeFilterStatus !== "ALL" && bd.effectiveStatus !== activeFilterStatus) {
+                return false;
+              }
+              if (query && !roomMatchesQuery && !bd.isDirectSearchMatch) {
+                return false;
+              }
+              return true;
+            });
 
             return {
               ...rm,
-              isRoomIncluded: hasStatusMatch && hasSearchMatch,
+              isRoomIncluded: visibleBeds.length > 0,
               totalPhysicalBeds: rm.beds ? rm.beds.length : (rm.sharingType || 2),
-              beds: enrichedBeds,
+              beds: visibleBeds,
             };
           })
           .filter((rm) => rm.isRoomIncluded);
@@ -760,8 +762,11 @@ function PropertyMapContent({
               {/* Color-Coded Bed Status Filter Pills */}
               <div className="flex flex-wrap items-center gap-2 text-xs font-bold pt-1">
                 <button
-                  onClick={() => setActiveFilterStatus("ALL")}
-                  className={`px-4 py-1.5 rounded-full transition-all ${
+                  onClick={() => {
+                    setActiveFilterStatus("ALL");
+                    setRawSearchTerm("");
+                  }}
+                  className={`px-4 py-1.5 rounded-full transition-all cursor-pointer ${
                     activeFilterStatus === "ALL"
                       ? "bg-[#c2652a] text-white shadow-xs"
                       : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -771,8 +776,11 @@ function PropertyMapContent({
                 </button>
 
                 <button
-                  onClick={() => setActiveFilterStatus("Available")}
-                  className={`px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all ${
+                  onClick={() => {
+                    setActiveFilterStatus("Available");
+                    setRawSearchTerm("");
+                  }}
+                  className={`px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all cursor-pointer ${
                     activeFilterStatus === "Available"
                       ? "bg-emerald-600 text-white shadow-xs"
                       : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
@@ -782,8 +790,11 @@ function PropertyMapContent({
                 </button>
 
                 <button
-                  onClick={() => setActiveFilterStatus("Occupied")}
-                  className={`px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all ${
+                  onClick={() => {
+                    setActiveFilterStatus("Occupied");
+                    setRawSearchTerm("");
+                  }}
+                  className={`px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all cursor-pointer ${
                     activeFilterStatus === "Occupied"
                       ? "bg-amber-900 text-white shadow-xs"
                       : "bg-[#f7f2ee] text-amber-900 hover:bg-amber-100"
@@ -793,8 +804,11 @@ function PropertyMapContent({
                 </button>
 
                 <button
-                  onClick={() => setActiveFilterStatus("Vacating")}
-                  className={`px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all ${
+                  onClick={() => {
+                    setActiveFilterStatus("Vacating");
+                    setRawSearchTerm("");
+                  }}
+                  className={`px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all cursor-pointer ${
                     activeFilterStatus === "Vacating"
                       ? "bg-orange-600 text-white shadow-xs"
                       : "bg-orange-50 text-orange-700 hover:bg-orange-100"
@@ -804,8 +818,11 @@ function PropertyMapContent({
                 </button>
 
                 <button
-                  onClick={() => setActiveFilterStatus("Booked")}
-                  className={`px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all ${
+                  onClick={() => {
+                    setActiveFilterStatus("Booked");
+                    setRawSearchTerm("");
+                  }}
+                  className={`px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all cursor-pointer ${
                     activeFilterStatus === "Booked"
                       ? "bg-blue-600 text-white shadow-xs"
                       : "bg-blue-50 text-blue-700 hover:bg-blue-100"
@@ -815,8 +832,11 @@ function PropertyMapContent({
                 </button>
 
                 <button
-                  onClick={() => setActiveFilterStatus("Guest")}
-                  className={`px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all ${
+                  onClick={() => {
+                    setActiveFilterStatus("Guest");
+                    setRawSearchTerm("");
+                  }}
+                  className={`px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all cursor-pointer ${
                     activeFilterStatus === "Guest"
                       ? "bg-purple-600 text-white shadow-xs"
                       : "bg-purple-50 text-purple-700 hover:bg-purple-100"
@@ -850,7 +870,13 @@ function PropertyMapContent({
             <input
               type="text"
               value={rawSearchTerm}
-              onChange={(e) => setRawSearchTerm(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setRawSearchTerm(val);
+                if (val.trim() && activeFilterStatus !== "ALL") {
+                  setActiveFilterStatus("ALL");
+                }
+              }}
               placeholder="Search resident name, room, phone, vehicle plate..."
               className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 focus:border-[#c2652a] rounded-2xl text-xs sm:text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-[#c2652a]/20 shadow-xs transition-all"
             />
@@ -1121,10 +1147,10 @@ function PropertyMapContent({
                                     statusLabel = "Available";
                                   }
 
-                                  const isMatchForFilter = activeFilterStatus === "ALL" || effectiveStatus === activeFilterStatus;
-                                  const isMatchForSearch = !rawSearchTerm || (bed as any).matchesSearch;
-                                  const isDimmed = (activeFilterStatus !== "ALL" && !isMatchForFilter) || (rawSearchTerm && !isMatchForSearch);
-                                  const isSearchHighlighted = Boolean(rawSearchTerm && (bed as any).matchesSearch);
+                                  const query = rawSearchTerm.toLowerCase().trim();
+                                  const roomMatchesQuery = query ? matchesTenoPilotSearch({ roomNumber: room.roomNumber }, query) : false;
+                                  const isDirectMatch = Boolean((bed as any).isDirectSearchMatch);
+                                  const isSearchHighlighted = Boolean(query && !roomMatchesQuery && isDirectMatch);
 
                                   return (
                                     <button
@@ -1136,16 +1162,17 @@ function PropertyMapContent({
                                           );
                                           return;
                                         }
+                                        const isVacant = effectiveStatus === "Available" || (!primaryOcc && !nextOcc && !isKycSubPending && !isKycInviteSent);
                                         setActiveBedSlot({
                                           bed,
                                           roomNumber: room.roomNumber,
                                           floorName: floor.floorName,
-                                          timeline,
+                                          timeline: isVacant ? { totalUpcomingCount: 0, futureBookings: [] } : timeline,
+                                          resolvedOccupant: isVacant ? undefined : primaryOcc,
+                                          isVacant,
                                         });
                                       }}
                                       className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all text-center group cursor-pointer active:scale-95 relative ${badgeStyle} ${
-                                        isDimmed ? "opacity-35 border-dashed grayscale hover:opacity-100 hover:grayscale-0" : ""
-                                      } ${
                                         isSearchHighlighted
                                           ? "ring-2 ring-[#c2652a] shadow-md scale-[1.02]"
                                           : ""
@@ -1423,20 +1450,25 @@ function PropertyMapContent({
                 const cleanSlotBd = normalizeBedCode(activeBedSlot.bed.bedCode);
                 const slotCanonicalIdx = getCanonicalBedIndex(activeBedSlot.bed.bedCode);
 
-                const activeOcc =
-                  activeBedSlot.timeline?.activeOccupant ||
-                  (activeBedSlot.bed.occupant &&
-                   activeBedSlot.bed.occupant.lifecycleStatus !== "Booked" &&
-                   activeBedSlot.bed.occupant.lifecycleStatus !== "Past" &&
-                   (!activeBedSlot.bed.occupant.bedCode || (slotCanonicalIdx !== -1 && getCanonicalBedIndex(activeBedSlot.bed.occupant.bedCode) === slotCanonicalIdx) || normalizeBedCode(activeBedSlot.bed.occupant.bedCode) === cleanSlotBd)
-                    ? activeBedSlot.bed.occupant
-                    : undefined);
+                const isExplicitlyVacant = activeBedSlot.isVacant;
 
-                const rawNext =
-                  activeBedSlot.timeline?.nextBooking ||
-                  (activeBedSlot.bed.occupant?.lifecycleStatus === "Booked"
-                    ? activeBedSlot.bed.occupant
-                    : undefined);
+                const activeOcc = isExplicitlyVacant
+                  ? undefined
+                  : (activeBedSlot.resolvedOccupant ||
+                     activeBedSlot.timeline?.activeOccupant ||
+                     (activeBedSlot.bed.occupant &&
+                      activeBedSlot.bed.occupant.lifecycleStatus !== "Booked" &&
+                      activeBedSlot.bed.occupant.lifecycleStatus !== "Past" &&
+                      (!activeBedSlot.bed.occupant.bedCode || (slotCanonicalIdx !== -1 && getCanonicalBedIndex(activeBedSlot.bed.occupant.bedCode) === slotCanonicalIdx) || normalizeBedCode(activeBedSlot.bed.occupant.bedCode) === cleanSlotBd)
+                       ? activeBedSlot.bed.occupant
+                       : undefined));
+
+                const rawNext = isExplicitlyVacant
+                  ? undefined
+                  : (activeBedSlot.timeline?.nextBooking ||
+                     (activeBedSlot.bed.occupant?.lifecycleStatus === "Booked"
+                       ? activeBedSlot.bed.occupant
+                       : undefined));
 
                 const nextOcc =
                   rawNext && activeOcc && (rawNext.id === activeOcc.id || rawNext.name?.toLowerCase() === activeOcc.name?.toLowerCase())
