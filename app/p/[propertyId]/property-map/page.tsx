@@ -1124,7 +1124,7 @@ function PropertyMapContent({
                                   const isMatchForFilter = activeFilterStatus === "ALL" || effectiveStatus === activeFilterStatus;
                                   const isMatchForSearch = !rawSearchTerm || (bed as any).matchesSearch;
                                   const isDimmed = (activeFilterStatus !== "ALL" && !isMatchForFilter) || (rawSearchTerm && !isMatchForSearch);
-                                  const isHighlighted = (activeFilterStatus !== "ALL" && isMatchForFilter) || (rawSearchTerm && isMatchForSearch);
+                                  const isSearchHighlighted = Boolean(rawSearchTerm && (bed as any).matchesSearch);
 
                                   return (
                                     <button
@@ -1146,7 +1146,7 @@ function PropertyMapContent({
                                       className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all text-center group cursor-pointer active:scale-95 relative ${badgeStyle} ${
                                         isDimmed ? "opacity-35 border-dashed grayscale hover:opacity-100 hover:grayscale-0" : ""
                                       } ${
-                                        isHighlighted && (activeFilterStatus !== "ALL" || rawSearchTerm)
+                                        isSearchHighlighted
                                           ? "ring-2 ring-[#c2652a] shadow-md scale-[1.02]"
                                           : ""
                                       }`}
