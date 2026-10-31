@@ -117,7 +117,7 @@ export default function OnboardGuestPage({
     return future.toISOString().split("T")[0];
   });
 
-  const [totalTariff, setTotalTariff] = useState<number>(3500);
+  const [totalTariff, setTotalTariff] = useState<number>(0);
   const [depositAmount, setDepositAmount] = useState<number>(1000);
 
   // Form State — Step 2: Bed Allocation & Desired Sharing Filter (Defaults to 2 Sharing)

@@ -128,8 +128,8 @@ export default function OnboardTenantPage({
     const today = new Date();
     return today.toISOString().split("T")[0];
   });
-  const [monthlyRent, setMonthlyRent] = useState<number>(12500);
-  const [depositAmount, setDepositAmount] = useState<number>(25000);
+  const [monthlyRent, setMonthlyRent] = useState<number>(0);
+  const [depositAmount, setDepositAmount] = useState<number>(0);
   const [depositCustomized, setDepositCustomized] = useState<boolean>(false);
   const [rentDueDate, setRentDueDate] = useState<string>("1st of month");
 
@@ -1456,10 +1456,17 @@ export default function OnboardTenantPage({
                                         vacatingDate: bed.vacatingDate,
                                         isVacating,
                                       });
-                                      const autoRent = room.customRentAmount || getSharingRent(room.sharingType);
-                                      setMonthlyRent(autoRent);
-                                      if (!depositCustomized) {
-                                        setDepositAmount(autoRent * 2);
+                                      const autoRent = room.customRentAmount || 0;
+                                      if (autoRent > 0) {
+                                        setMonthlyRent(autoRent);
+                                        if (!depositCustomized) {
+                                          setDepositAmount(autoRent * 2);
+                                        }
+                                      } else {
+                                        setMonthlyRent(0);
+                                        if (!depositCustomized) {
+                                          setDepositAmount(0);
+                                        }
                                       }
                                     }}
                                     className={`p-3 rounded-xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer min-h-[60px] ${

@@ -102,9 +102,9 @@ function SelfKycDeskContent({
   const [inviteCandidatePhone, setInviteCandidatePhone] = useState("");
   const [inviteCountryCode, setInviteCountryCode] = useState("+91");
   const [inviteCandidateEmail, setInviteCandidateEmail] = useState("");
-  const [inviteRentAmount, setInviteRentAmount] = useState<number>(12000);
-  const [inviteDepositAmount, setInviteDepositAmount] = useState<number>(24000);
-  const [inviteDailyRate, setInviteDailyRate] = useState<number>(400);
+  const [inviteRentAmount, setInviteRentAmount] = useState<number>(0);
+  const [inviteDepositAmount, setInviteDepositAmount] = useState<number>(0);
+  const [inviteDailyRate, setInviteDailyRate] = useState<number>(0);
   const [inviteDispatchLoading, setInviteDispatchLoading] = useState(false);
 
   // Active resident phone & email lookup maps (to detect conflict in Send Invite modal)
@@ -492,7 +492,7 @@ function SelfKycDeskContent({
               roomNumber: rm.roomNumber,
               bedCode: bd.bedCode,
               floorName: fl.floorName,
-              tariff: rm.customRentAmount || 12000,
+              tariff: rm.customRentAmount || 0,
             });
           }
         });
@@ -516,9 +516,15 @@ function SelfKycDeskContent({
     const firstBed = availableBeds.find((b) => b.roomNumber === roomNum);
     if (firstBed) {
       setInviteBedCode(firstBed.bedCode);
-      setInviteRentAmount(firstBed.tariff);
-      setInviteDepositAmount(firstBed.tariff * 2);
-      setInviteDailyRate(Math.round(firstBed.tariff / 30));
+      if (firstBed.tariff && firstBed.tariff > 0) {
+        setInviteRentAmount(firstBed.tariff);
+        setInviteDepositAmount(firstBed.tariff * 2);
+        setInviteDailyRate(Math.round(firstBed.tariff / 30));
+      } else {
+        setInviteRentAmount(0);
+        setInviteDepositAmount(0);
+        setInviteDailyRate(0);
+      }
     }
   };
 
@@ -544,21 +550,25 @@ function SelfKycDeskContent({
              (!cleanB || normBed(b.bedCode) === cleanB)
     );
 
-    if (matched) {
+    if (matched && matched.tariff > 0) {
       setInviteBedCode(matched.bedCode);
       setInviteRentAmount(matched.tariff);
       setInviteDepositAmount(matched.tariff * 2);
       setInviteDailyRate(Math.round(matched.tariff / 30));
     } else {
-      // Find room in structure to get its rent tariff
+      // Find room in structure to get its rent tariff if explicitly set
       const rm = propertyStructure
         .flatMap((fl) => fl.rooms)
         .find((r) => r.roomNumber.toLowerCase().trim() === cleanR);
-      if (rm) {
-        const tariff = rm.customRentAmount || 12000;
+      if (rm?.customRentAmount && rm.customRentAmount > 0) {
+        const tariff = rm.customRentAmount;
         setInviteRentAmount(tariff);
         setInviteDepositAmount(tariff * 2);
         setInviteDailyRate(Math.round(tariff / 30));
+      } else {
+        setInviteRentAmount(0);
+        setInviteDepositAmount(0);
+        setInviteDailyRate(0);
       }
     }
     setShowInviteModal(true);
@@ -587,9 +597,15 @@ function SelfKycDeskContent({
         const first = availableBeds[0];
         setInviteRoomNumber(first.roomNumber);
         setInviteBedCode(first.bedCode);
-        setInviteRentAmount(first.tariff);
-        setInviteDepositAmount(first.tariff * 2);
-        setInviteDailyRate(Math.round(first.tariff / 30));
+        if (first.tariff && first.tariff > 0) {
+          setInviteRentAmount(first.tariff);
+          setInviteDepositAmount(first.tariff * 2);
+          setInviteDailyRate(Math.round(first.tariff / 30));
+        } else {
+          setInviteRentAmount(0);
+          setInviteDepositAmount(0);
+          setInviteDailyRate(0);
+        }
       }
     } else if (propertyStructure.length > 0) {
       setInviteRoomNumber("");
@@ -605,9 +621,15 @@ function SelfKycDeskContent({
       const first = availableBeds[0];
       setInviteRoomNumber(first.roomNumber);
       setInviteBedCode(first.bedCode);
-      setInviteRentAmount(first.tariff);
-      setInviteDepositAmount(first.tariff * 2);
-      setInviteDailyRate(Math.round(first.tariff / 30));
+      if (first.tariff && first.tariff > 0) {
+        setInviteRentAmount(first.tariff);
+        setInviteDepositAmount(first.tariff * 2);
+        setInviteDailyRate(Math.round(first.tariff / 30));
+      } else {
+        setInviteRentAmount(0);
+        setInviteDepositAmount(0);
+        setInviteDailyRate(0);
+      }
     } else {
       setInviteRoomNumber("");
       setInviteBedCode("");
@@ -2007,7 +2029,7 @@ function SelfKycDeskContent({
                     inputMode="numeric"
                     required
                     value={inviteRentAmount ? String(inviteRentAmount) : ""}
-                    placeholder="0"
+                    placeholder="e.g. 10000"
                     onChange={(e) => {
                       const val = e.target.value.replace(/\D/g, "");
                       const num = val === "" ? 0 : parseInt(val, 10);
@@ -2030,7 +2052,7 @@ function SelfKycDeskContent({
                       inputMode="numeric"
                       required
                       value={inviteDepositAmount ? String(inviteDepositAmount) : ""}
-                      placeholder="0"
+                      placeholder="e.g. 20000"
                       onChange={(e) => {
                         const val = e.target.value.replace(/\D/g, "");
                         setInviteDepositAmount(val === "" ? 0 : parseInt(val, 10));

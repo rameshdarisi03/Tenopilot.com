@@ -1795,12 +1795,18 @@ function PropertyMapContent({
                         {/* 🌟 BOTTOM-LEFT ROOM ATTRIBUTE STRIP (Tariff + Photos + Feature Tag) */}
                         <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2 text-xs">
                           <div className="flex flex-wrap items-center gap-2">
-                            {/* Monthly Rent Tariff (Privacy Mode Aware) */}
-                            <span className="font-mono font-bold text-[#c2652a] bg-orange-50 px-2.5 py-1 rounded-lg border border-orange-200/60">
-                              {isPrivacyMode
-                                ? "₹ ••••• / mo"
-                                : `₹${getRoomTariff(room, propertyId).toLocaleString("en-IN")} / mo`}
-                            </span>
+                            {/* Monthly Rent Tariff (Privacy Mode Aware) - Only shown if explicitly configured */}
+                            {(() => {
+                              const tariff = getRoomTariff(room, propertyId);
+                              if (!tariff || tariff <= 0) return null;
+                              return (
+                                <span className="font-mono font-bold text-[#c2652a] bg-orange-50 px-2.5 py-1 rounded-lg border border-orange-200/60">
+                                  {isPrivacyMode
+                                    ? "₹ ••••• / mo"
+                                    : `₹${tariff.toLocaleString("en-IN")} / mo`}
+                                </span>
+                              );
+                            })()}
 
                             {/* 📷 Room Photos Lightbox Trigger Button */}
                             {room.roomPhotos && room.roomPhotos.length > 0 && (

@@ -342,18 +342,14 @@ export function getGuestStayTimeline(
 
 /**
  * 5. SSOT Room Sharing Tariff Resolver
+ * Returns explicit room custom rent amount if configured; defaults to 0 (empty)
+ * because different rooms have different prices.
  */
 export function getRoomTariff(room: Partial<RoomConfig>, propertyId?: string): number {
   if (room.customRentAmount && room.customRentAmount > 0) {
     return room.customRentAmount;
   }
-  const settings = propertySettingsStore.getSettings(propertyId);
-  const tiers = settings?.rentalTiers;
-  if (room.sharingType === 1) return tiers?.sharing1 || 20000;
-  if (room.sharingType === 2) return tiers?.sharing2 || 12000;
-  if (room.sharingType === 3) return tiers?.sharing3 || 8500;
-  if (room.sharingType === 4) return tiers?.sharing4 || 6000;
-  return tiers?.sharing2 || 12000; // Default 2-sharing tariff
+  return 0;
 }
 
 /**
