@@ -56,6 +56,7 @@ import {
   ExternalLink,
   AlertTriangle,
   RotateCcw,
+  Send,
 } from "lucide-react";
 
 import { selfKycStore, SelfKycSubmission, SelfKycInvite } from "@/lib/selfKycStore";
@@ -1977,6 +1978,21 @@ function PropertyMapContent({
                         </div>
                       )}
                     </div>
+
+                    {/* Send Self-KYC Invite Link Button (Right below Add Resident to Bed) */}
+                    <Link
+                      href={`/p/${propertyId}/self-kyc?tab=INVITES&action=invite&room=${encodeURIComponent(
+                        activeBedSlot.roomNumber
+                      )}&bed=${encodeURIComponent(activeBedSlot.bed.bedCode)}`}
+                      className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 border border-amber-300/80 hover:border-[#c2652a] text-[#964407] font-bold text-xs flex items-center justify-between shadow-2xs hover:shadow-xs transition-all cursor-pointer active:scale-98 block group"
+                      title={`Generate and dispatch digital Self-KYC invite link for Room ${activeBedSlot.roomNumber} (${activeBedSlot.bed.bedCode})`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Send className="w-4 h-4 text-[#c2652a]" />
+                        <span>Send Self-KYC Invite Link</span>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-[#c2652a]/70 group-hover:text-[#964407] group-hover:translate-x-0.5 transition-transform shrink-0" />
+                    </Link>
                   </div>
                 );
               })()}

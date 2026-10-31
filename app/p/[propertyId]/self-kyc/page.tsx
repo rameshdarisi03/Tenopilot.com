@@ -67,11 +67,13 @@ function SelfKycDeskContent({
   const urlRoom = searchParams?.get("room") || "";
   const urlBed = searchParams?.get("bed") || "";
   const urlTab = searchParams?.get("tab") || "";
+  const urlAction = searchParams?.get("action") || "";
+  const isInviteAction = urlTab === "INVITES" || urlAction === "invite" || searchParams?.get("sendInvite") === "true";
 
   const { profile, user } = useAuth();
 
   const [activeTab, setActiveTab] = useState<"INVITES" | "REVIEW" | "APPROVED">(
-    urlTab === "REVIEW" || reviewSubmissionId || urlRoom ? "REVIEW" : "INVITES"
+    isInviteAction ? "INVITES" : (urlTab === "REVIEW" || reviewSubmissionId || urlRoom ? "REVIEW" : "INVITES")
   );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [submissions, setSubmissions] = useState<SelfKycSubmission[]>([]);
@@ -297,12 +299,16 @@ function SelfKycDeskContent({
     }
   };
 
+  const handledInviteLinkRef = useRef(false);
+
   // Auto-switch to REVIEW tab when deep-linked from Property Map (only once on load)
   useEffect(() => {
-    if (!handledDeepLinkRef.current && (urlTab === "REVIEW" || reviewSubmissionId || urlRoom)) {
+    if (handledDeepLinkRef.current) return;
+    if (isInviteAction) return;
+    if (urlTab === "REVIEW" || reviewSubmissionId || urlRoom) {
       setActiveTab("REVIEW");
     }
-  }, [urlTab, reviewSubmissionId, urlRoom]);
+  }, [urlTab, reviewSubmissionId, urlRoom, isInviteAction]);
 
   // Direct 1-Click KYC Verification: Auto-select targeted resident and open Review & Verification modal
   useEffect(() => {
@@ -512,6 +518,33 @@ function SelfKycDeskContent({
       setInviteDailyRate(Math.round(firstBed.tariff / 30));
     }
   };
+
+  // Direct 1-Click Self-KYC Invite: Auto-open Send Invite Modal when action=invite is passed
+  useEffect(() => {
+    if (handledInviteLinkRef.current) return;
+    if (!isInviteAction || !urlRoom) return;
+
+    handledInviteLinkRef.current = true;
+    setActiveTab("INVITES");
+    setInviteRoomNumber(urlRoom);
+    if (urlBed) setInviteBedCode(urlBed);
+
+    if (availableBeds.length > 0) {
+      const cleanR = urlRoom.toLowerCase().trim();
+      const cleanB = urlBed.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const matched = availableBeds.find(
+        (b) => b.roomNumber.toLowerCase().trim() === cleanR &&
+               (!cleanB || b.bedCode.toLowerCase().replace(/[^a-z0-9]/g, "") === cleanB)
+      );
+      if (matched) {
+        setInviteBedCode(matched.bedCode);
+        setInviteRentAmount(matched.tariff);
+        setInviteDepositAmount(matched.tariff * 2);
+        setInviteDailyRate(Math.round(matched.tariff / 30));
+      }
+    }
+    setShowInviteModal(true);
+  }, [isInviteAction, urlRoom, urlBed, availableBeds]);
 
   // Keep room and bed in sync when check-in date or availableBeds change
   useEffect(() => {
