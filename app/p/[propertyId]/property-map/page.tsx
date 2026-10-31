@@ -392,6 +392,18 @@ function PropertyMapContent({
   // 💬 Multi-Select Mode & Bulk Reminders State
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [selectedOccupantIds, setSelectedOccupantIds] = useState<string[]>([]);
+  // Mobile Tactile Multi-Select Mode (Long-press activated)
+  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
+  const isLongPressTriggeredRef = useRef(false);
+
+  // Auto-cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+      }
+    };
+  }, [longPressTimer]);
   const [showRentReminderModal, setShowRentReminderModal] = useState(false);
   const [activeQrIndex, setActiveQrIndex] = useState(0);
   const [selectedReminderChannels, setSelectedReminderChannels] = useState<{
@@ -438,9 +450,13 @@ function PropertyMapContent({
   }, [occupants, selectedOccupantIds]);
 
   const handleToggleSelectOccupant = (occId: string) => {
-    setSelectedOccupantIds((prev) =>
-      prev.includes(occId) ? prev.filter((id) => id !== occId) : [...prev, occId]
-    );
+    setSelectedOccupantIds((prev) => {
+      const next = prev.includes(occId) ? prev.filter((id) => id !== occId) : [...prev, occId];
+      if (next.length === 0) {
+        setIsMultiSelectMode(false);
+      }
+      return next;
+    });
   };
 
   const getReminderPaymentCards = (): PaymentQRProfile[] => {
@@ -1720,64 +1736,108 @@ function PropertyMapContent({
                                     statusLabel = "Available";
                                   }
 
-                                  const query = rawSearchTerm.toLowerCase().trim();
-                                  const roomMatchesQuery = query ? matchesTenoPilotSearch({ roomNumber: room.roomNumber }, query) : false;
-                                  const isDirectMatch = Boolean((bed as any).isDirectSearchMatch);
-                                  const isSearchHighlighted = Boolean(query && !roomMatchesQuery && isDirectMatch);
+                                   const query = rawSearchTerm.toLowerCase().trim();
+                                   const roomMatchesQuery = query ? matchesTenoPilotSearch({ roomNumber: room.roomNumber }, query) : false;
+                                   const isDirectMatch = Boolean((bed as any).isDirectSearchMatch);
+                                   const isSearchHighlighted = Boolean(query && !roomMatchesQuery && isDirectMatch);
 
-                                  return (
-                                    <button
-                                      key={bed.id}
-                                      onClick={() => {
-                                        // 1. If in Multi-Select Mode, toggle selection of occupant
-                                        if (isMultiSelectMode) {
-                                          if (primaryOcc) {
-                                            handleToggleSelectOccupant(primaryOcc.id);
-                                          }
-                                          return;
-                                        }
+                                   const startBedTouchTimer = (e: React.TouchEvent | React.MouseEvent) => {
+                                     if (isMultiSelectMode || !primaryOcc) return;
+                                     isLongPressTriggeredRef.current = false;
+                                     const timer = setTimeout(() => {
+                                       isLongPressTriggeredRef.current = true;
+                                       setIsMultiSelectMode(true);
+                                       handleToggleSelectOccupant(primaryOcc.id);
+                                       if (typeof window !== "undefined" && navigator.vibrate) {
+                                         try {
+                                           navigator.vibrate(60);
+                                         } catch {}
+                                       }
+                                     }, 450); // 450ms standard native mobile long-press threshold
+                                     setLongPressTimer(timer);
+                                   };
 
-                                        // 2. If KYC review is pending, open review desk
-                                        if (isKycSubPending && pendingKycSub) {
-                                          router.push(
-                                            `/p/${propertyId}/self-kyc?reviewSubmissionId=${pendingKycSub.id}&room=${encodeURIComponent(room.roomNumber)}&bed=${encodeURIComponent(bed.bedCode)}`
-                                          );
-                                          return;
-                                        }
+                                   const clearBedTouchTimer = () => {
+                                     if (longPressTimer) {
+                                       clearTimeout(longPressTimer);
+                                       setLongPressTimer(null);
+                                     }
+                                   };
 
-                                        // 3. ⚡ BYPASS DRAWER MODAL for Occupied & Vacating tenants -> Route directly to full profile!
-                                        if (
-                                          primaryOcc &&
-                                          (effectiveStatus === "Occupied" ||
-                                            effectiveStatus === "Vacating" ||
-                                            primaryOcc.lifecycleStatus === "Active" ||
-                                            primaryOcc.lifecycleStatus === "Notice")
-                                        ) {
-                                          router.push(`/p/${propertyId}/tenants/${primaryOcc.id}`);
-                                          return;
-                                        }
+                                   return (
+                                     <button
+                                       key={bed.id}
+                                       onTouchStart={startBedTouchTimer}
+                                       onTouchEnd={clearBedTouchTimer}
+                                       onTouchMove={clearBedTouchTimer}
+                                       onMouseDown={startBedTouchTimer}
+                                       onMouseUp={clearBedTouchTimer}
+                                       onContextMenu={(e) => {
+                                         if (primaryOcc) e.preventDefault();
+                                       }}
+                                       style={{
+                                         WebkitTouchCallout: "none",
+                                         WebkitUserSelect: "none",
+                                         userSelect: "none",
+                                       }}
+                                       onClick={(e) => {
+                                         // If long-press just triggered, suppress subsequent synthetic click
+                                         if (isLongPressTriggeredRef.current) {
+                                           e.preventDefault();
+                                           e.stopPropagation();
+                                           isLongPressTriggeredRef.current = false;
+                                           return;
+                                         }
 
-                                        // 4. Otherwise (Available beds, Booked reservations) open bed drawer
-                                        const isVacant = isAvailableLocked || effectiveStatus === "Available" || (!primaryOcc && !nextOcc && !isKycSubPending && !isKycInviteSent);
-                                        setActiveBedSlot({
-                                          bed,
-                                          roomNumber: room.roomNumber,
-                                          floorName: floor.floorName,
-                                          timeline: isVacant ? { totalUpcomingCount: 0, futureBookings: [] } : timeline,
-                                          resolvedOccupant: isVacant ? undefined : primaryOcc,
-                                          isVacant,
-                                        });
-                                      }}
-                                      className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all text-center group cursor-pointer active:scale-95 relative ${
-                                        primaryOcc && selectedOccupantIds.includes(primaryOcc.id)
-                                          ? "ring-2 ring-[#c2652a] bg-orange-50/70 border-[#c2652a] shadow-md"
-                                          : badgeStyle
-                                      } ${
-                                        isSearchHighlighted
-                                          ? "ring-2 ring-[#c2652a] shadow-md scale-[1.02]"
-                                          : ""
-                                      }`}
-                                    >
+                                         // 1. If in Multi-Select Mode, toggle selection of occupant
+                                         if (isMultiSelectMode) {
+                                           if (primaryOcc) {
+                                             handleToggleSelectOccupant(primaryOcc.id);
+                                           }
+                                           return;
+                                         }
+
+                                         // 2. If KYC review is pending, open review desk
+                                         if (isKycSubPending && pendingKycSub) {
+                                           router.push(
+                                             `/p/${propertyId}/self-kyc?reviewSubmissionId=${pendingKycSub.id}&room=${encodeURIComponent(room.roomNumber)}&bed=${encodeURIComponent(bed.bedCode)}`
+                                           );
+                                           return;
+                                         }
+
+                                         // 3. ⚡ BYPASS DRAWER MODAL for Occupied & Vacating tenants -> Route directly to full profile!
+                                         if (
+                                           primaryOcc &&
+                                           (effectiveStatus === "Occupied" ||
+                                             effectiveStatus === "Vacating" ||
+                                             primaryOcc.lifecycleStatus === "Active" ||
+                                             primaryOcc.lifecycleStatus === "Notice")
+                                         ) {
+                                           router.push(`/p/${propertyId}/tenants/${primaryOcc.id}`);
+                                           return;
+                                         }
+
+                                         // 4. Otherwise (Available beds, Booked reservations) open bed drawer
+                                         const isVacant = isAvailableLocked || effectiveStatus === "Available" || (!primaryOcc && !nextOcc && !isKycSubPending && !isKycInviteSent);
+                                         setActiveBedSlot({
+                                           bed,
+                                           roomNumber: room.roomNumber,
+                                           floorName: floor.floorName,
+                                           timeline: isVacant ? { totalUpcomingCount: 0, futureBookings: [] } : timeline,
+                                           resolvedOccupant: isVacant ? undefined : primaryOcc,
+                                           isVacant,
+                                         });
+                                       }}
+                                       className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all text-center group cursor-pointer active:scale-95 relative select-none touch-manipulation ${
+                                         primaryOcc && selectedOccupantIds.includes(primaryOcc.id)
+                                           ? "ring-2 ring-[#c2652a] bg-orange-50/70 border-[#c2652a] shadow-md"
+                                           : badgeStyle
+                                       } ${
+                                         isSearchHighlighted
+                                           ? "ring-2 ring-[#c2652a] shadow-md scale-[1.02]"
+                                           : ""
+                                       }`}
+                                     >
                                       {/* ☑️ Multi-Select Checkbox Indicator */}
                                       {isMultiSelectMode && primaryOcc && (
                                         <div className={`absolute top-1.5 left-1.5 w-4 h-4 rounded-md border flex items-center justify-center transition-all z-10 ${
