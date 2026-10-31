@@ -83,16 +83,14 @@ export function autoProvisionBuildingFromRoster(
         totalBeds++;
       }
 
-      // Check if custom rent override exists
-      const customRent = occupantsInRoom[0]?.rentAmount;
-
+      // Room custom tariff and special tags remain empty until owners explicitly configure them
       rooms.push({
         id: `room_${rm.toLowerCase()}_${Date.now()}_${rmIdx}`,
         roomNumber: rm,
         sharingType: capacity,
         beds,
-        customRentAmount: customRent,
-        specialFeatureTag: capacity === 1 ? "Private Single" : `${capacity}-Sharing Suite`,
+        customRentAmount: undefined,
+        specialFeatureTag: undefined,
       });
       totalRooms++;
     });
@@ -154,7 +152,6 @@ export function autoProvisionBuildingFromRoster(
               });
             }
             targetRoom.sharingType = targetRoom.beds.length;
-            targetRoom.specialFeatureTag = targetRoom.sharingType === 1 ? "Private Single" : `${targetRoom.beds.length}-Sharing Suite`;
           }
           fl.totalBeds = fl.rooms.reduce((acc, r) => acc + r.beds.length, 0);
         }
@@ -212,7 +209,7 @@ export function autoProvisionBuildingFromRoster(
           roomNumber: rm,
           sharingType: capacity,
           beds,
-          specialFeatureTag: capacity === 1 ? "Private Single" : `${capacity}-Sharing Suite`,
+          specialFeatureTag: undefined,
         });
         targetFloor.totalBeds = targetFloor.rooms.reduce((acc, r) => acc + r.beds.length, 0);
       }

@@ -211,7 +211,7 @@ export function SmartPropertyGeneratorModal({
           roomNumber: rmNumber,
           sharingType: defaultSharing,
           beds,
-          specialFeatureTag: defaultSharing === 1 ? "Private Single" : `${defaultSharing}-Sharing Suite`,
+          specialFeatureTag: undefined,
         });
       }
 

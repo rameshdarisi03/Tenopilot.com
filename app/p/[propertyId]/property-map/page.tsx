@@ -64,11 +64,16 @@ import {
   Users,
   ArrowUpDown,
   Banknote,
+  Check,
+  CheckSquare,
+  RefreshCw,
 } from "lucide-react";
 
+import { useAuth } from "@/providers/AuthProvider";
 import { selfKycStore, SelfKycSubmission, SelfKycInvite } from "@/lib/selfKycStore";
-
-import { propertySettingsStore } from "@/constants/propertySettings";
+import { whatsappCreditStore } from "@/constants/whatsappCreditStore";
+import { emailCreditStore } from "@/constants/emailCreditStore";
+import { propertySettingsStore, PaymentQRProfile, PAY_BY_CASH_PROFILE } from "@/constants/propertySettings";
 import { staffStore, UserRole } from "@/lib/staffStore";
 import { buildWhatsAppUrl } from "@/utils/security";
 
@@ -79,6 +84,7 @@ function PropertyMapContent({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, profile } = useAuth();
 
   // Mobile menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -381,6 +387,243 @@ function PropertyMapContent({
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // 💬 Multi-Select Mode & Bulk Reminders State
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  const [selectedOccupantIds, setSelectedOccupantIds] = useState<string[]>([]);
+  const [showRentReminderModal, setShowRentReminderModal] = useState(false);
+  const [activeQrIndex, setActiveQrIndex] = useState(0);
+  const [selectedReminderChannels, setSelectedReminderChannels] = useState<{
+    whatsapp: boolean;
+    email: boolean;
+  }>({ whatsapp: true, email: false });
+  const [isSendingReminders, setIsSendingReminders] = useState(false);
+  const [reminderProgress, setReminderProgress] = useState<{ sent: number; total: number; channel?: string } | null>(null);
+  const [whatsappCredits, setWhatsappCredits] = useState(() => whatsappCreditStore.getCredits(propertyId));
+  const [emailCredits, setEmailCredits] = useState(() => emailCreditStore.getCredits(propertyId));
+
+  useEffect(() => {
+    if (!propertyId) return;
+    whatsappCreditStore.initFirebaseListener(propertyId);
+    whatsappCreditStore.fetchWalletFromFirestore(propertyId);
+    setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
+    const unsubWa = whatsappCreditStore.subscribe(() => {
+      setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
+    });
+
+    emailCreditStore.initFirebaseListener(propertyId);
+    emailCreditStore.fetchWalletFromFirestore(propertyId);
+    setEmailCredits(emailCreditStore.getCredits(propertyId));
+    const unsubEmail = emailCreditStore.subscribe(() => {
+      setEmailCredits(emailCreditStore.getCredits(propertyId));
+    });
+
+    return () => {
+      unsubWa();
+      unsubEmail();
+    };
+  }, [propertyId]);
+
+  const allDueOccupants = useMemo(() => {
+    return occupants.filter((o) => {
+      if (o.lifecycleStatus === "Past") return false;
+      const stmt = calculateOccupantFinancialStatement(o, propertySettings);
+      return !stmt.isFullyPaid;
+    });
+  }, [occupants, propertySettings]);
+
+  const selectedOccupants = useMemo(() => {
+    return occupants.filter((o) => selectedOccupantIds.includes(o.id));
+  }, [occupants, selectedOccupantIds]);
+
+  const handleToggleSelectOccupant = (occId: string) => {
+    setSelectedOccupantIds((prev) =>
+      prev.includes(occId) ? prev.filter((id) => id !== occId) : [...prev, occId]
+    );
+  };
+
+  const getReminderPaymentCards = (): PaymentQRProfile[] => {
+    const configured = propertySettings.qrProfiles && propertySettings.qrProfiles.length > 0
+      ? propertySettings.qrProfiles
+      : (propertySettings.upiPaymentId ? [{
+          id: "default-upi-profile",
+          name: "Primary UPI Account",
+          bankLabel: "Primary Bank Account",
+          upiId: propertySettings.upiPaymentId,
+          accountType: "UPI_QR" as const,
+          isDefault: true,
+        }] : []);
+
+    const hasCashCard = configured.some(
+      (p) => p.accountType === "CASH_DESK" || p.upiId === "CASH_PAYMENT" || p.id === PAY_BY_CASH_PROFILE.id
+    );
+
+    return hasCashCard ? configured : [...configured, PAY_BY_CASH_PROFILE];
+  };
+
+  const handleSendBulkReminders = async () => {
+    if (!selectedReminderChannels.whatsapp && !selectedReminderChannels.email) {
+      triggerToast("⚠️ Please select at least one delivery channel (WhatsApp or Email).");
+      return;
+    }
+
+    if (selectedOccupants.length === 0) {
+      triggerToast("⚠️ Please select at least one tenant to send reminders.");
+      return;
+    }
+
+    if (selectedReminderChannels.whatsapp) {
+      const currentWaBal = whatsappCreditStore.getCredits(propertyId);
+      if (currentWaBal < selectedOccupants.length) {
+        triggerToast(`⚠️ Insufficient WhatsApp Credits! You need ${selectedOccupants.length} credits, but have ${currentWaBal}. Please recharge or uncheck WhatsApp.`);
+        return;
+      }
+    }
+
+    if (selectedReminderChannels.email) {
+      const currentEmailBal = emailCreditStore.getCredits(propertyId);
+      if (currentEmailBal < selectedOccupants.length) {
+        triggerToast(`⚠️ Insufficient Email Credits! You need ${selectedOccupants.length} credits, but have ${currentEmailBal}. Please recharge or uncheck Email.`);
+        return;
+      }
+    }
+
+    setIsSendingReminders(true);
+    setReminderProgress({ sent: 0, total: selectedOccupants.length, channel: "" });
+
+    const reminderCards = getReminderPaymentCards();
+    const activeQr = reminderCards[activeQrIndex] || reminderCards[0];
+
+    let waSent = 0;
+    let emailSent = 0;
+
+    try {
+      if (selectedReminderChannels.whatsapp) {
+        setReminderProgress({ sent: 0, total: selectedOccupants.length, channel: "WhatsApp" });
+        for (const occ of selectedOccupants) {
+          const occStmt = calculateOccupantFinancialStatement(occ, propertySettings);
+          const effectiveAmount = occStmt.netOutstandingBalance > 0 ? occStmt.netOutstandingBalance : occ.rentAmount;
+          const cleanPhone = (occ.phone || "").replace(/\D/g, "");
+
+          try {
+            const waRes = await fetch("/api/whatsapp/send", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                propertyId,
+                userId: profile?.uid || user?.uid,
+                userEmail: profile?.email || user?.email,
+                messages: [
+                  {
+                    toPhone: cleanPhone,
+                    recipientName: occ.name,
+                    propertyId,
+                    propertyName: propertySettings.propertyName || "TenoPilot PG",
+                    type: "RENT_REMINDER",
+                    params: {
+                      roomNumber: occ.roomNumber,
+                      bedCode: occ.bedCode,
+                      amountDue: effectiveAmount,
+                      dueDate: occ.dueDate || "1st of the month",
+                      upiId: activeQr?.upiId || propertySettings.upiPaymentId,
+                      payeeName: activeQr?.name || propertySettings.propertyName,
+                    },
+                  },
+                ],
+              }),
+            });
+
+            if (waRes.ok) {
+              whatsappCreditStore.deductCredit(propertyId, {
+                recipientPhone: occ.phone,
+                recipientName: occ.name,
+                messageType: "RENT_REMINDER",
+                description: `Rent reminder for Room ${occ.roomNumber} (${occ.bedCode})`,
+              });
+              waSent++;
+            }
+          } catch (err) {
+            console.error("Error sending WhatsApp reminder:", err);
+          }
+          setReminderProgress({ sent: waSent, total: selectedOccupants.length, channel: "WhatsApp" });
+        }
+      }
+
+      if (selectedReminderChannels.email) {
+        setReminderProgress({ sent: 0, total: selectedOccupants.length, channel: "Email" });
+        for (const occ of selectedOccupants) {
+          const occStmt = calculateOccupantFinancialStatement(occ, propertySettings);
+          const effectiveAmount = occStmt.netOutstandingBalance > 0 ? occStmt.netOutstandingBalance : occ.rentAmount;
+          const rawEmail = (occ.email || "").trim().toLowerCase();
+          const hasRealEmail = Boolean(
+            rawEmail &&
+            rawEmail.includes("@") &&
+            !rawEmail.includes("resident.tenopilot.com") &&
+            !rawEmail.includes("example.com") &&
+            !rawEmail.includes("example-tenant.com") &&
+            !rawEmail.includes("tenopilot.auth") &&
+            !rawEmail.startsWith("phone_")
+          );
+
+          if (!hasRealEmail) continue;
+
+          try {
+            const emailRes = await fetch("/api/email/send", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                propertyId,
+                userId: profile?.uid || user?.uid,
+                userEmail: profile?.email || user?.email,
+                messages: [
+                  {
+                    toEmail: rawEmail,
+                    recipientName: occ.name,
+                    propertyId,
+                    propertyName: propertySettings.propertyName || "TenoPilot PG",
+                    replyToEmail: profile?.email || user?.email,
+                    type: "RENT_REMINDER",
+                    params: {
+                      roomNumber: occ.roomNumber,
+                      bedCode: occ.bedCode,
+                      amountDue: effectiveAmount,
+                      dueDate: occ.dueDate || "1st of the month",
+                      upiId: activeQr?.upiId || propertySettings.upiPaymentId,
+                      payeeName: activeQr?.name || propertySettings.propertyName,
+                    },
+                  },
+                ],
+              }),
+            });
+
+            if (emailRes.ok) {
+              emailCreditStore.deductCredit(propertyId, {
+                recipientEmail: rawEmail,
+                recipientName: occ.name,
+                messageType: "RENT_REMINDER",
+                description: `Rent reminder for Room ${occ.roomNumber} (${occ.bedCode})`,
+              });
+              emailSent++;
+            }
+          } catch (err) {
+            console.error("Error sending Email reminder:", err);
+          }
+          setReminderProgress({ sent: emailSent, total: selectedOccupants.length, channel: "Email" });
+        }
+      }
+
+      fireCelebrationConfetti();
+      triggerToast(`🎉 Dispatched rent reminders to ${selectedOccupants.length} tenants!`);
+      setShowRentReminderModal(false);
+      setSelectedOccupantIds([]);
+      setIsMultiSelectMode(false);
+    } catch (e: any) {
+      triggerToast(`⚠️ Dispatch error: ${e?.message || "Failed to send reminders"}`);
+    } finally {
+      setIsSendingReminders(false);
+      setReminderProgress(null);
+    }
   };
 
   // 1-Click Instant Revoke Invite / Free Bed from Quick Drawer
@@ -1008,8 +1251,43 @@ function PropertyMapContent({
                   </p>
                 </div>
 
-                {/* ⇅ Interactive Sort Dropdown (Matching Tenants Operations) */}
-                <div className="relative" ref={sortDropdownRef}>
+                <div className="flex items-center gap-2">
+                  {/* ☑️ Multi-Select Toggle Button (for Batch Reminders) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isMultiSelectMode) {
+                        setIsMultiSelectMode(false);
+                        setSelectedOccupantIds([]);
+                      } else {
+                        setIsMultiSelectMode(true);
+                        const dueIds = allDueOccupants.map((o) => o.id);
+                        setSelectedOccupantIds(dueIds);
+                        if (dueIds.length > 0) {
+                          triggerToast(`Selected ${dueIds.length} tenants with pending dues. Tap beds to add/remove or tap Send Reminders.`);
+                        }
+                      }
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                      isMultiSelectMode
+                        ? "bg-[#c2652a] text-white border-[#c2652a] ring-2 ring-orange-300"
+                        : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                    }`}
+                    title="Select multiple tenants to send batch reminders"
+                  >
+                    <CheckSquare className="w-3.5 h-3.5" />
+                    <span>{isMultiSelectMode ? "Exit Select" : "Select"}</span>
+                    {selectedOccupantIds.length > 0 && (
+                      <span className={`px-1.5 py-0.2 rounded-full font-mono text-[10px] ${
+                        isMultiSelectMode ? "bg-white text-[#c2652a] font-extrabold" : "bg-orange-100 text-[#c2652a]"
+                      }`}>
+                        {selectedOccupantIds.length}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* ⇅ Interactive Sort Dropdown (Matching Tenants Operations) */}
+                  <div className="relative" ref={sortDropdownRef}>
                   <button
                     type="button"
                     onClick={() => setIsSortDropdownOpen(!isSortDropdownOpen)}
@@ -1053,6 +1331,7 @@ function PropertyMapContent({
                   )}
                 </div>
               </div>
+            </div>
 
               {/* Status Filter Pills */}
               <div className="flex flex-wrap items-center gap-2 text-xs font-bold pt-1">
@@ -1450,12 +1729,35 @@ function PropertyMapContent({
                                     <button
                                       key={bed.id}
                                       onClick={() => {
+                                        // 1. If in Multi-Select Mode, toggle selection of occupant
+                                        if (isMultiSelectMode) {
+                                          if (primaryOcc) {
+                                            handleToggleSelectOccupant(primaryOcc.id);
+                                          }
+                                          return;
+                                        }
+
+                                        // 2. If KYC review is pending, open review desk
                                         if (isKycSubPending && pendingKycSub) {
                                           router.push(
                                             `/p/${propertyId}/self-kyc?reviewSubmissionId=${pendingKycSub.id}&room=${encodeURIComponent(room.roomNumber)}&bed=${encodeURIComponent(bed.bedCode)}`
                                           );
                                           return;
                                         }
+
+                                        // 3. ⚡ BYPASS DRAWER MODAL for Occupied & Vacating tenants -> Route directly to full profile!
+                                        if (
+                                          primaryOcc &&
+                                          (effectiveStatus === "Occupied" ||
+                                            effectiveStatus === "Vacating" ||
+                                            primaryOcc.lifecycleStatus === "Active" ||
+                                            primaryOcc.lifecycleStatus === "Notice")
+                                        ) {
+                                          router.push(`/p/${propertyId}/tenants/${primaryOcc.id}`);
+                                          return;
+                                        }
+
+                                        // 4. Otherwise (Available beds, Booked reservations) open bed drawer
                                         const isVacant = isAvailableLocked || effectiveStatus === "Available" || (!primaryOcc && !nextOcc && !isKycSubPending && !isKycInviteSent);
                                         setActiveBedSlot({
                                           bed,
@@ -1466,12 +1768,26 @@ function PropertyMapContent({
                                           isVacant,
                                         });
                                       }}
-                                      className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all text-center group cursor-pointer active:scale-95 relative ${badgeStyle} ${
+                                      className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all text-center group cursor-pointer active:scale-95 relative ${
+                                        primaryOcc && selectedOccupantIds.includes(primaryOcc.id)
+                                          ? "ring-2 ring-[#c2652a] bg-orange-50/70 border-[#c2652a] shadow-md"
+                                          : badgeStyle
+                                      } ${
                                         isSearchHighlighted
                                           ? "ring-2 ring-[#c2652a] shadow-md scale-[1.02]"
                                           : ""
                                       }`}
                                     >
+                                      {/* ☑️ Multi-Select Checkbox Indicator */}
+                                      {isMultiSelectMode && primaryOcc && (
+                                        <div className={`absolute top-1.5 left-1.5 w-4 h-4 rounded-md border flex items-center justify-center transition-all z-10 ${
+                                          selectedOccupantIds.includes(primaryOcc.id)
+                                            ? "bg-[#c2652a] border-[#c2652a] text-white shadow-xs"
+                                            : "bg-white/95 border-gray-400 text-transparent"
+                                        }`}>
+                                          <Check className="w-3 h-3 stroke-[3]" />
+                                        </div>
+                                      )}
                                       {/* 🟠 TOP-RIGHT VACATING / OVERDUE BADGE PILL */}
                                       {effectiveStatus === "Vacating" && (
                                         <span className={`absolute top-1.5 right-1.5 text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded shadow-2xs flex items-center gap-1 ${
@@ -1630,48 +1946,25 @@ function PropertyMapContent({
                         );
                       })()}
 
-                        {/* 🌟 BOTTOM-LEFT ROOM ATTRIBUTE STRIP (Tariff + Photos + Feature Tag) */}
-                        <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2 text-xs">
-                          <div className="flex flex-wrap items-center gap-2">
-                            {/* Monthly Rent Tariff (Privacy Mode Aware) - Only shown if explicitly configured */}
-                            {(() => {
-                              const tariff = getRoomTariff(room, propertyId);
-                              if (!tariff || tariff <= 0) return null;
-                              return (
-                                <span className="font-mono font-bold text-[#c2652a] bg-orange-50 px-2.5 py-1 rounded-lg border border-orange-200/60">
-                                  {isPrivacyMode
-                                    ? "₹ ••••• / mo"
-                                    : `₹${tariff.toLocaleString("en-IN")} / mo`}
-                                </span>
-                              );
-                            })()}
-
-                            {/* 📷 Room Photos Lightbox Trigger Button */}
-                            {room.roomPhotos && room.roomPhotos.length > 0 && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setActivePhotoGallery({
-                                    roomNumber: room.roomNumber,
-                                    photos: room.roomPhotos!,
-                                    specialTag: room.specialFeatureTag,
-                                  })
-                                }
-                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold transition-all"
-                              >
-                                <Camera className="w-3.5 h-3.5 text-[#c2652a]" />
-                                <span>Photos ({room.roomPhotos.length})</span>
-                              </button>
-                            )}
+                        {/* 📷 Room Photos Lightbox Trigger Button (Only rendered if photos exist) */}
+                        {room.roomPhotos && room.roomPhotos.length > 0 && (
+                          <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-xs">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setActivePhotoGallery({
+                                  roomNumber: room.roomNumber,
+                                  photos: room.roomPhotos!,
+                                  specialTag: room.specialFeatureTag,
+                                })
+                              }
+                              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold transition-all"
+                            >
+                              <Camera className="w-3.5 h-3.5 text-[#c2652a]" />
+                              <span>Photos ({room.roomPhotos.length})</span>
+                            </button>
                           </div>
-
-                          {/* 🌿 Special Feature Tagline Badge */}
-                          {room.specialFeatureTag && (
-                            <span className="text-[10px] font-extrabold bg-emerald-100/80 text-emerald-900 px-2.5 py-1 rounded-full truncate max-w-full">
-                              {room.specialFeatureTag}
-                            </span>
-                          )}
-                        </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -2600,6 +2893,325 @@ function PropertyMapContent({
               setActiveBedSlot(null);
             }}
           />
+        )}
+        {/* 📱 Floating Bulk Action Bar (for Batch Reminders on Property Map) */}
+        {selectedOccupantIds.length > 0 && (
+          <div className="fixed bottom-4 sm:bottom-6 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 bg-slate-900 text-white border border-slate-800 shadow-2xl rounded-2xl p-3 sm:px-5 sm:py-3.5 flex items-center justify-between sm:justify-start gap-3 sm:gap-4 animate-in slide-in-from-bottom-4 backdrop-blur-md">
+            <div className="flex items-center gap-2 text-xs">
+              <span className="w-7 h-7 rounded-xl bg-[#c2652a] text-white font-bold flex items-center justify-center text-xs font-mono shadow-xs">
+                {selectedOccupantIds.length}
+              </span>
+              <div className="hidden sm:block">
+                <span className="font-bold text-white block">Tenants Selected</span>
+                <span className="text-[10px] text-slate-400">
+                  Batch Rent Reminders (WhatsApp & Email)
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const dueIds = allDueOccupants.map((o) => o.id);
+                  const allDuesSelected = dueIds.length > 0 && dueIds.every((id) => selectedOccupantIds.includes(id));
+                  if (allDuesSelected) {
+                    setSelectedOccupantIds([]);
+                  } else {
+                    setSelectedOccupantIds(dueIds);
+                  }
+                }}
+                className="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition-all cursor-pointer hidden md:flex items-center gap-1"
+              >
+                <span>Select All Due ({allDueOccupants.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowRentReminderModal(true)}
+                className="px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0"
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span>Send Reminders ({selectedOccupantIds.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedOccupantIds([]);
+                  setIsMultiSelectMode(false);
+                }}
+                className="p-2 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                title="Cancel selection"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 💬 Send Rent Reminders Modal (Native on Property Map) */}
+        {showRentReminderModal && (
+          <div
+            className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in"
+            onClick={() => setShowRentReminderModal(false)}
+          >
+            <div
+              className="bg-white rounded-t-3xl sm:rounded-3xl border-t sm:border border-gray-100 shadow-2xl max-w-lg w-full p-4 sm:p-6 space-y-4 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 text-xs max-h-[92vh] sm:max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Mobile Drag Handle */}
+              <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto sm:hidden mb-1 shrink-0" />
+
+              {/* Clean Responsive Header */}
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3 gap-2">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold shrink-0">
+                    <CreditCard className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-serif font-bold text-sm sm:text-base text-gray-900 leading-tight truncate">
+                      Send Rent Reminders
+                    </h3>
+                    <p className="text-[11px] text-gray-500 font-medium truncate mt-0.5">
+                      {selectedOccupants.length} of {allDueOccupants.length} Tenants Selected
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <div
+                    className={`flex items-center gap-1 px-2.5 py-1 border rounded-full font-bold text-[10px] sm:text-[11px] shadow-2xs ${
+                      whatsappCredits <= 0
+                        ? "bg-rose-50 border-rose-300 text-rose-800"
+                        : "bg-emerald-50 border-emerald-200 text-emerald-800"
+                    }`}
+                  >
+                    <MessageSquare className="w-3 h-3 text-emerald-600" />
+                    <span>{whatsappCredits} WhatsApp Credits</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowRentReminderModal(false)}
+                    className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 cursor-pointer"
+                    aria-label="Close"
+                  >
+                    <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Step 1: Payment Method Selector */}
+              {(() => {
+                const reminderCards = getReminderPaymentCards();
+                return (
+                  <div className="space-y-2 p-3 sm:p-3.5 bg-orange-50/40 rounded-2xl border border-orange-200/60">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-bold text-gray-900 text-xs flex items-center gap-1.5">
+                        <CreditCard className="w-3.5 h-3.5 text-[#c2652a]" />
+                        <span>1. Receiving Account / QR</span>
+                      </h4>
+                      <span className="text-[10px] text-gray-400 font-medium">
+                        {reminderCards.length} available
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-0.5">
+                      {reminderCards.map((card, idx) => {
+                        const isSelected = idx === activeQrIndex;
+                        const isCardCash = card.upiId === "CASH_PAYMENT" || card.accountType === "CASH_DESK";
+
+                        return (
+                          <button
+                            key={card.id || idx}
+                            type="button"
+                            onClick={() => setActiveQrIndex(idx)}
+                            className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-center justify-between gap-2.5 cursor-pointer ${
+                              isSelected
+                                ? isCardCash
+                                  ? "bg-amber-50/90 border-amber-300 ring-1.5 ring-amber-400/50 shadow-xs"
+                                  : "bg-orange-50/90 border-orange-300 ring-1.5 ring-[#c2652a]/50 shadow-xs"
+                                : "bg-white border-gray-200 hover:bg-gray-50/80"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <div
+                                className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                                  isCardCash
+                                    ? isSelected ? "bg-amber-600 text-white" : "bg-amber-100 text-amber-800"
+                                    : isSelected ? "bg-[#c2652a] text-white" : "bg-orange-100 text-[#c2652a]"
+                                }`}
+                              >
+                                {isCardCash ? <Banknote className="w-3.5 h-3.5" /> : <CreditCard className="w-3.5 h-3.5" />}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-bold text-xs text-gray-900 truncate">{card.name}</span>
+                                  {card.isDefault && (
+                                    <span className="bg-orange-100 text-[#c2652a] text-[8px] px-1.5 py-0.2 rounded font-bold uppercase">
+                                      Default
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-gray-500 truncate">
+                                  {isCardCash ? "Cash Desk Handover" : `UPI: ${card.upiId}`}
+                                </div>
+                              </div>
+                            </div>
+                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                              isSelected ? "border-[#c2652a] bg-[#c2652a] text-white" : "border-gray-300"
+                            }`}>
+                              {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Step 2: Selected Recipients List */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-gray-900">
+                  <span>2. Selected Recipients ({selectedOccupants.length}):</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const dueIds = allDueOccupants.map((o) => o.id);
+                      setSelectedOccupantIds(dueIds);
+                    }}
+                    className="text-[11px] text-[#c2652a] hover:underline"
+                  >
+                    Select All Due ({allDueOccupants.length})
+                  </button>
+                </div>
+
+                <div className="border border-gray-200 rounded-2xl divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                  {selectedOccupants.map((occ) => {
+                    const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
+                    const netDue = stmt.netOutstandingBalance > 0 ? stmt.netOutstandingBalance : occ.rentAmount;
+
+                    return (
+                      <div key={occ.id} className="p-2.5 flex items-center justify-between gap-2 hover:bg-gray-50">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSelectOccupant(occ.id)}
+                            className="w-4 h-4 rounded border-2 border-[#c2652a] bg-[#c2652a] text-white flex items-center justify-center text-[10px] shrink-0"
+                          >
+                            ✓
+                          </button>
+                          <div className="min-w-0 flex-1">
+                            <span className="font-bold text-xs text-gray-900 block truncate">{occ.name}</span>
+                            <span className="text-[10px] text-gray-500 font-mono">
+                              Room {occ.roomNumber} ({occ.bedCode}) • {occ.phone}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <span className="font-mono font-bold text-xs text-red-600 block">
+                            ₹{netDue.toLocaleString("en-IN")}
+                          </span>
+                          <span className="text-[9px] text-gray-400">Due</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Step 3: Channels (WhatsApp & Email) */}
+              <div className="space-y-2 p-3 bg-gray-50 rounded-2xl border border-gray-200">
+                <h4 className="font-bold text-xs text-gray-900">3. Delivery Channels:</h4>
+                <div className="space-y-2">
+                  <label className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200 cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedReminderChannels.whatsapp}
+                        onChange={(e) => setSelectedReminderChannels((prev) => ({ ...prev, whatsapp: e.target.checked }))}
+                        className="w-4 h-4 accent-emerald-600 rounded"
+                      />
+                      <div>
+                        <span className="font-bold text-xs text-gray-900 block">WhatsApp Message</span>
+                        <span className="text-[10px] text-gray-500">Official Cloud API with payment QR & statement</span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      {whatsappCredits} Credits
+                    </span>
+                  </label>
+
+                  <label className="flex items-center justify-between p-2 rounded-xl bg-white border border-gray-200 cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedReminderChannels.email}
+                        onChange={(e) => setSelectedReminderChannels((prev) => ({ ...prev, email: e.target.checked }))}
+                        className="w-4 h-4 accent-blue-600 rounded"
+                      />
+                      <div>
+                        <span className="font-bold text-xs text-gray-900 block">Email Dispatch</span>
+                        <span className="text-[10px] text-gray-500">Branded email invoice to tenant inbox</span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold font-mono text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                      {emailCredits} Credits
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Step 4: Dispatch Action */}
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  disabled={
+                    isSendingReminders ||
+                    selectedOccupants.length === 0 ||
+                    (!selectedReminderChannels.whatsapp && !selectedReminderChannels.email)
+                  }
+                  onClick={handleSendBulkReminders}
+                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                >
+                  {isSendingReminders ? (
+                    <div className="flex items-center gap-2">
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>
+                        {reminderProgress?.channel
+                          ? `Sending ${reminderProgress.channel} (${reminderProgress.sent}/${reminderProgress.total})...`
+                          : "Dispatching Reminders..."}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Send className="w-4 h-4" />
+                      <span>Send Rent Reminders ({selectedOccupants.length})</span>
+                    </div>
+                  )}
+                </button>
+
+                <div className="flex items-center justify-between gap-2">
+                  <Link
+                    href={`/p/${propertyId}/tenants?sendReminders=true&selectedIds=${selectedOccupantIds.join(",")}`}
+                    className="text-[11px] text-gray-500 hover:text-gray-800 underline font-semibold"
+                  >
+                    Open in Tenants Operations Desk →
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setShowRentReminderModal(false)}
+                    className="text-xs text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

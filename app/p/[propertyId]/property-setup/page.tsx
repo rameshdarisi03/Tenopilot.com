@@ -1364,13 +1364,13 @@ export default function PropertySetupPage({
                   <input
                     type="text"
                     inputMode="numeric"
-                    placeholder={`e.g. 16000 (Default ${newSharingCapacity}-sharing: ₹${((settings?.rentalTiers as any)?.[`sharing${newSharingCapacity}`] || 12000).toLocaleString("en-IN")})`}
+                    placeholder="e.g. 16000 (Leave empty if unconfigured)"
                     value={newRoomCustomRent}
                     onChange={(e) => setNewRoomCustomRent(e.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, ""))}
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                   />
                   <p className="text-[10px] text-gray-400 mt-1">
-                    Overrides property default rent (Default is ₹{((settings?.rentalTiers as any)?.[`sharing${newSharingCapacity}`] || 12000).toLocaleString("en-IN")}/mo per bed).
+                    Leave empty until you explicitly set a custom rent for this room.
                   </p>
                 </div>
 
@@ -1559,13 +1559,13 @@ export default function PropertySetupPage({
                   <input
                     type="text"
                     inputMode="numeric"
-                    placeholder={`e.g. 16000 (Default ${newSharingCapacity}-sharing: ₹${((settings?.rentalTiers as any)?.[`sharing${newSharingCapacity}`] || 12000).toLocaleString("en-IN")})`}
+                    placeholder="e.g. 16000 (Leave empty if unconfigured)"
                     value={newRoomCustomRent}
                     onChange={(e) => setNewRoomCustomRent(e.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, ""))}
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                   />
                   <p className="text-[10px] text-gray-400 mt-1">
-                    Overrides property default rent (Default is ₹{((settings?.rentalTiers as any)?.[`sharing${newSharingCapacity}`] || 12000).toLocaleString("en-IN")}/mo per bed).
+                    Leave empty until you explicitly set a custom rent for this room.
                   </p>
                 </div>
 

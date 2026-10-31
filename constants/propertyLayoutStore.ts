@@ -218,6 +218,14 @@ export function normalizeAndSortBuildingStructure(floors: FloorConfig[]): FloorC
       }
 
       rm.sharingType = Math.max(rm.sharingType || 0, rm.beds.length);
+
+      // Sanitize auto-generated legacy feature tags so backend text fields remain empty until explicitly set by owner
+      if (
+        rm.specialFeatureTag === "Private Single" ||
+        /^\d+-Sharing Suite$/i.test(rm.specialFeatureTag || "")
+      ) {
+        rm.specialFeatureTag = undefined;
+      }
     });
     fl.totalBeds = fl.rooms.reduce((acc, r) => acc + (r.beds ? r.beds.length : 0), 0);
   });
