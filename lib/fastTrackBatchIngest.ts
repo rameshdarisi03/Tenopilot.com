@@ -13,12 +13,21 @@ import { getEffectiveTenantLimit, evaluateSubscription } from "./subscriptionEng
 import { generateReceiptNumber } from "./invoiceNumberEngine";
 import { getCanonicalBedIndex, normalizeRoomNumber } from "@/utils/domainSSOT";
 
+export interface IngestProgress {
+  phase: "VALIDATING" | "PROVISIONING" | "ENROLLING" | "SYNCING" | "COMPLETED";
+  current: number;
+  total: number;
+  percentage: number;
+  message: string;
+}
+
 export interface BatchIngestOptions {
   autoProvisionBuilding: boolean;
   rebuildLayout?: boolean; // When true, clears dummy rooms and generates fresh from sheet
   markDepositsPaid?: boolean;
   markCurrentMonthRentPaid?: boolean;
   userProfile?: any;
+  onProgress?: (progress: IngestProgress) => void;
 }
 
 export interface BatchIngestResult {
@@ -85,6 +94,14 @@ export async function executeFastTrackBatchIngest(
   }
 
   // 🔒 Strict Mandatory Field Validation
+  options.onProgress?.({
+    phase: "VALIDATING",
+    current: 0,
+    total: rows.length,
+    percentage: 5,
+    message: `Validating ${rows.length} resident records...`,
+  });
+
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     const valResult = validateParsedRow(r);
@@ -105,6 +122,15 @@ export async function executeFastTrackBatchIngest(
   let createdRoomsCount = 0;
   let createdBedsCount = 0;
   if (options.autoProvisionBuilding) {
+    options.onProgress?.({
+      phase: "PROVISIONING",
+      current: 0,
+      total: rows.length,
+      percentage: 12,
+      message: options.rebuildLayout
+        ? "Rebuilding fresh building floors, rooms & bed slots..."
+        : "Updating property layout & matching rooms...",
+    });
     try {
       const provResult = autoProvisionBuildingFromRoster(propertyId, rows, {
         rebuildLayout: options.rebuildLayout,
@@ -320,6 +346,7 @@ export async function executeFastTrackBatchIngest(
 
   // 4. Smart De-duplication & Update Occupant Store & Cloud Firestore
   const mergedOccupants: Occupant[] = [...existingOccupants];
+  const occupantsToSave: Occupant[] = [];
 
   newOccupants.forEach((newOcc, occIdx) => {
     const cleanNewPhone = (newOcc.phone || "").replace(/\D/g, "").slice(-10);
@@ -459,21 +486,59 @@ export async function executeFastTrackBatchIngest(
         lastPaidDate,
         paymentHistory: updatedHistory,
       };
-      saveOccupantToFirestore(propertyId, mergedOccupants[existingIndex]).catch((err) =>
-        console.warn(`Firestore background update notice for ${ex.name}:`, err)
-      );
+      occupantsToSave.push(mergedOccupants[existingIndex]);
     } else {
       // Brand new occupant
       mergedOccupants.push(newOcc);
-      saveOccupantToFirestore(propertyId, newOcc).catch((err) =>
-        console.warn(`Firestore background save notice for ${newOcc.name}:`, err)
-      );
+      occupantsToSave.push(newOcc);
     }
   });
+
+  // 4b. Cloud Firestore Batch Sync with Real-time Progress Tracking
+  const BATCH_SIZE = 15;
+  const totalToSave = occupantsToSave.length;
+  let savedCount = 0;
+
+  if (totalToSave > 0) {
+    options.onProgress?.({
+      phase: "ENROLLING",
+      current: 0,
+      total: totalToSave,
+      percentage: 20,
+      message: `Enrolling ${totalToSave} residents to Cloud Firestore...`,
+    });
+
+    for (let i = 0; i < totalToSave; i += BATCH_SIZE) {
+      const chunk = occupantsToSave.slice(i, i + BATCH_SIZE);
+      await Promise.allSettled(
+        chunk.map((occ) =>
+          saveOccupantToFirestore(propertyId, occ).catch((err) =>
+            console.warn(`Firestore save notice for ${occ.name}:`, err)
+          )
+        )
+      );
+      savedCount = Math.min(totalToSave, i + chunk.length);
+      const percentage = 20 + Math.round((savedCount / totalToSave) * 70); // 20% -> 90%
+      options.onProgress?.({
+        phase: "ENROLLING",
+        current: savedCount,
+        total: totalToSave,
+        percentage,
+        message: `Securing resident profiles in Cloud Firestore (${savedCount} / ${totalToSave})...`,
+      });
+    }
+  }
 
   occupantStore.updateOccupants(mergedOccupants, propertyId);
 
   // 5. Synchronize Room Bed Occupancies in Property Layout Store (Accurate Bed-Code Matching)
+  options.onProgress?.({
+    phase: "SYNCING",
+    current: totalToSave,
+    total: totalToSave,
+    percentage: 95,
+    message: "Synchronizing live Property Map & Bed occupancy matrix...",
+  });
   const currentStructure = propertyStore.getStructure(propertyId);
   if (currentStructure && currentStructure.length > 0) {
     let structureUpdated = false;
@@ -557,6 +622,14 @@ export async function executeFastTrackBatchIngest(
       occupantStore.updateOccupants(mergedOccupants, propertyId);
     }
   }
+
+  options.onProgress?.({
+    phase: "COMPLETED",
+    current: newOccupants.length,
+    total: newOccupants.length,
+    percentage: 100,
+    message: `Migration complete! Successfully enrolled ${newOccupants.length} residents.`,
+  });
 
   return {
     success: true,

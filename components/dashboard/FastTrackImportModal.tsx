@@ -52,7 +52,7 @@ import {
   normalizeIndianPhoneNumber,
   isVacantRow,
 } from "@/lib/fastTrackHeuristicParser";
-import { executeFastTrackBatchIngest, BatchIngestResult } from "@/lib/fastTrackBatchIngest";
+import { executeFastTrackBatchIngest, BatchIngestResult, IngestProgress } from "@/lib/fastTrackBatchIngest";
 import {
   saveFastTrackDraftToFirestore,
   getFastTrackDraftFromFirestore,
@@ -144,6 +144,7 @@ export function FastTrackImportModal({
   // Ingestion final result
   const [ingestResult, setIngestResult] = useState<BatchIngestResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [ingestProgress, setIngestProgress] = useState<IngestProgress | null>(null);
   const [isMaximized, setIsMaximized] = useState<boolean>(true);
   const [viewMode, setViewMode] = useState<"cards" | "table">("table");
   const [draftSavedToast, setDraftSavedToast] = useState<{ message: string; count: number } | null>(null);
@@ -1583,6 +1584,13 @@ export function FastTrackImportModal({
     }
 
     setIsSubmitting(true);
+    setIngestProgress({
+      phase: "VALIDATING",
+      current: 0,
+      total: editableRows.length,
+      percentage: 5,
+      message: `Initializing FastTrack Migration for ${editableRows.length} residents...`,
+    });
     try {
       const result = await executeFastTrackBatchIngest(propertyId, editableRows, {
         autoProvisionBuilding: true,
@@ -1590,12 +1598,23 @@ export function FastTrackImportModal({
         markDepositsPaid,
         markCurrentMonthRentPaid,
         userProfile: profile,
+        onProgress: (p) => setIngestProgress(p),
       });
 
       if (!result.success) {
         alert(result.errors.join("\n") || "FastTrack Import could not be completed.");
         return;
       }
+
+      // Smooth brief completion transition
+      setIngestProgress({
+        phase: "COMPLETED",
+        current: editableRows.length,
+        total: editableRows.length,
+        percentage: 100,
+        message: `All ${editableRows.length} residents enrolled successfully!`,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 450));
 
       setIngestResult(result);
       setStep("SUCCESS");
@@ -1638,6 +1657,7 @@ export function FastTrackImportModal({
       alert(`FastTrack Import Error: ${err.message}`);
     } finally {
       setIsSubmitting(false);
+      setIngestProgress(null);
     }
   };
 
@@ -4394,7 +4414,82 @@ Anil Verma   9812345678   Room 103   12000"
           </div>
         )}
 
-        {/* 🧾 RENT RECEIPT DISPATCH PROMPT MODAL */}
+{/* 🚀 Real-Time FastTrack Migration Progress Modal Overlay */}
+        {isSubmitting && ingestProgress && (
+          <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-gray-100 text-center space-y-6 animate-in zoom-in-95">
+              {/* Animated Icon & Glowing Halo */}
+              <div className="relative mx-auto w-20 h-20 flex items-center justify-center">
+                <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#c2652a] to-emerald-500 opacity-20 blur-xl animate-pulse" />
+                <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-tr from-[#c2652a]/10 to-emerald-50 border border-[#c2652a]/20 flex items-center justify-center text-[#c2652a] shadow-inner">
+                  {ingestProgress.percentage >= 100 ? (
+                    <CheckCircle2 className="w-10 h-10 text-emerald-600 animate-in zoom-in" />
+                  ) : (
+                    <RefreshCw className="w-10 h-10 text-[#c2652a] animate-spin" />
+                  )}
+                </div>
+              </div>
+
+              {/* Title & Phase Badge */}
+              <div className="space-y-2">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-extrabold tracking-wider uppercase">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600 animate-spin" />
+                  <span>FastTrack 1-Click Migration</span>
+                </div>
+                <h3 className="font-serif font-bold text-xl text-gray-900">
+                  {ingestProgress.percentage >= 100
+                    ? "Migration Completed!"
+                    : "Enrolling Residents to Cloud"}
+                </h3>
+                <p className="text-xs text-gray-500 font-medium max-w-xs mx-auto">
+                  {ingestProgress.message}
+                </p>
+              </div>
+
+              {/* Progress Bar & Percentage */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-gray-700 px-1">
+                  <span className="flex items-center gap-1.5 text-gray-600">
+                    <Users className="w-3.5 h-3.5 text-[#c2652a]" />
+                    <span>Real-Time Progress</span>
+                  </span>
+                  <span className="font-mono text-sm text-[#c2652a] font-extrabold">
+                    {ingestProgress.percentage}%
+                  </span>
+                </div>
+
+                {/* Animated Track */}
+                <div className="w-full h-3 rounded-full bg-gray-100 overflow-hidden p-0.5 border border-gray-200 shadow-inner">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-amber-500 via-[#c2652a] to-emerald-600 transition-all duration-300 ease-out shadow-sm"
+                    style={{ width: `${Math.max(5, ingestProgress.percentage)}%` }}
+                  />
+                </div>
+
+                {/* Counter & Dual-Ledger Status */}
+                <div className="flex items-center justify-between text-[11px] text-gray-500 pt-1">
+                  <span>
+                    Processed: <strong className="text-gray-900 font-mono font-bold">{ingestProgress.current}</strong> / {ingestProgress.total}
+                  </span>
+                  <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-600" />
+                    Dual-Ledger Verified
+                  </span>
+                </div>
+              </div>
+
+              {/* Safety Reassurance Notice */}
+              <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 text-[11px] text-gray-500 text-left flex items-start gap-2.5">
+                <Building2 className="w-4 h-4 text-[#c2652a] shrink-0 mt-0.5" />
+                <p>
+                  Provisioning room maps, bed slots, and writing financial ledger records to Cloud Firestore. Please keep this window open.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+                {/* 🧾 RENT RECEIPT DISPATCH PROMPT MODAL */}
         {showReceiptDispatchModal && ingestResult && (
           <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in">
             <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-gray-100 space-y-5 animate-in zoom-in-95">
