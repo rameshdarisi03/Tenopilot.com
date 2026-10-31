@@ -29,6 +29,8 @@ import {
   Check,
   Zap,
   FileText,
+  Eye,
+  X,
 } from "lucide-react";
 import { propertyStore, FloorConfig, RoomConfig, BedSlotConfig } from "@/constants/propertyLayoutStore";
 import { selfKycStore, SelfKycSubmission } from "@/lib/selfKycStore";
@@ -109,6 +111,7 @@ export default function WalkInSelfKycCheckinPage({
   const [highlightResidentTerms, setHighlightResidentTerms] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [previewModalImage, setPreviewModalImage] = useState<{ url: string; title: string } | null>(null);
 
   const selfieInputRef = useRef<HTMLInputElement>(null);
   const frontInputRef = useRef<HTMLInputElement>(null);
@@ -1194,18 +1197,36 @@ export default function WalkInSelfKycCheckinPage({
                   />
                   {selfiePhoto ? (
                     <div className="flex items-center gap-3">
-                      <img
-                        src={selfiePhoto}
-                        alt="Selfie preview"
-                        className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => selfieInputRef.current?.click()}
-                        className="py-2 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs"
+                      <div
+                        onClick={() => setPreviewModalImage({ url: selfiePhoto, title: "Live Resident Photo / Selfie" })}
+                        className="relative group cursor-pointer shrink-0"
+                        title="Click to view full image"
                       >
-                        Retake Photo
-                      </button>
+                        <img
+                          src={selfiePhoto}
+                          alt="Selfie preview"
+                          className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs group-hover:ring-2 group-hover:ring-[#c2652a] transition-all"
+                        />
+                        <div className="absolute inset-0 bg-black/30 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                          <Eye className="w-5 h-5 drop-shadow" />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => selfieInputRef.current?.click()}
+                          className="py-1.5 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs block"
+                        >
+                          Retake Photo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewModalImage({ url: selfiePhoto, title: "Live Resident Photo / Selfie" })}
+                          className="text-[11px] font-bold text-[#c2652a] hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <Eye className="w-3 h-3" /> Tap to view full
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <button
@@ -1251,19 +1272,39 @@ export default function WalkInSelfKycCheckinPage({
                             <span className="text-[9px] font-bold mt-0.5">PDF</span>
                           </div>
                         ) : (
-                          <img
-                            src={aadhaarFront}
-                            alt="Front Document Preview"
-                            className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs shrink-0"
-                          />
+                          <div
+                            onClick={() => setPreviewModalImage({ url: aadhaarFront, title: "Aadhaar Front Photo" })}
+                            className="relative group cursor-pointer shrink-0"
+                            title="Click to view full image"
+                          >
+                            <img
+                              src={aadhaarFront}
+                              alt="Front Document Preview"
+                              className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs group-hover:ring-2 group-hover:ring-[#c2652a] transition-all"
+                            />
+                            <div className="absolute inset-0 bg-black/30 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                              <Eye className="w-5 h-5 drop-shadow" />
+                            </div>
+                          </div>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => frontInputRef.current?.click()}
-                          className="py-2 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs"
-                        >
-                          Change / Retake
-                        </button>
+                        <div className="space-y-1">
+                          <button
+                            type="button"
+                            onClick={() => frontInputRef.current?.click()}
+                            className="py-1.5 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs block"
+                          >
+                            Change / Retake
+                          </button>
+                          {!aadhaarFront.startsWith("data:application/pdf") && !aadhaarFront.endsWith(".pdf") && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewModalImage({ url: aadhaarFront, title: "Aadhaar Front Photo" })}
+                              className="text-[11px] font-bold text-[#c2652a] hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <Eye className="w-3 h-3" /> Tap to view full
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <button
@@ -1307,19 +1348,39 @@ export default function WalkInSelfKycCheckinPage({
                             <span className="text-[9px] font-bold mt-0.5">PDF</span>
                           </div>
                         ) : (
-                          <img
-                            src={aadhaarBack}
-                            alt="Back Document Preview"
-                            className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs shrink-0"
-                          />
+                          <div
+                            onClick={() => setPreviewModalImage({ url: aadhaarBack, title: "Aadhaar Back Photo" })}
+                            className="relative group cursor-pointer shrink-0"
+                            title="Click to view full image"
+                          >
+                            <img
+                              src={aadhaarBack}
+                              alt="Back Document Preview"
+                              className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs group-hover:ring-2 group-hover:ring-[#c2652a] transition-all"
+                            />
+                            <div className="absolute inset-0 bg-black/30 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                              <Eye className="w-5 h-5 drop-shadow" />
+                            </div>
+                          </div>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => backInputRef.current?.click()}
-                          className="py-2 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs"
-                        >
-                          Change / Retake
-                        </button>
+                        <div className="space-y-1">
+                          <button
+                            type="button"
+                            onClick={() => backInputRef.current?.click()}
+                            className="py-1.5 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs block"
+                          >
+                            Change / Retake
+                          </button>
+                          {!aadhaarBack.startsWith("data:application/pdf") && !aadhaarBack.endsWith(".pdf") && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewModalImage({ url: aadhaarBack, title: "Aadhaar Back Photo" })}
+                              className="text-[11px] font-bold text-[#c2652a] hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <Eye className="w-3 h-3" /> Tap to view full
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <button
@@ -1468,6 +1529,49 @@ export default function WalkInSelfKycCheckinPage({
 
             <p className="text-[11px] text-gray-400">
               You can now show this screen to the reception desk manager. Welcome to {propertyName}!
+            </p>
+          </div>
+        )}
+
+        {/* 🔍 Full High-Res Document Inspection Lightbox Modal */}
+        {previewModalImage && (
+          <div
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200"
+            onClick={() => setPreviewModalImage(null)}
+          >
+            <div
+              className="w-full max-w-xl flex items-center justify-between text-white pb-3 px-2"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm sm:text-base">{previewModalImage.title}</span>
+                <span className="text-[10px] font-semibold bg-white/20 px-2 py-0.5 rounded-full">
+                  Full Inspection
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewModalImage(null)}
+                className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white cursor-pointer active:scale-95 transition-all"
+                title="Close Preview"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div
+              className="relative max-w-xl max-h-[80vh] w-full bg-black/50 rounded-2xl overflow-hidden border border-white/10 flex items-center justify-center p-2 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={previewModalImage.url}
+                alt={previewModalImage.title}
+                className="max-h-[75vh] w-auto max-w-full object-contain rounded-xl select-none"
+              />
+            </div>
+
+            <p className="text-white/70 text-xs mt-3 flex items-center gap-1.5">
+              <span>Tap anywhere outside or press ✕ to close</span>
             </p>
           </div>
         )}

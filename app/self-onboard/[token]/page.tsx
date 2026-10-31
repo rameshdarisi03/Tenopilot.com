@@ -28,6 +28,8 @@ import {
   Check,
   Zap,
   FileText,
+  Eye,
+  X,
 } from "lucide-react";
 import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
 import { selfKycStore, SelfKycInvite, SelfKycSubmission } from "@/lib/selfKycStore";
@@ -117,6 +119,7 @@ export default function TenantSelfOnboardingPage({
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [correctionReason, setCorrectionReason] = useState("");
+  const [previewModalImage, setPreviewModalImage] = useState<{ url: string; title: string } | null>(null);
 
   const selfieInputRef = useRef<HTMLInputElement>(null);
   const frontInputRef = useRef<HTMLInputElement>(null);
@@ -812,16 +815,25 @@ export default function TenantSelfOnboardingPage({
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 {/* 1. Assigned Room & Bed */}
-                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 flex flex-col justify-between">
-                  <span className="text-[10px] font-bold uppercase text-gray-400 block">Assigned Room & Bed</span>
-                  <span className="font-serif font-bold text-sm sm:text-base text-gray-900 block truncate mt-1">
-                    Room {invite.roomNumber} ({formatBedLabel(invite.bedCode)})
-                  </span>
+                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 flex flex-col justify-between min-h-[72px]">
+                  <span className="text-[10px] font-bold uppercase text-gray-400 block tracking-tight">Assigned Room & Bed</span>
+                  <div className="mt-1 flex items-baseline flex-wrap gap-x-1.5 gap-y-0.5">
+                    <span className="font-serif font-bold text-xs sm:text-sm text-gray-900 leading-tight break-words">
+                      {invite.roomNumber?.toLowerCase().startsWith("room")
+                        ? invite.roomNumber
+                        : `Room ${invite.roomNumber || ""}`}
+                    </span>
+                    {invite.bedCode && (
+                      <span className="font-sans font-bold text-[10px] sm:text-[11px] text-[#c2652a] bg-orange-50 px-1.5 py-0.5 rounded-md border border-orange-200/60 shrink-0">
+                        ({formatBedLabel(invite.bedCode)})
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* 2. Monthly Tariff / Daily Rate */}
-                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 flex flex-col justify-between">
-                  <span className="text-[10px] font-bold uppercase text-gray-400 block">
+                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 flex flex-col justify-between min-h-[72px]">
+                  <span className="text-[10px] font-bold uppercase text-gray-400 block tracking-tight">
                     {invite.stayType === "Tenant" ? "Monthly Tariff" : "Daily Rate"}
                   </span>
                   <div className="mt-1">
@@ -835,23 +847,29 @@ export default function TenantSelfOnboardingPage({
                 </div>
 
                 {/* 3. Security Deposit */}
-                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 flex flex-col justify-between">
-                  <span className="text-[10px] font-bold uppercase text-gray-400 block">Security Deposit</span>
+                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 flex flex-col justify-between min-h-[72px]">
+                  <span className="text-[10px] font-bold uppercase text-gray-400 block tracking-tight">Security Deposit</span>
                   <span className="font-mono font-bold text-sm sm:text-base text-purple-700 block mt-1">
                     ₹{((invite.securityDeposit ?? (invite.rentAmount ?? 0) * 2)).toLocaleString("en-IN")}
                   </span>
                 </div>
 
                 {/* 4. Joining / Check-In Date */}
-                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 flex flex-col justify-between">
-                  <span className="text-[10px] font-bold uppercase text-gray-400 block">Check-In Date *</span>
-                  <input
-                    type="date"
-                    required
-                    value={joiningDate}
-                    onChange={(e) => setJoiningDate(e.target.value)}
-                    className="w-full mt-1 px-2 py-1 rounded-xl border border-gray-300 bg-white font-mono font-bold text-xs text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a] outline-none"
-                  />
+                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 flex flex-col justify-between min-h-[72px]">
+                  <span className="text-[10px] font-bold uppercase text-gray-400 block tracking-tight">Check-In Date</span>
+                  <span className="font-mono font-bold text-xs sm:text-sm text-gray-900 block mt-1">
+                    {(() => {
+                      if (!joiningDate) return "On Arrival";
+                      const parts = joiningDate.split("-");
+                      if (parts.length === 3) {
+                        const [year, month, day] = parts;
+                        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                        const mIdx = parseInt(month, 10) - 1;
+                        return `${day} ${monthNames[mIdx] || month} ${year}`;
+                      }
+                      return joiningDate;
+                    })()}
+                  </span>
                 </div>
               </div>
             </div>
@@ -1106,18 +1124,36 @@ export default function TenantSelfOnboardingPage({
                   />
                   {selfiePhoto ? (
                     <div className="flex items-center gap-3">
-                      <img
-                        src={selfiePhoto}
-                        alt="Selfie preview"
-                        className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => selfieInputRef.current?.click()}
-                        className="py-2 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs"
+                      <div
+                        onClick={() => setPreviewModalImage({ url: selfiePhoto, title: "Live Resident Photo / Selfie" })}
+                        className="relative group cursor-pointer shrink-0"
+                        title="Click to view full image"
                       >
-                        Retake Photo
-                      </button>
+                        <img
+                          src={selfiePhoto}
+                          alt="Selfie preview"
+                          className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs group-hover:ring-2 group-hover:ring-[#c2652a] transition-all"
+                        />
+                        <div className="absolute inset-0 bg-black/30 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                          <Eye className="w-5 h-5 drop-shadow" />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => selfieInputRef.current?.click()}
+                          className="py-1.5 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs block"
+                        >
+                          Retake Photo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewModalImage({ url: selfiePhoto, title: "Live Resident Photo / Selfie" })}
+                          className="text-[11px] font-bold text-[#c2652a] hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <Eye className="w-3 h-3" /> Tap to view full
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <button
@@ -1163,19 +1199,39 @@ export default function TenantSelfOnboardingPage({
                             <span className="text-[9px] font-bold mt-0.5">PDF</span>
                           </div>
                         ) : (
-                          <img
-                            src={aadhaarFront}
-                            alt="Front Document Preview"
-                            className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs shrink-0"
-                          />
+                          <div
+                            onClick={() => setPreviewModalImage({ url: aadhaarFront, title: "Aadhaar Front Photo" })}
+                            className="relative group cursor-pointer shrink-0"
+                            title="Click to view full image"
+                          >
+                            <img
+                              src={aadhaarFront}
+                              alt="Front Document Preview"
+                              className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs group-hover:ring-2 group-hover:ring-[#c2652a] transition-all"
+                            />
+                            <div className="absolute inset-0 bg-black/30 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                              <Eye className="w-5 h-5 drop-shadow" />
+                            </div>
+                          </div>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => frontInputRef.current?.click()}
-                          className="py-2 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs"
-                        >
-                          Change / Retake
-                        </button>
+                        <div className="space-y-1">
+                          <button
+                            type="button"
+                            onClick={() => frontInputRef.current?.click()}
+                            className="py-1.5 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs block"
+                          >
+                            Change / Retake
+                          </button>
+                          {!aadhaarFront.startsWith("data:application/pdf") && !aadhaarFront.endsWith(".pdf") && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewModalImage({ url: aadhaarFront, title: "Aadhaar Front Photo" })}
+                              className="text-[11px] font-bold text-[#c2652a] hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <Eye className="w-3 h-3" /> Tap to view full
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <button
@@ -1219,19 +1275,39 @@ export default function TenantSelfOnboardingPage({
                             <span className="text-[9px] font-bold mt-0.5">PDF</span>
                           </div>
                         ) : (
-                          <img
-                            src={aadhaarBack}
-                            alt="Back Document Preview"
-                            className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs shrink-0"
-                          />
+                          <div
+                            onClick={() => setPreviewModalImage({ url: aadhaarBack, title: "Aadhaar Back Photo" })}
+                            className="relative group cursor-pointer shrink-0"
+                            title="Click to view full image"
+                          >
+                            <img
+                              src={aadhaarBack}
+                              alt="Back Document Preview"
+                              className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs group-hover:ring-2 group-hover:ring-[#c2652a] transition-all"
+                            />
+                            <div className="absolute inset-0 bg-black/30 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                              <Eye className="w-5 h-5 drop-shadow" />
+                            </div>
+                          </div>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => backInputRef.current?.click()}
-                          className="py-2 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs"
-                        >
-                          Change / Retake
-                        </button>
+                        <div className="space-y-1">
+                          <button
+                            type="button"
+                            onClick={() => backInputRef.current?.click()}
+                            className="py-1.5 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs block"
+                          >
+                            Change / Retake
+                          </button>
+                          {!aadhaarBack.startsWith("data:application/pdf") && !aadhaarBack.endsWith(".pdf") && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewModalImage({ url: aadhaarBack, title: "Aadhaar Back Photo" })}
+                              className="text-[11px] font-bold text-[#c2652a] hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <Eye className="w-3 h-3" /> Tap to view full
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <button
@@ -1696,18 +1772,36 @@ export default function TenantSelfOnboardingPage({
                   />
                   {selfiePhoto ? (
                     <div className="flex items-center gap-3">
-                      <img
-                        src={selfiePhoto}
-                        alt="Selfie preview"
-                        className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => selfieInputRef.current?.click()}
-                        className="py-2 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs"
+                      <div
+                        onClick={() => setPreviewModalImage({ url: selfiePhoto, title: "Live Resident Photo / Selfie" })}
+                        className="relative group cursor-pointer shrink-0"
+                        title="Click to view full image"
                       >
-                        Retake Photo
-                      </button>
+                        <img
+                          src={selfiePhoto}
+                          alt="Selfie preview"
+                          className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs group-hover:ring-2 group-hover:ring-[#c2652a] transition-all"
+                        />
+                        <div className="absolute inset-0 bg-black/30 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                          <Eye className="w-5 h-5 drop-shadow" />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => selfieInputRef.current?.click()}
+                          className="py-1.5 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs block"
+                        >
+                          Retake Photo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewModalImage({ url: selfiePhoto, title: "Live Resident Photo / Selfie" })}
+                          className="text-[11px] font-bold text-[#c2652a] hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <Eye className="w-3 h-3" /> Tap to view full
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <button
@@ -1753,19 +1847,39 @@ export default function TenantSelfOnboardingPage({
                             <span className="text-[9px] font-bold mt-0.5">PDF</span>
                           </div>
                         ) : (
-                          <img
-                            src={aadhaarFront}
-                            alt="Front Document Preview"
-                            className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs shrink-0"
-                          />
+                          <div
+                            onClick={() => setPreviewModalImage({ url: aadhaarFront, title: "Aadhaar Front Photo" })}
+                            className="relative group cursor-pointer shrink-0"
+                            title="Click to view full image"
+                          >
+                            <img
+                              src={aadhaarFront}
+                              alt="Front Document Preview"
+                              className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs group-hover:ring-2 group-hover:ring-[#c2652a] transition-all"
+                            />
+                            <div className="absolute inset-0 bg-black/30 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                              <Eye className="w-5 h-5 drop-shadow" />
+                            </div>
+                          </div>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => frontInputRef.current?.click()}
-                          className="py-2 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs"
-                        >
-                          Change / Retake
-                        </button>
+                        <div className="space-y-1">
+                          <button
+                            type="button"
+                            onClick={() => frontInputRef.current?.click()}
+                            className="py-1.5 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs block"
+                          >
+                            Change / Retake
+                          </button>
+                          {!aadhaarFront.startsWith("data:application/pdf") && !aadhaarFront.endsWith(".pdf") && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewModalImage({ url: aadhaarFront, title: "Aadhaar Front Photo" })}
+                              className="text-[11px] font-bold text-[#c2652a] hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <Eye className="w-3 h-3" /> Tap to view full
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <button
@@ -1809,19 +1923,39 @@ export default function TenantSelfOnboardingPage({
                             <span className="text-[9px] font-bold mt-0.5">PDF</span>
                           </div>
                         ) : (
-                          <img
-                            src={aadhaarBack}
-                            alt="Back Document Preview"
-                            className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs shrink-0"
-                          />
+                          <div
+                            onClick={() => setPreviewModalImage({ url: aadhaarBack, title: "Aadhaar Back Photo" })}
+                            className="relative group cursor-pointer shrink-0"
+                            title="Click to view full image"
+                          >
+                            <img
+                              src={aadhaarBack}
+                              alt="Back Document Preview"
+                              className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs group-hover:ring-2 group-hover:ring-[#c2652a] transition-all"
+                            />
+                            <div className="absolute inset-0 bg-black/30 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                              <Eye className="w-5 h-5 drop-shadow" />
+                            </div>
+                          </div>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => backInputRef.current?.click()}
-                          className="py-2 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs"
-                        >
-                          Change / Retake
-                        </button>
+                        <div className="space-y-1">
+                          <button
+                            type="button"
+                            onClick={() => backInputRef.current?.click()}
+                            className="py-1.5 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs block"
+                          >
+                            Change / Retake
+                          </button>
+                          {!aadhaarBack.startsWith("data:application/pdf") && !aadhaarBack.endsWith(".pdf") && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewModalImage({ url: aadhaarBack, title: "Aadhaar Back Photo" })}
+                              className="text-[11px] font-bold text-[#c2652a] hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <Eye className="w-3 h-3" /> Tap to view full
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <button
@@ -1979,6 +2113,49 @@ export default function TenantSelfOnboardingPage({
 
             <p className="text-[11px] text-gray-400">
               You can now safely close this browser window. Welcome to {propertyName}!
+            </p>
+          </div>
+        )}
+
+        {/* 🔍 Full High-Res Document Inspection Lightbox Modal */}
+        {previewModalImage && (
+          <div
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200"
+            onClick={() => setPreviewModalImage(null)}
+          >
+            <div
+              className="w-full max-w-xl flex items-center justify-between text-white pb-3 px-2"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm sm:text-base">{previewModalImage.title}</span>
+                <span className="text-[10px] font-semibold bg-white/20 px-2 py-0.5 rounded-full">
+                  Full Inspection
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewModalImage(null)}
+                className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white cursor-pointer active:scale-95 transition-all"
+                title="Close Preview"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div
+              className="relative max-w-xl max-h-[80vh] w-full bg-black/50 rounded-2xl overflow-hidden border border-white/10 flex items-center justify-center p-2 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={previewModalImage.url}
+                alt={previewModalImage.title}
+                className="max-h-[75vh] w-auto max-w-full object-contain rounded-xl select-none"
+              />
+            </div>
+
+            <p className="text-white/70 text-xs mt-3 flex items-center gap-1.5">
+              <span>Tap anywhere outside or press ✕ to close</span>
             </p>
           </div>
         )}
