@@ -148,7 +148,15 @@ export function normalizeAndSortBuildingStructure(floors: FloorConfig[]): FloorC
   consolidated.forEach((fl) => {
     fl.rooms.sort((a, b) => compareRoomNumbers(a.roomNumber, b.roomNumber));
     fl.rooms.forEach((rm) => {
-      if (Array.isArray(rm.beds) && rm.beds.length > 0) {
+      if (!Array.isArray(rm.beds)) {
+        rm.beds = [];
+      }
+
+      // If room has configured sharingType higher than current beds, provision missing available beds
+      const targetBedCount = Math.max(rm.sharingType || 0, rm.beds.length);
+      const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+      if (rm.beds.length > 0) {
         // Canonical Bed Sorting: Ensure Bed A always precedes Bed B, Bed C, etc.
         rm.beds.sort((a, b) => {
           const idxA = getCanonicalBedIndex(a.bedCode);
@@ -157,29 +165,62 @@ export function normalizeAndSortBuildingStructure(floors: FloorConfig[]): FloorC
           return (a.bedCode || "").localeCompare(b.bedCode || "", undefined, { numeric: true, sensitivity: "base" });
         });
 
-        const seenLetters = new Set<string>();
-        const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        let alphaIdx = 0;
-
-        rm.beds.forEach((b, idx) => {
-          const cleanCode = (b.bedCode || "").trim().toUpperCase();
-          const letterMatch = cleanCode.match(/[A-Z]/);
-          let assignedLetter = letterMatch ? letterMatch[0] : "";
-
-          // If empty or duplicate bed letter in same room (e.g. two 'Bed A' slots)
-          if (!assignedLetter || seenLetters.has(assignedLetter)) {
-            while (alphaIdx < alphabet.length && seenLetters.has(alphabet[alphaIdx])) {
-              alphaIdx++;
-            }
-            assignedLetter = alphaIdx < alphabet.length ? alphabet[alphaIdx] : String(idx + 1);
-            b.bedCode = `Bed ${assignedLetter}`;
-          } else {
-            b.bedCode = `Bed ${assignedLetter}`;
+        // If single-occupancy room has a single bed labeled "Bed B" (or anything other than Bed A), normalize to Bed A
+        if (rm.beds.length === 1 && (!rm.sharingType || rm.sharingType === 1)) {
+          rm.beds[0].bedCode = "Bed A";
+          if (rm.beds[0].occupant) {
+            rm.beds[0].occupant.bedCode = "Bed A";
           }
-          seenLetters.add(assignedLetter);
-        });
-        rm.sharingType = Math.max(rm.sharingType || 0, rm.beds.length);
+        } else {
+          const seenLetters = new Set<string>();
+          let alphaIdx = 0;
+
+          rm.beds.forEach((b, idx) => {
+            const cleanCode = (b.bedCode || "").trim().toUpperCase();
+            const letterMatch = cleanCode.match(/[A-Z]/);
+            let assignedLetter = letterMatch ? letterMatch[0] : "";
+
+            // If empty or duplicate bed letter in same room
+            if (!assignedLetter || seenLetters.has(assignedLetter)) {
+              while (alphaIdx < alphabet.length && seenLetters.has(alphabet[alphaIdx])) {
+                alphaIdx++;
+              }
+              assignedLetter = alphaIdx < alphabet.length ? alphabet[alphaIdx] : String(idx + 1);
+              b.bedCode = `Bed ${assignedLetter}`;
+            } else {
+              b.bedCode = `Bed ${assignedLetter}`;
+            }
+            seenLetters.add(assignedLetter);
+          });
+        }
       }
+
+      // Auto-Provision missing beds if room sharing type is greater than current beds (e.g. 3-sharing room with 2 enrolled tenants)
+      if (rm.sharingType && rm.beds.length < rm.sharingType) {
+        const existingLetters = new Set(
+          rm.beds.map((b) => (b.bedCode || "").trim().toUpperCase().match(/[A-Z]/)?.[0] || "")
+        );
+        for (let i = 0; i < rm.sharingType; i++) {
+          const letter = alphabet[i] || String(i + 1);
+          if (!existingLetters.has(letter)) {
+            rm.beds.push({
+              id: `bed_${rm.roomNumber.toLowerCase()}_${letter.toLowerCase()}_${Date.now()}_${i}`,
+              bedCode: `Bed ${letter}`,
+              status: "Available",
+            });
+            existingLetters.add(letter);
+          }
+        }
+        // Re-sort after adding missing beds
+        rm.beds.sort((a, b) => {
+          const idxA = getCanonicalBedIndex(a.bedCode);
+          const idxB = getCanonicalBedIndex(b.bedCode);
+          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+          return (a.bedCode || "").localeCompare(b.bedCode || "", undefined, { numeric: true, sensitivity: "base" });
+        });
+      }
+
+      rm.sharingType = Math.max(rm.sharingType || 0, rm.beds.length);
     });
     fl.totalBeds = fl.rooms.reduce((acc, r) => acc + (r.beds ? r.beds.length : 0), 0);
   });

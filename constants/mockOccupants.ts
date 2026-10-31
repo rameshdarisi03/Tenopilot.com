@@ -101,6 +101,7 @@ export interface Occupant {
   isParkingException?: boolean;
   paymentHistory?: PaymentHistoryItem[];
   checkoutSettlement?: CheckoutSettlementAudit;
+  notes?: string;
 }
 
 // 200 Guaranteed 100% Unique Indian Names (No Duplicates)

@@ -81,6 +81,7 @@ import {
   Plus,
   PhoneCall,
   ZoomIn,
+  Save,
 } from "lucide-react";
 import {
   downloadRentalAgreementPdf,
@@ -742,6 +743,37 @@ export default function IndividualTenantProfilePage({
   const initialParsedEmergency = parsePhoneAndCountryCode(occupantState?.emergencyContact?.phone);
   const [editEmergencyCountryCode, setEditEmergencyCountryCode] = useState<string>(initialParsedEmergency.countryCode || "+91");
   const [editEmergencyPhone, setEditEmergencyPhone] = useState<string>(initialParsedEmergency.nationalNumber || "");
+  const [editNotes, setEditNotes] = useState<string>(occupantState?.notes || "");
+
+  // 📝 Custom Notes / Owner Remarks Inline State
+  const [isEditingNotes, setIsEditingNotes] = useState<boolean>(false);
+  const [notesText, setNotesText] = useState<string>(occupantState?.notes || "");
+  const [isSavingNotes, setIsSavingNotes] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (occupantState?.notes !== undefined) {
+      setNotesText(occupantState.notes || "");
+      setEditNotes(occupantState.notes || "");
+    }
+  }, [occupantState?.notes]);
+
+  const handleSaveNotes = async () => {
+    if (!occupantState) return;
+    setIsSavingNotes(true);
+    try {
+      const updated: Occupant = { ...occupantState, notes: notesText.trim() };
+      setOccupantState(updated);
+      occupantStore.updateOccupant(updated, propertyId);
+      await saveOccupantToFirestore(propertyId, updated);
+      triggerToast("📝 Private remarks & notes saved successfully!");
+      setIsEditingNotes(false);
+    } catch (err) {
+      console.error("Failed to save custom notes:", err);
+      triggerToast("❌ Failed to save notes. Please try again.");
+    } finally {
+      setIsSavingNotes(false);
+    }
+  };
 
   // Room Transfer Modal State (Empty default ensures NO target bed is pre-selected!)
   const [showTransferModal, setShowTransferModal] = useState<boolean>(false);
@@ -1896,6 +1928,7 @@ export default function IndividualTenantProfilePage({
     const parsedEmergency = parsePhoneAndCountryCode(occupantState.emergencyContact?.phone);
     setEditEmergencyCountryCode(parsedEmergency.countryCode || "+91");
     setEditEmergencyPhone(parsedEmergency.nationalNumber || "");
+    setEditNotes(occupantState.notes || "");
     setShowEditProfileModal(true);
   };
 
@@ -1969,6 +2002,7 @@ export default function IndividualTenantProfilePage({
       occupation: editOccupation.trim() || undefined,
       workplace: editWorkplace.trim() || undefined,
       purposeOfVisit: editPurposeOfVisit.trim() || undefined,
+      notes: editNotes.trim() || undefined,
       vehicleNumber: cleanVehicles[0] || undefined,
       vehicleNumbers: cleanVehicles.length > 0 ? cleanVehicles : undefined,
       parkingCharges: (() => {
@@ -3519,6 +3553,113 @@ export default function IndividualTenantProfilePage({
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* 📝 OWNER REMARKS & CUSTOM NOTES SECTION (Private & Persistent) */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-amber-50 rounded-xl text-[#c2652a]">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-base text-gray-900 flex items-center gap-2">
+                      <span>Owner Remarks & Custom Notes</span>
+                      <span className="text-[10px] bg-gray-100 text-gray-600 font-sans font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <Lock className="w-3 h-3 text-gray-500" /> Private Desk
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-gray-500">
+                      Internal property management remarks, food preferences, fee concessions, or guardian instructions.
+                    </p>
+                  </div>
+                </div>
+
+                {!isEditingNotes && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNotesText(occupantState.notes || "");
+                      setIsEditingNotes(true);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-xs font-bold text-gray-700 transition-all cursor-pointer shadow-2xs active:scale-95"
+                  >
+                    <Edit className="w-3.5 h-3.5 text-[#c2652a]" />
+                    <span>{occupantState.notes ? "Edit Notes" : "+ Add Custom Note"}</span>
+                  </button>
+                )}
+              </div>
+
+              {isEditingNotes ? (
+                <div className="space-y-3 pt-1">
+                  <textarea
+                    value={notesText}
+                    onChange={(e) => setNotesText(e.target.value)}
+                    rows={4}
+                    placeholder="Enter private remarks for this tenant (e.g. 'Works night shifts 10pm-6am. Prefers lower berth. Security deposit paid in cash ₹4,000 on 30 Oct to reception desk. College student at MVSR.')..."
+                    className="w-full p-3.5 border border-gray-300 rounded-xl text-xs sm:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a] leading-relaxed resize-y font-normal"
+                    autoFocus
+                  />
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] text-gray-400 italic">
+                      🔒 Notes are securely stored in Cloud Firestore and only visible to authorized property staff.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNotesText(occupantState.notes || "");
+                          setIsEditingNotes(false);
+                        }}
+                        disabled={isSavingNotes}
+                        className="px-3.5 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-100 text-xs font-bold text-gray-700 transition-all cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveNotes}
+                        disabled={isSavingNotes}
+                        className="px-4 py-1.5 rounded-xl bg-[#c2652a] hover:bg-[#a8451f] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                      >
+                        {isSavingNotes ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Saving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-3.5 h-3.5" />
+                            <span>Save Notes</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="pt-1">
+                  {occupantState.notes && occupantState.notes.trim() ? (
+                    <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100 text-xs sm:text-sm text-gray-800 font-normal leading-relaxed whitespace-pre-wrap select-text">
+                      {occupantState.notes}
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => {
+                        setNotesText("");
+                        setIsEditingNotes(true);
+                      }}
+                      className="p-6 rounded-xl border border-dashed border-gray-200 bg-gray-50/50 hover:bg-gray-50 text-center cursor-pointer transition-colors group"
+                    >
+                      <FileText className="w-8 h-8 text-gray-300 mx-auto mb-2 group-hover:text-[#c2652a] transition-colors" />
+                      <p className="text-xs font-bold text-gray-600">No custom notes recorded yet</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        Click here or &ldquo;+ Add Custom Note&rdquo; above to record private remarks, food preferences, or room notes.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </>
         )}
@@ -5423,6 +5564,21 @@ export default function IndividualTenantProfilePage({
                         ? `Standard rate is ₹${propertySettings.parkingCharges}/mo. To grant an exception (such as free parking or a custom fee), enter an override here.`
                         : `No global parking fee configured. Enter an individual charge if applicable.`}
                     </p>
+                  </div>
+
+                  {/* 📝 Owner Remarks & Custom Notes */}
+                  <div className="pt-2 border-t border-gray-100">
+                    <label className="block font-bold text-gray-700 mb-1 flex items-center justify-between">
+                      <span>Owner Remarks / Custom Notes</span>
+                      <span className="text-[10px] text-gray-400 font-normal">🔒 Private (Owner & Staff Only)</span>
+                    </label>
+                    <textarea
+                      value={editNotes}
+                      onChange={(e) => setEditNotes(e.target.value)}
+                      rows={3}
+                      placeholder="Special instructions, dietary habits, fee concessions, or guardian remarks..."
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#c2652a] resize-y"
+                    />
                   </div>
                 </div>
 
