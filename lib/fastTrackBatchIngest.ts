@@ -11,7 +11,7 @@ import { FastTrackParsedRow, validateParsedRow, isVacantRow } from "./fastTrackH
 import { saveOccupantToFirestore } from "./firestoreService";
 import { getEffectiveTenantLimit, evaluateSubscription } from "./subscriptionEngine";
 import { generateReceiptNumber } from "./invoiceNumberEngine";
-import { getCanonicalBedIndex, normalizeRoomNumber } from "@/utils/domainSSOT";
+import { getCanonicalBedIndex, normalizeRoomNumber, resolveOccupantPaymentDueDate, resolveOccupantBillingCycleContext, parseOccupantDate } from "@/utils/domainSSOT";
 
 export interface IngestProgress {
   phase: "VALIDATING" | "PROVISIONING" | "ENROLLING" | "SYNCING" | "COMPLETED";
@@ -279,21 +279,38 @@ export async function executeFastTrackBatchIngest(
       });
     }
 
-    // Row-specific payment status
+    // Row-specific payment status & Anniversary Dynamic Due Date
+    const isAnniversary = settings.billingCycleDates === "Anniversary Date";
+    let occDueDay = dueDay;
+    const occJoinDateStr = row.joiningDate || now.toISOString().split("T")[0];
+    if (isAnniversary && row.joiningDate) {
+      const parsedJD = parseOccupantDate(row.joiningDate);
+      if (parsedJD && !isNaN(parsedJD.getTime())) {
+        occDueDay = parsedJD.getDate();
+      }
+    }
+
+    const occDueDateStr = resolveOccupantPaymentDueDate(
+      { joiningDate: occJoinDateStr, dueDay: occDueDay },
+      settings
+    ) || dueDateStr;
+
+    const occCycleCtx = resolveOccupantBillingCycleContext(
+      { joiningDate: occJoinDateStr, dueDay: occDueDay },
+      settings
+    );
+
     let rowPaymentStatus: "Paid" | "Due" | "Overdue" = "Due";
     let rowDaysRemainingText = "DUE TODAY";
     if (isRentPaid) {
       rowPaymentStatus = "Paid";
       rowDaysRemainingText = "PAID (CURRENT CYCLE)";
-    } else if (daysDiff < -settings.gracePeriodDays) {
+    } else if (priorArrears > 0 || occCycleCtx.isPastGrace) {
       rowPaymentStatus = "Overdue";
-      rowDaysRemainingText = `${Math.abs(daysDiff)} DAYS OVERDUE`;
-    } else if (daysDiff <= 0) {
-      rowPaymentStatus = "Due";
-      rowDaysRemainingText = "DUE TODAY";
+      rowDaysRemainingText = "OVERDUE";
     } else {
       rowPaymentStatus = "Due";
-      rowDaysRemainingText = `Due in ${daysDiff} Days`;
+      rowDaysRemainingText = "DUE";
     }
 
     const initials = row.fullName
@@ -310,10 +327,10 @@ export async function executeFastTrackBatchIngest(
       roomNumber: rawRoom,
       bedCode: finalBedCode,
       rentAmount: rent,
-      joiningDate: row.joiningDate || now.toISOString().split("T")[0],
+      joiningDate: occJoinDateStr,
       lastPaidDate: isRentPaid ? currentMonthStr : "—",
-      dueDate: dueDateStr,
-      dueDay,
+      dueDate: occDueDateStr,
+      dueDay: occDueDay,
       daysRemainingText: rowDaysRemainingText,
       daysDiff: isRentPaid ? 30 : daysDiff,
       paymentStatus: rowPaymentStatus,

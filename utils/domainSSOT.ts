@@ -571,8 +571,8 @@ export function resolveOccupantBillingCycleContext(
     }
   }
 
-  // Bound desiredDueDay to valid month days
-  desiredDueDay = Math.max(1, Math.min(28, desiredDueDay));
+  // Bound desiredDueDay to valid month days (1 to 31)
+  desiredDueDay = Math.max(1, Math.min(31, desiredDueDay));
 
   let targetDueDate: Date;
   let resetDate: Date;
@@ -590,14 +590,30 @@ export function resolveOccupantBillingCycleContext(
       resetDate = new Date(year, month - 1, daysInPrevMonth);
     }
   } else {
-    // desiredDueDay > 1 (e.g. 5th or 6th) -> (n-1) day is 4th or 5th
+    // desiredDueDay > 1 (e.g. 5th, 30th, 31st) -> (n-1) day is (desiredDueDay - 1)
     if (day >= desiredDueDay - 1) {
-      targetDueDate = new Date(year, month, desiredDueDay);
-      resetDate = new Date(year, month, desiredDueDay - 1);
+      const daysInCurrentMonth = new Date(year, month + 1, 0).getDate();
+      const safeDay = Math.min(desiredDueDay, daysInCurrentMonth);
+      targetDueDate = new Date(year, month, safeDay);
+      resetDate = new Date(year, month, Math.min(desiredDueDay - 1, daysInCurrentMonth));
     } else {
       // Prior to (n-1) day in the current calendar month
-      targetDueDate = new Date(year, month - 1, desiredDueDay);
-      resetDate = new Date(year, month - 1, desiredDueDay - 1);
+      const daysInPrevMonth = new Date(year, month, 0).getDate();
+      const safeDay = Math.min(desiredDueDay, daysInPrevMonth);
+      targetDueDate = new Date(year, month - 1, safeDay);
+      resetDate = new Date(year, month - 1, Math.min(desiredDueDay - 1, daysInPrevMonth));
+    }
+  }
+
+  // Guard: A resident's due date cannot be set in the past before the date they actually joined!
+  if (occupant?.joiningDate) {
+    const jDate = parseOccupantDate(occupant.joiningDate);
+    if (jDate && !isNaN(jDate.getTime())) {
+      const joinMidnight = new Date(jDate.getFullYear(), jDate.getMonth(), jDate.getDate());
+      if (targetDueDate.getTime() < joinMidnight.getTime()) {
+        targetDueDate = joinMidnight;
+        resetDate = new Date(joinMidnight.getFullYear(), joinMidnight.getMonth(), joinMidnight.getDate() - 1);
+      }
     }
   }
 
@@ -1007,7 +1023,7 @@ export function calculateOccupantFinancialStatement(
     ? netOutstandingBalance === 0
     : remainingRentDue === 0 && priorArrears === 0 && remainingParkingDue === 0;
   const isPartialPaid = !isFullyPaid && (totalRentPaidFromReceipts > 0 || totalDepositPaidFromReceipts > 0);
-  const isOverdue = !isFullyPaid && (isPastGrace || priorArrears > 0 || occupant.paymentStatus === "Overdue");
+  const isOverdue = !isFullyPaid && (priorArrears > 0 || isPastGrace);
 
   const paymentStatusLabel: "Paid" | "Due" | "Overdue" = isFullyPaid
     ? "Paid"
