@@ -750,6 +750,8 @@ export default function IndividualTenantProfilePage({
       : (initialParsedEmergency.nationalNumber || "")
   );
   const [editNotes, setEditNotes] = useState<string>(occupantState?.notes || "");
+  const [editDepositSettled, setEditDepositSettled] = useState<boolean>(false);
+  const [showDepositSettledConfirmModal, setShowDepositSettledConfirmModal] = useState<boolean>(false);
 
   // 📝 Custom Notes / Owner Remarks Inline State
   const [isEditingNotes, setIsEditingNotes] = useState<boolean>(false);
@@ -1952,13 +1954,27 @@ export default function IndividualTenantProfilePage({
       setEditEmergencyPhone(parsedEmergency.nationalNumber || "");
     }
 
+    setEditDepositSettled(false);
+    setShowDepositSettledConfirmModal(false);
     setEditNotes(occupantState.notes || "");
     setShowEditProfileModal(true);
   };
 
-  // Edit Profile Submit Handler (Updates Name, Phone, Email, Joining Date, Due Date, Rent, Deposit, Occupation, Workplace, Purpose across state)
+  // Edit Profile Submit Handler (Intercepts for confirmation if deposit override is enabled)
   const handleEditProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!occupantState) return;
+
+    if (editDepositSettled) {
+      setShowDepositSettledConfirmModal(true);
+      return;
+    }
+
+    executeEditProfileSave();
+  };
+
+  // Executes profile update and applies Security Deposit Settlement override
+  const executeEditProfileSave = () => {
     if (!occupantState) return;
 
     const formattedJoiningDate = formatIsoToDisplayDate(editJoiningDate) || editJoiningDate || occupantState.joiningDate;
@@ -1992,10 +2008,75 @@ export default function IndividualTenantProfilePage({
     const currentStmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
     const totalDepositPaid = currentStmt.totalDepositPaid;
     let updatedDepositStatus = occupantState.depositStatus;
-    if (editDeposit > totalDepositPaid) {
+
+    if (editDepositSettled) {
+      updatedDepositStatus = "PAID";
+    } else if (editDeposit > totalDepositPaid) {
       updatedDepositStatus = totalDepositPaid > 0 ? "PARTIAL" : "PENDING";
     } else if (editDeposit <= totalDepositPaid && editDeposit > 0) {
       updatedDepositStatus = "PAID";
+    }
+
+    // ⚡ Process Security Deposit Receipt Overwrite when "Mark as Settled" is checked
+    let updatedPaymentHistory = [...(occupantState.paymentHistory || [])];
+    if (editDepositSettled) {
+      const isDepReceipt = (item: PaymentHistoryItem) => {
+        const m = (item.month || "").toLowerCase();
+        const r = (item.receiptNo || "").toLowerCase();
+        return m.includes("deposit") || r.includes("dep") || (item.depositAmount !== undefined && item.depositAmount > 0);
+      };
+
+      const depositIndices: number[] = [];
+      updatedPaymentHistory.forEach((item, idx) => {
+        if (isDepReceipt(item)) depositIndices.push(idx);
+      });
+
+      if (depositIndices.length > 0) {
+        // Overwrite the existing primary deposit receipt with the new settled amount on the exact same receipt number
+        const primaryIdx = depositIndices[0];
+        updatedPaymentHistory = updatedPaymentHistory
+          .map((item, idx) => {
+            if (idx === primaryIdx) {
+              return {
+                ...item,
+                amount: editDeposit,
+                depositAmount: editDeposit,
+                status: "PAID" as const,
+              };
+            }
+            if (depositIndices.includes(idx)) {
+              return null;
+            }
+            return item;
+          })
+          .filter((item): item is PaymentHistoryItem => item !== null);
+      } else if (editDeposit > 0) {
+        // Synthesize a baseline deposit receipt so the dual ledger math is clean and auditable
+        const depositReceiptNo = generateReceiptNumber(propertySettings, {
+          date: formattedJoiningDate || occupantState.joiningDate,
+          existingOccupants: [occupantState],
+          propertyId,
+        }) || `#DEP-${Date.now().toString().slice(-6)}`;
+
+        const newDepositReceipt: PaymentHistoryItem = {
+          id: `rcpt_dep_${Date.now()}`,
+          receiptNo: depositReceiptNo,
+          month: "Security Deposit",
+          amount: editDeposit,
+          depositAmount: editDeposit,
+          date: formattedJoiningDate || occupantState.joiningDate,
+          mode: "Cash",
+          paidTo: (paymentAccounts && paymentAccounts[0]?.name) || "Property Account",
+          status: "PAID",
+          collectedBy: {
+            id: profile?.uid,
+            name: profile?.displayName || "Admin",
+            role: profile?.role === "master_admin" ? "Master Admin" : "Admin",
+            email: profile?.email,
+          },
+        };
+        updatedPaymentHistory = [newDepositReceipt, ...updatedPaymentHistory];
+      }
     }
 
     const todayIso = getTodayIsoDate();
@@ -2017,6 +2098,7 @@ export default function IndividualTenantProfilePage({
       rentAmount: editRent,
       securityDeposit: editDeposit,
       depositStatus: updatedDepositStatus,
+      paymentHistory: updatedPaymentHistory,
       emergencyContact: {
         name: fullEmergencyPhone ? (occupantState.emergencyContact?.name || "Emergency Contact") : "",
         phone: fullEmergencyPhone || "",
@@ -2069,7 +2151,11 @@ export default function IndividualTenantProfilePage({
     }));
     propertyStore.updateStructure(updatedStructure, propertyId);
 
-    triggerToast(`✓ Profile details updated successfully for ${editName}`);
+    if (editDepositSettled) {
+      triggerToast(`✓ Security deposit settled at ₹${editDeposit.toLocaleString("en-IN")} (PAID 🟢) for ${editName}`);
+    } else {
+      triggerToast(`✓ Profile details updated successfully for ${editName}`);
+    }
     setShowEditProfileModal(false);
   };
 
@@ -5389,18 +5475,42 @@ export default function IndividualTenantProfilePage({
                     <label className="block font-bold text-gray-700 mb-1">
                       Security Deposit (₹) *
                     </label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      required
-                      value={editDeposit ? String(editDeposit) : ""}
-                      placeholder="0"
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, "");
-                        setEditDeposit(val === "" ? 0 : parseInt(val, 10));
-                      }}
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        required
+                        value={editDeposit ? String(editDeposit) : ""}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "");
+                          setEditDeposit(val === "" ? 0 : parseInt(val, 10));
+                        }}
+                        className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      />
+                      <label
+                        title="When checked, overwrites prior deposit record on the same invoice/receipt as fully collected (PAID) without creating pending dues."
+                        className={`inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl border transition-all cursor-pointer text-xs shrink-0 select-none ${
+                          editDepositSettled
+                            ? "bg-emerald-50 border-emerald-300 text-emerald-800 ring-1 ring-emerald-300"
+                            : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={editDepositSettled}
+                          onChange={(e) => setEditDepositSettled(e.target.checked)}
+                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                        />
+                        <span className="whitespace-nowrap font-medium text-[11px] sm:text-xs">Mark as Settled</span>
+                        <span
+                          className="w-4 h-4 rounded-full bg-gray-200 text-gray-600 text-[10px] flex items-center justify-center font-bold"
+                          title="Overwrites prior deposit record on the same invoice/receipt as fully collected (PAID) without creating pending dues."
+                        >
+                          ?
+                        </span>
+                      </label>
+                    </div>
                   </div>
 
                   {occupantState?.stayType !== "Guest" && (
@@ -5617,6 +5727,52 @@ export default function IndividualTenantProfilePage({
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* 🛡️ DEPOSIT SETTLEMENT CONFIRMATION MODAL */}
+        {showDepositSettledConfirmModal && (
+          <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+            <div className="bg-white rounded-3xl max-w-sm w-full p-5 sm:p-6 shadow-2xl border border-gray-100 space-y-4 animate-in zoom-in-95 duration-150">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-gray-900">Mark Deposit as Settled?</h3>
+                  <p className="text-[11px] text-gray-500">Security deposit baseline adjustment</p>
+                </div>
+              </div>
+
+              <div className="p-3.5 bg-emerald-50/80 rounded-2xl border border-emerald-200 text-xs text-emerald-950 space-y-1.5">
+                <p className="font-bold text-emerald-900">
+                  Security deposit will be set to ₹{editDeposit.toLocaleString("en-IN")}.
+                </p>
+                <p className="text-[11px] text-emerald-800 leading-relaxed">
+                  Deposit will be marked as fully collected (<strong>PAID 🟢</strong>) on the same receipt with <strong>₹0 pending balance</strong>.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowDepositSettledConfirmModal(false)}
+                  className="px-3.5 py-2 rounded-xl border border-gray-200 hover:bg-gray-100 text-xs font-bold text-gray-700 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDepositSettledConfirmModal(false);
+                    executeEditProfileSave();
+                  }}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95"
+                >
+                  Confirm & Save
+                </button>
+              </div>
             </div>
           </div>
         )}
