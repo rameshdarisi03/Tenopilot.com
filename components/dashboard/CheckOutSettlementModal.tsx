@@ -170,7 +170,7 @@ export function CheckOutSettlementModal({
       occupantStore.updateOccupant(updatedOccupant, propertyId);
 
       // 2. Reset Bed Status to "Available" (Reusing standard Available category)
-      propertyStore.freeUpBedSlot(propertyId, roomNumber, bedCode);
+      propertyStore.freeUpBedSlot(propertyId, roomNumber || occupant.roomNumber, bedCode || occupant.bedCode, occupant.id);
 
       // 3. Log Financial Outflow in expenseStore (Expense Ledger)
       if (netRefundableAmount > 0) {

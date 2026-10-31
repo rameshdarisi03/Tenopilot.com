@@ -442,8 +442,8 @@ export const propertyStore = {
   },
 
   // Method to clear bed slot and reset status to "Available" upon tenant checkout or invite revocation
-  async freeUpBedSlot(propertyId: string, roomNumber: string, bedCode: string) {
-    const normRm = (roomNumber || "").toLowerCase().trim();
+  async freeUpBedSlot(propertyId: string, roomNumber?: string, bedCode?: string, occupantId?: string) {
+    const normRm = (roomNumber || "").toLowerCase().replace(/^(room|rm|unit|suite)\s*[-:]?\s*/i, "").trim();
     const cleanBd = (bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     const normBd = cleanBd.startsWith("bed") ? cleanBd : `bed${cleanBd}`;
 
@@ -451,21 +451,27 @@ export const propertyStore = {
     const updated = current.map((fl) => ({
       ...fl,
       rooms: fl.rooms.map((rm) => {
-        if ((rm.roomNumber || "").toLowerCase().trim() !== normRm) return rm;
+        const currentRm = (rm.roomNumber || "").toLowerCase().replace(/^(room|rm|unit|suite)\s*[-:]?\s*/i, "").trim();
+        const roomMatches = normRm && currentRm === normRm;
         return {
           ...rm,
           beds: rm.beds.map((bd) => {
             const currentBdClean = (bd.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
             const currentBdNorm = currentBdClean.startsWith("bed") ? currentBdClean : `bed${currentBdClean}`;
-            if (currentBdNorm !== normBd) return bd;
-            return {
-              ...bd,
-              status: "Available" as const,
-              occupant: undefined,
-              holdCandidate: undefined,
-              vacatingDate: undefined,
-              guestCheckoutDate: undefined,
-            };
+            const bedMatches = normBd && currentBdNorm === normBd;
+            const occupantMatches = occupantId && bd.occupant?.id === occupantId;
+
+            if ((roomMatches && bedMatches) || occupantMatches) {
+              return {
+                ...bd,
+                status: "Available" as const,
+                occupant: undefined,
+                holdCandidate: undefined,
+                vacatingDate: undefined,
+                guestCheckoutDate: undefined,
+              };
+            }
+            return bd;
           }),
         };
       }),
