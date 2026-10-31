@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect, useMemo, Suspense } from "react";
+import { use, useState, useEffect, useMemo, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
@@ -163,10 +163,18 @@ function PropertyMapContent({
   }, [propertyId]);
 
   // Self-healing: automatically clear orphaned hold candidates & misplaced bed occupants in property layout structure
+  const hasCheckedOrphansRef = useRef<boolean>(false);
   useEffect(() => {
-    if (!propertyId || !propertyGrid || propertyGrid.length === 0) return;
+    if (!propertyId || hasCheckedOrphansRef.current) return;
+    const currentGrid = propertyStore.getStructure(propertyId);
+    if (!currentGrid || currentGrid.length === 0) return;
+
+    // Only perform check once KYC data is loaded
+    if (kycInvites.length === 0 && kycSubmissions.length === 0) return;
+    hasCheckedOrphansRef.current = true;
+
     let hasChanges = false;
-    const cleanedGrid = propertyGrid.map((fl) => ({
+    const cleanedGrid = currentGrid.map((fl) => ({
       ...fl,
       rooms: fl.rooms.map((rm) => {
         const cleanRm = normalizeRoomNumber(rm.roomNumber);
@@ -185,12 +193,15 @@ function PropertyMapContent({
                 (s) => s.status === "PENDING" && normalizeRoomNumber(s.roomNumber) === cleanRm && normalizeBedCode(s.bedCode) === cleanBd
               );
               if (!hasActiveInvite && !hasPendingKyc) {
-                hasChanges = true;
-                updatedBed = {
-                  ...updatedBed,
-                  status: (updatedBed.occupant ? updatedBed.status : "Available") as any,
-                  holdCandidate: undefined,
-                };
+                const targetStatus = updatedBed.occupant ? "Occupied" : "Available";
+                if (updatedBed.status !== targetStatus || updatedBed.holdCandidate !== undefined) {
+                  hasChanges = true;
+                  updatedBed = {
+                    ...updatedBed,
+                    status: targetStatus as any,
+                    holdCandidate: undefined,
+                  };
+                }
               }
             }
             return updatedBed;
@@ -202,7 +213,7 @@ function PropertyMapContent({
     if (hasChanges) {
       propertyStore.updateStructure(cleanedGrid, propertyId);
     }
-  }, [propertyId, kycInvites, kycSubmissions, propertyGrid]);
+  }, [propertyId, kycInvites, kycSubmissions]);
 
   // Filters state (Hold is now unified into Booked)
   const [selectedFloor, setSelectedFloor] = useState<string>("ALL FLOORS");

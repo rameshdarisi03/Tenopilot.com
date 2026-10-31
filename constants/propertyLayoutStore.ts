@@ -352,8 +352,7 @@ export const propertyStore = {
     
 
     if (PROPERTY_LAYOUT_MAP.has(propertyId)) {
-      const current = PROPERTY_LAYOUT_MAP.get(propertyId)!;
-      return normalizeAndSortBuildingStructure(current);
+      return PROPERTY_LAYOUT_MAP.get(propertyId)!;
     }
 
     try {
@@ -361,8 +360,9 @@ export const propertyStore = {
       const saved = localStorage.getItem(savedKey);
       if (saved) {
         const parsed = JSON.parse(saved);
-        PROPERTY_LAYOUT_MAP.set(propertyId, parsed);
-        return parsed;
+        const normalized = normalizeAndSortBuildingStructure(parsed);
+        PROPERTY_LAYOUT_MAP.set(propertyId, normalized);
+        return normalized;
       }
     } catch {}
 
