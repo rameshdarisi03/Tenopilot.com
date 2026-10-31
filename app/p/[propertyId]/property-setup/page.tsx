@@ -153,7 +153,12 @@ export default function PropertySetupPage({
   }, [propertyId]);
 
   // Helper to resolve real live occupant and state for a bed slot (PMS Enterprise Parity with Property Map)
-  const resolveBedSlotInfo = (roomNumber: string, bed: BedSlotConfig, allRoomBeds?: BedSlotConfig[]) => {
+  const resolveBedSlotInfo = (
+    roomNumber: string,
+    bed: BedSlotConfig,
+    allRoomBeds?: BedSlotConfig[],
+    claimedOccIds?: Set<string>
+  ) => {
     const cleanRm = normalizeRoomNumber(roomNumber);
     const cleanBd = normalizeBedCode(bed.bedCode);
     const bedCanonicalIdx = getCanonicalBedIndex(bed.bedCode);
@@ -161,7 +166,7 @@ export default function PropertySetupPage({
     const timeline = getBedOccupantsTimeline(roomNumber, bed.bedCode, bed, propertyId, allRoomBeds);
 
     // 1. Live occupant lookup (highest priority)
-    const liveOcc =
+    let liveOcc =
       timeline.activeOccupant ||
       (bed.occupant &&
        bed.occupant.lifecycleStatus !== "Past" &&
@@ -169,6 +174,15 @@ export default function PropertySetupPage({
        (!bed.occupant.bedCode || (bedCanonicalIdx !== -1 && getCanonicalBedIndex(bed.occupant.bedCode) === bedCanonicalIdx) || normalizeBedCode(bed.occupant.bedCode) === cleanBd)
         ? bed.occupant
         : undefined);
+
+    // 🔒 Enterprise Occupant Deduplication: Prevent a resident from being replicated across multiple beds in the same room!
+    if (liveOcc) {
+      if (claimedOccIds && claimedOccIds.has(liveOcc.id)) {
+        liveOcc = undefined; // Already claimed by an earlier bed in this room!
+      } else if (claimedOccIds) {
+        claimedOccIds.add(liveOcc.id);
+      }
+    }
 
     // 2. Active invite lookup
     const activeInvite = kycInvites.find(
@@ -410,29 +424,33 @@ export default function PropertySetupPage({
   // 1-Click Direct Bed Addition on Room Card
   const handleAddBedDirect = (floorId: string, room: RoomConfig) => {
     const currentBeds = room.beds || [];
-    const usedLetters = new Set<string>();
+    const usedIndices = new Set<number>();
     currentBeds.forEach((b) => {
-      const match = (b.bedCode || "").toUpperCase().match(/[A-Z]/);
-      if (match) usedLetters.add(match[0]);
+      const idx = getCanonicalBedIndex(b.bedCode);
+      if (idx !== -1) usedIndices.add(idx);
     });
 
     const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    let nextLetter = "";
-    for (let i = 0; i < alphabet.length; i++) {
-      if (!usedLetters.has(alphabet[i])) {
-        nextLetter = alphabet[i];
-        break;
-      }
+    let nextIdx = 0;
+    while (usedIndices.has(nextIdx) && nextIdx < alphabet.length) {
+      nextIdx++;
     }
-    const nextCode = nextLetter ? `Bed ${nextLetter}` : `Bed ${currentBeds.length + 1}`;
+    const nextLetter = alphabet[nextIdx] || String(nextIdx + 1);
+    const nextCode = `Bed ${nextLetter}`;
 
     const newBed: BedSlotConfig = {
       id: `bed-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       bedCode: nextCode,
       status: "Available",
+      occupant: undefined,
     };
 
-    const newBedList = [...currentBeds, newBed];
+    const newBedList = [...currentBeds, newBed].sort((a, b) => {
+      const idxA = getCanonicalBedIndex(a.bedCode);
+      const idxB = getCanonicalBedIndex(b.bedCode);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      return (a.bedCode || "").localeCompare(b.bedCode || "");
+    });
     const newCapacity = newBedList.length;
 
     const updated = propertyStructure.map((fl) => {
@@ -452,7 +470,7 @@ export default function PropertySetupPage({
     });
 
     updateLayoutStructure(updated);
-    triggerToast(`✓ Added ${nextCode} to Room ${room.roomNumber}!`);
+    triggerToast(`✓ Added ${nextCode} (Vacant) to Room ${room.roomNumber}!`);
   };
 
   // Handle Deletion of Bed Slot
@@ -719,26 +737,27 @@ export default function PropertySetupPage({
     let updatedBeds = [...room.beds];
 
     if (newSharingCapacity > room.beds.length) {
-      const usedLetters = new Set<string>();
+      const usedIndices = new Set<number>();
       updatedBeds.forEach((b) => {
-        const match = (b.bedCode || "").toUpperCase().match(/[A-Z]/);
-        if (match) usedLetters.add(match[0]);
+        const idx = getCanonicalBedIndex(b.bedCode);
+        if (idx !== -1) usedIndices.add(idx);
       });
       const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-      let alphaIdx = 0;
 
       // Append new vacant beds
       for (let i = room.beds.length; i < newSharingCapacity; i++) {
-        while (alphaIdx < alphabet.length && usedLetters.has(alphabet[alphaIdx])) {
-          alphaIdx++;
+        let nextIdx = 0;
+        while (usedIndices.has(nextIdx) && nextIdx < alphabet.length) {
+          nextIdx++;
         }
-        const nextLetter = alphaIdx < alphabet.length ? alphabet[alphaIdx] : String(i + 1);
-        usedLetters.add(nextLetter);
+        const nextLetter = alphabet[nextIdx] || String(nextIdx + 1);
+        usedIndices.add(nextIdx);
 
         updatedBeds.push({
           id: `bed-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`,
           bedCode: `Bed ${nextLetter}`,
           status: "Available",
+          occupant: undefined,
         });
       }
     } else if (newSharingCapacity < room.beds.length) {
@@ -1044,11 +1063,12 @@ export default function PropertySetupPage({
                                 const sortedBeds = [...(room.beds || [])].sort((a, b) =>
                                   getCanonicalBedIndex(a.bedCode) - getCanonicalBedIndex(b.bedCode)
                                 );
+                                const roomClaimedOccIds = new Set<string>();
 
                                 return (
                                   <div className={`grid ${gridCols} gap-2 pt-1`}>
                                     {sortedBeds.map((bed) => {
-                                      const info = resolveBedSlotInfo(room.roomNumber, bed, room.beds);
+                                      const info = resolveBedSlotInfo(room.roomNumber, bed, room.beds, roomClaimedOccIds);
 
                                       return (
                                         <div

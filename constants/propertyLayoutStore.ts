@@ -172,43 +172,40 @@ export function normalizeAndSortBuildingStructure(floors: FloorConfig[]): FloorC
             rm.beds[0].occupant.bedCode = "Bed A";
           }
         } else {
-          const seenLetters = new Set<string>();
-          let alphaIdx = 0;
+          const seenIndices = new Set<number>();
+          let nextAvailableIdx = 0;
 
           rm.beds.forEach((b, idx) => {
-            const cleanCode = (b.bedCode || "").trim().toUpperCase();
-            const letterMatch = cleanCode.match(/[A-Z]/);
-            let assignedLetter = letterMatch ? letterMatch[0] : "";
-
-            // If empty or duplicate bed letter in same room
-            if (!assignedLetter || seenLetters.has(assignedLetter)) {
-              while (alphaIdx < alphabet.length && seenLetters.has(alphabet[alphaIdx])) {
-                alphaIdx++;
+            let bedIdx = getCanonicalBedIndex(b.bedCode);
+            // If invalid or duplicate bed index in the same room, assign next sequential free letter
+            if (bedIdx === -1 || seenIndices.has(bedIdx)) {
+              while (nextAvailableIdx < alphabet.length && seenIndices.has(nextAvailableIdx)) {
+                nextAvailableIdx++;
               }
-              assignedLetter = alphaIdx < alphabet.length ? alphabet[alphaIdx] : String(idx + 1);
-              b.bedCode = `Bed ${assignedLetter}`;
-            } else {
-              b.bedCode = `Bed ${assignedLetter}`;
+              bedIdx = nextAvailableIdx < alphabet.length ? nextAvailableIdx : idx;
             }
-            seenLetters.add(assignedLetter);
+            const assignedLetter = alphabet[bedIdx] || String(bedIdx + 1);
+            b.bedCode = `Bed ${assignedLetter}`;
+            seenIndices.add(bedIdx);
           });
         }
       }
 
       // Auto-Provision missing beds if room sharing type is greater than current beds (e.g. 3-sharing room with 2 enrolled tenants)
       if (rm.sharingType && rm.beds.length < rm.sharingType) {
-        const existingLetters = new Set(
-          rm.beds.map((b) => (b.bedCode || "").trim().toUpperCase().match(/[A-Z]/)?.[0] || "")
+        const existingIndices = new Set(
+          rm.beds.map((b) => getCanonicalBedIndex(b.bedCode)).filter((idx) => idx !== -1)
         );
         for (let i = 0; i < rm.sharingType; i++) {
-          const letter = alphabet[i] || String(i + 1);
-          if (!existingLetters.has(letter)) {
+          if (!existingIndices.has(i)) {
+            const letter = alphabet[i] || String(i + 1);
             rm.beds.push({
               id: `bed_${rm.roomNumber.toLowerCase()}_${letter.toLowerCase()}_${Date.now()}_${i}`,
               bedCode: `Bed ${letter}`,
               status: "Available",
+              occupant: undefined,
             });
-            existingLetters.add(letter);
+            existingIndices.add(i);
           }
         }
         // Re-sort after adding missing beds
