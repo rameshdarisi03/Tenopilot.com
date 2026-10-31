@@ -74,11 +74,37 @@ export function extractCanonicalFloorLevel(floorName: string): number {
 
 /**
  * Natural Alphanumeric Room Sorter
- * Orders rooms logically: 101, 102, 103, 104, 105, 106, 107, 108...
- * Handles blocks: A-101, A-102, B-101...
+ * 1. Intelligently strips 'Room ', 'Rm ', 'Rm-' prefixes when comparing numbered rooms.
+ * 2. Compares numbers purely mathematically: 101, 102, 103... 114, 119... 201, 212, 213, 214.
+ * 3. Handles word/letter names naturally: Room A, Room B, Penthouse, Suite 1, GA, etc.
+ * 4. Handles block combinations: A-101, A-102, B-101.
  */
 export function compareRoomNumbers(a: string, b: string): number {
-  return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+  const cleanA = (a || '').trim();
+  const cleanB = (b || '').trim();
+
+  // Strip common room prefixes for numerical evaluation
+  const stripPrefix = (s: string) => s.replace(/^(?:room|rm)[\s\-_]*/i, '').trim();
+  const strippedA = stripPrefix(cleanA);
+  const strippedB = stripPrefix(cleanB);
+
+  const isNumA = /^\d+$/.test(strippedA);
+  const isNumB = /^\d+$/.test(strippedB);
+
+  if (isNumA && isNumB) {
+    return parseInt(strippedA, 10) - parseInt(strippedB, 10);
+  }
+
+  // Handle Block-Number formats (e.g. A-101, B-102)
+  const blockMatchA = cleanA.match(/^([a-zA-Z]+)[\s\-_]+(\d+)$/);
+  const blockMatchB = cleanB.match(/^([a-zA-Z]+)[\s\-_]+(\d+)$/);
+  if (blockMatchA && blockMatchB) {
+    const blockCmp = blockMatchA[1].localeCompare(blockMatchB[1], undefined, { sensitivity: 'base' });
+    if (blockCmp !== 0) return blockCmp;
+    return parseInt(blockMatchA[2], 10) - parseInt(blockMatchB[2], 10);
+  }
+
+  return cleanA.localeCompare(cleanB, undefined, { numeric: true, sensitivity: 'base' });
 }
 
 /**
@@ -93,16 +119,21 @@ export function normalizeAndSortBuildingStructure(floors: FloorConfig[]): FloorC
 
   const floorMap = new Map<string, FloorConfig>();
 
-  floors.forEach((fl) => {
+  floors.forEach((fl, fIdx) => {
     const level = extractCanonicalFloorLevel(fl.floorName);
-    const blockMatch = fl.floorName.match(/^([A-Za-z0-9\s]+)\s*-\s*/i);
+    const blockMatch = fl.floorName?.match(/^([A-Za-z0-9\s]+)\s*-\s*/i);
     const block = blockMatch ? blockMatch[1].trim().toLowerCase() : 'main';
     const key = `${block}_${level}`;
+
+    const guaranteedFloorId = fl.id || (fl.floorName ? `floor-${fl.floorName.toLowerCase().replace(/[^a-z0-9]/g, '-')}` : `floor-${level}-${fIdx}`);
 
     const existing = floorMap.get(key);
     if (!existing) {
       floorMap.set(key, {
         ...fl,
+        id: guaranteedFloorId,
+        floorName: fl.floorName || `Floor 0${Math.max(1, level)}`,
+        floorSubtitle: fl.floorSubtitle || '',
         rooms: [...(fl.rooms || [])],
       });
     } else {
@@ -145,9 +176,16 @@ export function normalizeAndSortBuildingStructure(floors: FloorConfig[]): FloorC
   const consolidated = Array.from(floorMap.values());
 
   // 1. Sort rooms inside each floor naturally (101, 102, 103, 104, 105, 106, 107...) & Auto-Heal Bed Slot Letters (Bed A, Bed B, Bed C...)
-  consolidated.forEach((fl) => {
+  consolidated.forEach((fl, fIdx) => {
+    if (!fl.id) {
+      const level = extractCanonicalFloorLevel(fl.floorName);
+      fl.id = fl.floorName ? `floor-${fl.floorName.toLowerCase().replace(/[^a-z0-9]/g, '-')}` : `floor-${level}-${fIdx}`;
+    }
     fl.rooms.sort((a, b) => compareRoomNumbers(a.roomNumber, b.roomNumber));
-    fl.rooms.forEach((rm) => {
+    fl.rooms.forEach((rm, rIdx) => {
+      if (!rm.id) {
+        rm.id = rm.roomNumber ? `rm-${rm.roomNumber.toLowerCase().replace(/[^a-z0-9]/g, '-')}` : `rm-${fIdx}-${rIdx}`;
+      }
       if (!Array.isArray(rm.beds)) {
         rm.beds = [];
       }

@@ -13,6 +13,7 @@ import {
   FloorConfig,
   RoomConfig,
   BedSlotConfig,
+  compareRoomNumbers,
 } from "@/constants/propertyLayoutStore";
 import {
   getBedOccupantsTimeline,
@@ -105,7 +106,7 @@ export default function PropertySetupPage({
     const initialStructure = propertyStore.getStructure(propertyId);
     setPropertyStructure(initialStructure);
     if (initialStructure && initialStructure.length > 0) {
-      setOpenFloorIds((prev) => Array.from(new Set([...prev, ...initialStructure.map((f) => f.id)])));
+      setOpenFloorIds((prev) => Array.from(new Set([...prev, ...initialStructure.map((f) => f.id || f.floorName)])));
     }
     setSettings(propertySettingsStore.getSettings(propertyId));
     setOccupantsList(occupantStore.getOccupants(propertyId));
@@ -118,7 +119,7 @@ export default function PropertySetupPage({
       const updated = propertyStore.getStructure(propertyId);
       setPropertyStructure(updated);
       if (updated && updated.length > 0) {
-        setOpenFloorIds((prev) => Array.from(new Set([...prev, ...updated.map((f) => f.id)])));
+        setOpenFloorIds((prev) => Array.from(new Set([...prev, ...updated.map((f) => f.id || f.floorName)])));
       }
     });
     const unsubscribeSettings = propertySettingsStore.subscribe(() => {
@@ -441,12 +442,14 @@ export default function PropertySetupPage({
     const newCapacity = newBedList.length;
 
     const updated = propertyStructure.map((fl) => {
-      if (fl.id !== floorId) return fl;
+      const isTargetFloor = (fl.id && floorId && fl.id === floorId) || (fl.floorName && floorId && fl.floorName.toLowerCase() === floorId.toLowerCase());
+      if (!isTargetFloor) return fl;
       return {
         ...fl,
         totalBeds: (fl.totalBeds || 0) + 1,
         rooms: fl.rooms.map((rm) => {
-          if (rm.id !== room.id) return rm;
+          const isTargetRoom = (rm.id && room.id && rm.id === room.id) || (rm.roomNumber && room.roomNumber && rm.roomNumber.trim().toLowerCase() === room.roomNumber.trim().toLowerCase());
+          if (!isTargetRoom) return rm;
           return {
             ...rm,
             sharingType: newCapacity,
@@ -480,12 +483,14 @@ export default function PropertySetupPage({
       message: `Are you sure you want to remove ${bed.bedCode}? This action cannot be undone.`,
       onConfirm: () => {
         const updated = propertyStructure.map((fl) => {
-          if (fl.id !== floorId) return fl;
+          const isTargetFloor = (fl.id && floorId && fl.id === floorId) || (fl.floorName && floorId && fl.floorName.toLowerCase() === floorId.toLowerCase());
+          if (!isTargetFloor) return fl;
           return {
             ...fl,
             totalBeds: Math.max(0, (fl.totalBeds || 0) - 1),
             rooms: fl.rooms.map((rm) => {
-              if (rm.id !== room.id) return rm;
+              const isTargetRoom = (rm.id && room.id && rm.id === room.id) || (rm.roomNumber && room.roomNumber && rm.roomNumber.trim().toLowerCase() === room.roomNumber.trim().toLowerCase());
+              if (!isTargetRoom) return rm;
               return {
                 ...rm,
                 sharingType: Math.max(1, rm.beds.length - 1),
@@ -524,10 +529,14 @@ export default function PropertySetupPage({
       message: `Are you sure you want to remove Room ${room.roomNumber} and all its vacant beds?`,
       onConfirm: () => {
         const updated = propertyStructure.map((fl) => {
-          if (fl.id !== floorId) return fl;
+          const isTargetFloor = (fl.id && floorId && fl.id === floorId) || (fl.floorName && floorId && fl.floorName.toLowerCase() === floorId.toLowerCase());
+          if (!isTargetFloor) return fl;
           return {
             ...fl,
-            rooms: fl.rooms.filter((rm) => rm.id !== room.id),
+            rooms: fl.rooms.filter((rm) => {
+              const isTargetRoom = (rm.id && room.id && rm.id === room.id) || (rm.roomNumber && room.roomNumber && rm.roomNumber.trim().toLowerCase() === room.roomNumber.trim().toLowerCase());
+              return !isTargetRoom;
+            }),
           };
         });
 
@@ -669,11 +678,14 @@ export default function PropertySetupPage({
     };
 
     const updated = propertyStructure.map((fl) => {
-      if (fl.id !== activeAddRoomFloorId) return fl;
+      const isTargetFloor = (fl.id && activeAddRoomFloorId && fl.id === activeAddRoomFloorId) || (fl.floorName && activeAddRoomFloorId && fl.floorName.toLowerCase() === activeAddRoomFloorId.toLowerCase());
+      if (!isTargetFloor) return fl;
+      const combinedRooms = [...(fl.rooms || []), newRoom];
+      combinedRooms.sort((a, b) => compareRoomNumbers(a.roomNumber, b.roomNumber));
       return {
         ...fl,
         totalBeds: (fl.totalBeds || 0) + count,
-        rooms: [...(fl.rooms || []), newRoom],
+        rooms: combinedRooms,
       };
     });
 
@@ -764,23 +776,27 @@ export default function PropertySetupPage({
     const specialTag = newRoomSpecialTag.trim() || undefined;
 
     const updatedStructure = propertyStructure.map((fl) => {
-      if (fl.id !== floorId) return fl;
+      const isTargetFloor = (fl.id && floorId && fl.id === floorId) || (fl.floorName && floorId && fl.floorName.toLowerCase() === floorId.toLowerCase());
+      if (!isTargetFloor) return fl;
       const diff = updatedBeds.length - room.beds.length;
+      const mappedRooms = (fl.rooms || []).map((rm) => {
+        const isTargetRoom = (rm.id && room.id && rm.id === room.id) || (rm.roomNumber && room.roomNumber && rm.roomNumber.trim().toLowerCase() === room.roomNumber.trim().toLowerCase());
+        if (!isTargetRoom) return rm;
+        return {
+          ...rm,
+          roomNumber: cleanRoomNum,
+          sharingType: updatedBeds.length,
+          beds: updatedBeds,
+          customRentAmount: customRent,
+          specialFeatureTag: specialTag,
+          roomPhotos: newRoomPhotos.length > 0 ? newRoomPhotos : undefined,
+        };
+      });
+      mappedRooms.sort((a, b) => compareRoomNumbers(a.roomNumber, b.roomNumber));
       return {
         ...fl,
         totalBeds: (fl.totalBeds || 0) + diff,
-        rooms: (fl.rooms || []).map((rm) => {
-          if (rm.id !== room.id) return rm;
-          return {
-            ...rm,
-            roomNumber: cleanRoomNum,
-            sharingType: updatedBeds.length,
-            beds: updatedBeds,
-            customRentAmount: customRent,
-            specialFeatureTag: specialTag,
-            roomPhotos: newRoomPhotos.length > 0 ? newRoomPhotos : undefined,
-          };
-        }),
+        rooms: mappedRooms,
       };
     });
 
@@ -919,7 +935,8 @@ export default function PropertySetupPage({
               </div>
 
               {propertyStructure.map((floor) => {
-              const isOpen = openFloorIds.includes(floor.id);
+              const floorKey = floor.id || floor.floorName || "fl-unknown";
+              const isOpen = openFloorIds.includes(floorKey) || (floor.id && openFloorIds.includes(floor.id)) || (floor.floorName && openFloorIds.includes(floor.floorName));
               const totalFloorBeds = floor.rooms.reduce(
                 (acc, r) => acc + r.beds.length,
                 0
@@ -927,14 +944,14 @@ export default function PropertySetupPage({
 
               return (
                 <div
-                  key={floor.id}
+                  key={floorKey}
                   className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xs"
                 >
                   {/* Floor Header Bar */}
                   <div className="p-5 bg-gray-50/70 border-b border-gray-200 flex flex-wrap items-center justify-between gap-4">
                     <div
                       className="flex items-center gap-3 cursor-pointer flex-1"
-                      onClick={() => toggleFloorAccordion(floor.id)}
+                      onClick={() => toggleFloorAccordion(floorKey)}
                     >
                       <button className="p-1 rounded hover:bg-gray-200 text-gray-500">
                         {isOpen ? (
@@ -959,7 +976,7 @@ export default function PropertySetupPage({
                     <div className="flex items-center gap-3 shrink-0">
                       <button
                         onClick={() => {
-                          setActiveAddRoomFloorId(floor.id);
+                          setActiveAddRoomFloorId(floorKey);
                           setNewRoomNumber("");
                           setNewSharingCapacityStr("3");
                           setNewRoomSpecialTag("");
@@ -986,9 +1003,11 @@ export default function PropertySetupPage({
                     <div className="p-6 space-y-6 bg-white animate-in fade-in">
                       {floor.rooms.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                          {floor.rooms.map((room) => (
+                          {floor.rooms.map((room) => {
+                            const roomKey = room.id || `rm-${room.roomNumber}`;
+                            return (
                             <div
-                              key={room.id}
+                              key={roomKey}
                               className="p-5 rounded-2xl border border-gray-200 bg-[#fcfcfc] space-y-4 relative"
                             >
                               {/* Room Top Header */}
@@ -1005,7 +1024,7 @@ export default function PropertySetupPage({
                                 <div className="flex items-center gap-1">
                                   <button
                                     type="button"
-                                    onClick={() => handleAddBedDirect(floor.id, room)}
+                                    onClick={() => handleAddBedDirect(floorKey, room)}
                                     className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-500 hover:text-[#c2652a] transition-colors cursor-pointer"
                                     title="Add Bed to this Room"
                                   >
@@ -1013,7 +1032,7 @@ export default function PropertySetupPage({
                                   </button>
                                   <button
                                     onClick={() => {
-                                      setActiveEditRoom({ floorId: floor.id, room });
+                                      setActiveEditRoom({ floorId: floorKey, room });
                                       setNewRoomNumber(room.roomNumber);
                                       setNewSharingCapacityStr(String(room.beds.length));
                                       setNewRoomSpecialTag(room.specialFeatureTag || "");
@@ -1026,7 +1045,7 @@ export default function PropertySetupPage({
                                     <Edit className="w-4 h-4" />
                                   </button>
                                   <button
-                                    onClick={() => handleDeleteRoom(floor.id, room)}
+                                    onClick={() => handleDeleteRoom(floorKey, room)}
                                     className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
                                     title="Delete Room"
                                   >
@@ -1068,7 +1087,7 @@ export default function PropertySetupPage({
                                             </span>
                                             <button
                                               onClick={() =>
-                                                handleDeleteBed(floor.id, room, bed)
+                                                handleDeleteBed(floorKey, room, bed)
                                               }
                                               className="p-0.5 rounded hover:bg-black/10 text-gray-400 hover:text-red-600 transition-colors"
                                               title="Delete Bed Slot"
@@ -1100,7 +1119,8 @@ export default function PropertySetupPage({
                                 );
                               })()}
                             </div>
-                          ))}
+                          );
+                        })}
                         </div>
                       ) : (
                         <div className="py-8 text-center text-xs text-gray-400 font-medium border-2 border-dashed border-gray-200 rounded-xl">
