@@ -525,8 +525,8 @@ export default function TenantsDirectoryPage({
       if (occupantsList.length > 0) {
         const dueOccupants = occupantsList.filter((o) => {
           if (o.lifecycleStatus === "Past") return false;
-          const isPendingOrOverdue = o.paymentStatus === "Due" || o.paymentStatus === "Overdue" || (o.daysDiff !== undefined && o.daysDiff <= 0);
-          return isPendingOrOverdue;
+          const stmt = calculateOccupantFinancialStatement(o, currentSettings);
+          return !stmt.isFullyPaid;
         });
 
         const dueIds = dueOccupants.map((o) => o.id);
@@ -1773,18 +1773,13 @@ export default function TenantsDirectoryPage({
 
       if (!stmt.isFullyPaid) {
         const netDue = stmt.netOutstandingBalance;
-        if (stmt.isOverdue || curr.paymentStatus === "Overdue" || curr.daysDiff < 0) {
+        if (stmt.isOverdue) {
           overdueCount++;
           overdueSum += netDue;
-        } else if (curr.daysDiff === 0) {
+        } else {
+          // Inside grace window or upcoming rent cycle
           dueTodayCount++;
           dueTodaySum += netDue;
-        } else if (curr.daysDiff === 1) {
-          dueTomorrowCount++;
-          dueTomorrowSum += netDue;
-        } else {
-          dueNext2DaysCount++;
-          dueNext2DaysSum += netDue;
         }
       }
     });
@@ -1832,7 +1827,7 @@ export default function TenantsDirectoryPage({
         const stmt = calculateOccupantFinancialStatement(occ, currentSettings);
         const isPaid = stmt.isFullyPaid;
         const isPartial = stmt.isPartialPaid;
-        const isOverdue = !isPaid && (stmt.isOverdue || occ.paymentStatus === "Overdue" || (occ.daysDiff !== undefined && occ.daysDiff < 0));
+        const isOverdue = stmt.isOverdue;
         const effectivePaymentStatus = isPaid ? "Paid" : isPartial ? "Partial" : isOverdue ? "Overdue" : "Due";
 
         if (paymentStatusFilter === "Due") {
@@ -1846,7 +1841,7 @@ export default function TenantsDirectoryPage({
       }
       if (paymentDueFilter !== "All") {
         const stmt = calculateOccupantFinancialStatement(occ, currentSettings);
-        const isOverdue = !stmt.isFullyPaid && (stmt.isOverdue || occ.paymentStatus === "Overdue" || (occ.daysDiff !== undefined && occ.daysDiff < 0));
+        const isOverdue = stmt.isOverdue;
 
         if (paymentDueFilter === "Today" && (occ.daysDiff !== 0 || stmt.isFullyPaid)) return false;
         if (paymentDueFilter === "Tomorrow" && (occ.daysDiff !== 1 || stmt.isFullyPaid)) return false;
@@ -2692,7 +2687,7 @@ export default function TenantsDirectoryPage({
                             const stmt = calculateOccupantFinancialStatement(occ, currentSettings);
                             const isPaid = stmt.isFullyPaid;
                             const isPartial = stmt.isPartialPaid;
-                            const isOverdue = !isPaid && (stmt.isOverdue || occ.paymentStatus === "Overdue" || (occ.daysDiff !== undefined && occ.daysDiff < 0));
+                            const isOverdue = stmt.isOverdue;
 
                             return (
                               <span
@@ -2712,7 +2707,7 @@ export default function TenantsDirectoryPage({
                                   ? `Partial (₹${stmt.netOutstandingBalance.toLocaleString("en-IN")})`
                                   : isOverdue
                                   ? "Overdue"
-                                  : occ.paymentStatus}
+                                  : (stmt.paymentStatusLabel || "Due")}
                               </span>
                             );
                           })()}
@@ -2970,14 +2965,14 @@ Scroll vertically to browse all residents without pagination limits
                       const stmt = calculateOccupantFinancialStatement(occ, currentSettings);
                       const isPaid = stmt.isFullyPaid;
                       const isPartial = stmt.isPartialPaid;
-                      const isOverdue = !isPaid && (stmt.isOverdue || occ.paymentStatus === "Overdue" || (occ.daysDiff !== undefined && occ.daysDiff < 0));
+                      const isOverdue = stmt.isOverdue;
 
                       // Format partial amounts compactly if brackets exist e.g. ₹14,500 -> ₹14.5k
                       const partialAmountCompact = stmt.netOutstandingBalance > 9999
                         ? `₹${(stmt.netOutstandingBalance / 1000).toFixed(stmt.netOutstandingBalance % 1000 === 0 ? 0 : 1)}k`
                         : `₹${stmt.netOutstandingBalance.toLocaleString("en-IN")}`;
 
-                      const statusMain = isPaid ? "Paid" : isPartial ? "Partial" : isOverdue ? "Overdue" : occ.paymentStatus;
+                      const statusMain = isPaid ? "Paid" : isPartial ? "Partial" : isOverdue ? "Overdue" : (stmt.paymentStatusLabel || "Due");
                       const statusExtra = isPartial ? `(${partialAmountCompact})` : "";
                       const fullStatusString = statusExtra ? `${statusMain} ${statusExtra}` : statusMain;
                       const statusLen = fullStatusString.length;
