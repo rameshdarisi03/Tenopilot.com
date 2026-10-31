@@ -505,8 +505,11 @@ function SelfKycDeskContent({
   const availableRoomsList = useMemo(() => {
     const set = new Set<string>();
     availableBeds.forEach((b) => set.add(b.roomNumber));
-    return Array.from(set);
-  }, [availableBeds]);
+    if (inviteRoomNumber && !set.has(inviteRoomNumber)) {
+      set.add(inviteRoomNumber);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [availableBeds, inviteRoomNumber]);
 
   const handleRoomSelect = (roomNum: string) => {
     setInviteRoomNumber(roomNum);
@@ -524,36 +527,63 @@ function SelfKycDeskContent({
     if (handledInviteLinkRef.current) return;
     if (!isInviteAction || !urlRoom) return;
 
+    // Await layout structure load before marking link as handled
+    if (propertyStructure.length === 0) return;
+
     handledInviteLinkRef.current = true;
     setActiveTab("INVITES");
     setInviteRoomNumber(urlRoom);
     if (urlBed) setInviteBedCode(urlBed);
 
-    if (availableBeds.length > 0) {
-      const cleanR = urlRoom.toLowerCase().trim();
-      const cleanB = urlBed.toLowerCase().replace(/[^a-z0-9]/g, "");
-      const matched = availableBeds.find(
-        (b) => b.roomNumber.toLowerCase().trim() === cleanR &&
-               (!cleanB || b.bedCode.toLowerCase().replace(/[^a-z0-9]/g, "") === cleanB)
-      );
-      if (matched) {
-        setInviteBedCode(matched.bedCode);
-        setInviteRentAmount(matched.tariff);
-        setInviteDepositAmount(matched.tariff * 2);
-        setInviteDailyRate(Math.round(matched.tariff / 30));
+    const cleanR = urlRoom.toLowerCase().trim();
+    const cleanB = normBed(urlBed);
+
+    // Look in availableBeds first, or fallback to propertyStructure
+    const matched = availableBeds.find(
+      (b) => b.roomNumber.toLowerCase().trim() === cleanR &&
+             (!cleanB || normBed(b.bedCode) === cleanB)
+    );
+
+    if (matched) {
+      setInviteBedCode(matched.bedCode);
+      setInviteRentAmount(matched.tariff);
+      setInviteDepositAmount(matched.tariff * 2);
+      setInviteDailyRate(Math.round(matched.tariff / 30));
+    } else {
+      // Find room in structure to get its rent tariff
+      const rm = propertyStructure
+        .flatMap((fl) => fl.rooms)
+        .find((r) => r.roomNumber.toLowerCase().trim() === cleanR);
+      if (rm) {
+        const tariff = rm.customRentAmount || 12000;
+        setInviteRentAmount(tariff);
+        setInviteDepositAmount(tariff * 2);
+        setInviteDailyRate(Math.round(tariff / 30));
       }
     }
     setShowInviteModal(true);
-  }, [isInviteAction, urlRoom, urlBed, availableBeds]);
+  }, [isInviteAction, urlRoom, urlBed, availableBeds, propertyStructure]);
 
   // Keep room and bed in sync when check-in date or availableBeds change
   useEffect(() => {
     if (!showInviteModal) return;
     if (availableBeds.length > 0) {
       const isCurrentStillValid = availableBeds.some(
-        (b) => b.roomNumber === inviteRoomNumber && b.bedCode === inviteBedCode
+        (b) =>
+          b.roomNumber.toLowerCase().trim() === (inviteRoomNumber || "").toLowerCase().trim() &&
+          normBed(b.bedCode) === normBed(inviteBedCode)
       );
       if (!isCurrentStillValid) {
+        // If the targeted room and bed exists in the physical layout and is available, retain it!
+        const matchingBedInLayout = propertyStructure
+          .flatMap((fl) => fl.rooms)
+          .find((rm) => rm.roomNumber.toLowerCase().trim() === (inviteRoomNumber || "").toLowerCase().trim())
+          ?.beds.find((bd) => normBed(bd.bedCode) === normBed(inviteBedCode));
+
+        if (matchingBedInLayout && (matchingBedInLayout.status === "Available" || !matchingBedInLayout.occupant)) {
+          return;
+        }
+
         const first = availableBeds[0];
         setInviteRoomNumber(first.roomNumber);
         setInviteBedCode(first.bedCode);
@@ -561,11 +591,11 @@ function SelfKycDeskContent({
         setInviteDepositAmount(first.tariff * 2);
         setInviteDailyRate(Math.round(first.tariff / 30));
       }
-    } else {
+    } else if (propertyStructure.length > 0) {
       setInviteRoomNumber("");
       setInviteBedCode("");
     }
-  }, [availableBeds, showInviteModal, inviteRoomNumber, inviteBedCode]);
+  }, [availableBeds, showInviteModal, inviteRoomNumber, inviteBedCode, propertyStructure]);
 
   // Open Invite Modal helper
   const handleOpenInviteModal = () => {
@@ -1814,7 +1844,7 @@ function SelfKycDeskContent({
                         onChange={(e) => {
                           setInviteBedCode(e.target.value);
                           const target = availableBeds.find(
-                            (b) => b.roomNumber === inviteRoomNumber && b.bedCode === e.target.value
+                            (b) => b.roomNumber === inviteRoomNumber && normBed(b.bedCode) === normBed(e.target.value)
                           );
                           if (target) {
                             setInviteRentAmount(target.tariff);
@@ -1831,6 +1861,12 @@ function SelfKycDeskContent({
                               {formatBedLabel(b.bedCode)}
                             </option>
                           ))}
+                        {inviteBedCode &&
+                          !availableBeds.some(
+                            (b) => b.roomNumber === inviteRoomNumber && normBed(b.bedCode) === normBed(inviteBedCode)
+                          ) && (
+                            <option value={inviteBedCode}>{formatBedLabel(inviteBedCode)}</option>
+                          )}
                       </select>
                     </div>
                   </div>
