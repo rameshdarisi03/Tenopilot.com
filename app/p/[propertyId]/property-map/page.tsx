@@ -998,45 +998,14 @@ function PropertyMapContent({
           <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-xs flex flex-col lg:flex-row items-center justify-between gap-6">
             {/* Left Controls & Status Filters */}
             <div className="space-y-4 flex-1 w-full">
-              <div>
-                <h2 className="font-serif font-bold text-xl text-gray-900">
-                  Floor Navigation
-                </h2>
-                <p className="text-xs text-gray-500">
-                  Real-time bed-level tracking across all {bedCounts.total} property beds
-                </p>
-              </div>
-
-              {/* Floor & Room Dropdowns (Dynamically populated from propertyStore) */}
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative">
-                  <select
-                    value={selectedFloor}
-                    onChange={(e) => handleFloorChange(e.target.value)}
-                    className="text-xs font-bold py-2 px-4 rounded-xl border border-gray-200 bg-gray-50 text-gray-800 focus:ring-1 focus:ring-[#c2652a] cursor-pointer"
-                  >
-                    <option value="ALL FLOORS">ALL FLOORS ({availableFloors.length})</option>
-                    {availableFloors.map((flName) => (
-                      <option key={flName} value={flName}>
-                        {flName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="relative">
-                  <select
-                    value={selectedRoom}
-                    onChange={(e) => handleRoomChange(e.target.value)}
-                    className="text-xs font-bold py-2 px-4 rounded-xl border border-gray-200 bg-gray-50 text-gray-800 focus:ring-1 focus:ring-[#c2652a] cursor-pointer"
-                  >
-                    <option value="ALL ROOMS">ALL ROOMS ({availableRooms.length})</option>
-                    {availableRooms.map((rmNum) => (
-                      <option key={rmNum} value={rmNum}>
-                        ROOM {rmNum}
-                      </option>
-                    ))}
-                  </select>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="font-serif font-bold text-xl text-gray-900">
+                    Floor Navigation
+                  </h2>
+                  <p className="text-xs text-gray-500">
+                    Real-time bed-level tracking across all {bedCounts.total} property beds
+                  </p>
                 </div>
 
                 {/* ⇅ Interactive Sort Dropdown (Matching Tenants Operations) */}
@@ -1053,7 +1022,7 @@ function PropertyMapContent({
                   </button>
 
                   {isSortDropdownOpen && (
-                    <div className="absolute left-0 sm:right-0 sm:left-auto mt-2 w-56 bg-white rounded-xl border border-gray-200 shadow-xl py-1.5 z-50 text-xs font-semibold text-gray-800 animate-in fade-in">
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl border border-gray-200 shadow-xl py-1.5 z-50 text-xs font-semibold text-gray-800 animate-in fade-in">
                       <div className="px-3 py-1.5 text-[10px] uppercase font-bold text-gray-400 tracking-wider border-b border-gray-100">
                         Sort Property Map
                       </div>
@@ -1083,58 +1052,9 @@ function PropertyMapContent({
                     </div>
                   )}
                 </div>
-
-                {/* ↺ Reset All Active Filters Button */}
-                {(selectedFloor !== "ALL FLOORS" || selectedRoom !== "ALL ROOMS" || activeFilterStatus !== "ALL" || rawSearchTerm) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedFloor("ALL FLOORS");
-                      setSelectedRoom("ALL ROOMS");
-                      setActiveFilterStatus("ALL");
-                      setRawSearchTerm("");
-                    }}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-all cursor-pointer shadow-2xs active:scale-95"
-                    title="Reset all filters back to default"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Reset Filters</span>
-                  </button>
-                )}
-
-                {/* 👁️ Global Price Privacy Mode Toggle Button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsPrivacyMode(!isPrivacyMode);
-                    triggerToast(
-                      !isPrivacyMode
-                        ? "🙈 Privacy Mode ON: Prices masked for tenant display!"
-                        : "👁️ Privacy Mode OFF: Rent tariffs visible!"
-                    );
-                  }}
-                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all border shadow-2xs ${
-                    isPrivacyMode
-                      ? "bg-slate-900 text-amber-400 border-slate-800 shadow-md"
-                      : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-                  }`}
-                  title="Toggle Price Privacy Mode when showing screen to visiting tenants"
-                >
-                  {isPrivacyMode ? (
-                    <>
-                      <EyeOff className="w-4 h-4 text-amber-400" />
-                      <span>🙈 Hide Prices (ON)</span>
-                    </>
-                  ) : (
-                    <>
-                      <Eye className="w-4 h-4 text-[#c2652a]" />
-                      <span>👁️ Show Prices</span>
-                    </>
-                  )}
-                </button>
               </div>
 
-              {/* Color-Coded Bed Status & Financial Filter Pills */}
+              {/* Status Filter Pills */}
               <div className="flex flex-wrap items-center gap-2 text-xs font-bold pt-1">
                 <button
                   onClick={() => {
@@ -1176,36 +1096,6 @@ function PropertyMapContent({
                   }`}
                 >
                   <span className="w-2 h-2 rounded-full bg-amber-700"></span> OCCUPIED (<span suppressHydrationWarning>{bedCounts.occupied}</span>)
-                </button>
-
-                {/* ⏳ PENDING DUE FILTER PILL */}
-                <button
-                  onClick={() => {
-                    setActiveFilterStatus((prev) => (prev === "Due" ? "ALL" : "Due"));
-                    setRawSearchTerm("");
-                  }}
-                  className={`px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all cursor-pointer ${
-                    activeFilterStatus === "Due"
-                      ? "bg-amber-600 text-white shadow-xs"
-                      : "bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200"
-                  }`}
-                >
-                  <Clock className="w-3.5 h-3.5 text-amber-600" /> PENDING DUE (<span suppressHydrationWarning>{bedCounts.due}</span>)
-                </button>
-
-                {/* 🚨 OVERDUE RENT FILTER PILL */}
-                <button
-                  onClick={() => {
-                    setActiveFilterStatus((prev) => (prev === "Overdue" ? "ALL" : "Overdue"));
-                    setRawSearchTerm("");
-                  }}
-                  className={`px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all cursor-pointer ${
-                    activeFilterStatus === "Overdue"
-                      ? "bg-red-600 text-white shadow-xs"
-                      : "bg-red-50 text-red-700 hover:bg-red-100 border border-red-200"
-                  }`}
-                >
-                  <AlertTriangle className="w-3.5 h-3.5 text-red-600" /> OVERDUE (<span suppressHydrationWarning>{bedCounts.overdue}</span>)
                 </button>
 
                 <button
@@ -1297,58 +1187,6 @@ function PropertyMapContent({
               </button>
             )}
           </div>
-
-          {/* Active Filter Indicator Pill Bar */}
-          {(activeFilterStatus !== "ALL" || rawSearchTerm || selectedFloor !== "ALL FLOORS" || selectedRoom !== "ALL ROOMS") && (
-            <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-orange-50/60 border border-orange-200/80 rounded-2xl text-xs animate-in fade-in">
-              <div className="flex flex-wrap items-center gap-2 text-orange-950 font-semibold">
-                <span className="font-bold">Active Filters:</span>
-                {selectedFloor !== "ALL FLOORS" && (
-                  <span className="bg-white px-2.5 py-1 rounded-lg border border-orange-200 font-mono text-[11px] font-bold">
-                    Floor: {selectedFloor}
-                  </span>
-                )}
-                {selectedRoom !== "ALL ROOMS" && (
-                  <span className="bg-white px-2.5 py-1 rounded-lg border border-orange-200 font-mono text-[11px] font-bold">
-                    Room: {selectedRoom}
-                  </span>
-                )}
-                {activeFilterStatus === "Due" ? (
-                  <span className="bg-amber-100 text-amber-900 px-2.5 py-1 rounded-lg border border-amber-300 font-bold text-[11px] flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-amber-700" /> Status: PENDING DUE
-                  </span>
-                ) : activeFilterStatus === "Overdue" ? (
-                  <span className="bg-red-100 text-red-900 px-2.5 py-1 rounded-lg border border-red-300 font-bold text-[11px] flex items-center gap-1 animate-pulse">
-                    <AlertTriangle className="w-3 h-3 text-red-600" /> Status: OVERDUE RENT
-                  </span>
-                ) : activeFilterStatus !== "ALL" ? (
-                  <span className="bg-white px-2.5 py-1 rounded-lg border border-orange-200 text-[#c2652a] font-bold text-[11px]">
-                    Status: {activeFilterStatus.toUpperCase()}
-                  </span>
-                ) : null}
-                {rawSearchTerm && (
-                  <span className="bg-white px-2.5 py-1 rounded-lg border border-orange-200 text-gray-700 font-bold text-[11px]">
-                    Search: &ldquo;{rawSearchTerm}&rdquo;
-                  </span>
-                )}
-                <span className="text-gray-500 font-normal ml-1">
-                  ({filteredGrid.reduce((sum, fl) => sum + fl.rooms.length, 0)} matching rooms)
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedFloor("ALL FLOORS");
-                  setSelectedRoom("ALL ROOMS");
-                  setActiveFilterStatus("ALL");
-                  setRawSearchTerm("");
-                }}
-                className="text-xs font-bold text-rose-700 hover:text-rose-900 underline flex items-center gap-1 cursor-pointer"
-              >
-                Clear all filters
-              </button>
-            </div>
-          )}
 
           {/* Floors & Rooms Grid Section */}
           <div className="space-y-8">
