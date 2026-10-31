@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { startRouteProgress } from "@/components/pwa/RouteProgressBar";
 import {
   Building2,
   ChevronsUpDown,
@@ -242,6 +243,7 @@ export function PropertySwitcher({
 
     setIsOpen(false);
     if (onCloseMobile) onCloseMobile();
+    startRouteProgress();
 
     // Preserve the current subpath when switching properties
     // e.g. /p/prop-1/tenants -> /p/prop-2/tenants

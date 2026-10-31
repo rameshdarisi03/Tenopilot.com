@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Playfair_Display, Manrope } from "next/font/google";
 import QueryProvider from "@/providers/QueryProvider";
 import { AuthProvider } from "@/providers/AuthProvider";
+import { RouteProgressBar } from "@/components/pwa/RouteProgressBar";
 import "./globals.css";
 
 const playfair = Playfair_Display({
@@ -129,6 +130,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="TenoPilot" />
       </head>
       <body className="min-h-full font-sans bg-[#fff8f6] text-[#201a17]">
+        <RouteProgressBar />
         <QueryProvider>
           <AuthProvider>{children}</AuthProvider>
         </QueryProvider>

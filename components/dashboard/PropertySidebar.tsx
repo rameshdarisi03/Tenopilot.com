@@ -202,6 +202,7 @@ export function PropertySidebar({
                 <Link
                   key={item.href}
                   href={item.href}
+                  prefetch={true}
                   onClick={() => onMobileClose && onMobileClose()}
                   className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
                     isActive
@@ -230,6 +231,7 @@ export function PropertySidebar({
         {activeRole !== "receptionist" && (
           <Link
             href={`/p/${propertyId}/settings`}
+            prefetch={true}
             onClick={() => onMobileClose && onMobileClose()}
             className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-extrabold transition-all border ${
               pathname?.includes("settings")

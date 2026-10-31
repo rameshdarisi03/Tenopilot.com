@@ -122,9 +122,9 @@ export function PropertyHeader({
     return unsub;
   }, [effectivePropertyId]);
 
-  // Close dropdowns on outside click
+  // Close dropdowns on outside click (supports both desktop mouse & instant mobile touch)
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
         setShowNotifications(false);
       }
@@ -133,7 +133,11 @@ export function PropertyHeader({
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside, { passive: true });
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
   }, []);
 
   // Auto-focus mobile search input when expanded
@@ -251,6 +255,7 @@ export function PropertyHeader({
                 {profile?.role !== "receptionist" ? (
                   <Link
                     href="/home"
+                    prefetch={true}
                     className="font-serif font-bold text-sm text-gray-900 hover:text-[#964407] transition-colors flex items-center gap-1.5 cursor-pointer"
                     title="Return to Multi-Property Portfolio Welcome Screen"
                   >
@@ -264,6 +269,7 @@ export function PropertyHeader({
                 <span>/</span>
                 <Link
                   href={`/p/${effectivePropertyId}/overview`}
+                  prefetch={true}
                   className="font-bold text-xs text-blue-700 hover:text-blue-900 bg-blue-50/90 px-2 py-0.5 rounded-md border border-blue-200/60 flex items-center gap-1 transition-colors"
                   title={`Active Building: ${currentPropertyName}`}
                 >
@@ -549,6 +555,7 @@ export function PropertyHeader({
                 {/* 💳 SUBSCRIPTION & BILLING */}
                 <Link
                   href={`/p/${effectivePropertyId}/subscription`}
+                  prefetch={true}
                   onClick={() => setShowProfileMenu(false)}
                   className="flex items-center justify-between p-2 rounded-xl hover:bg-amber-50 text-[#964407] font-bold transition-colors"
                 >
@@ -575,6 +582,7 @@ export function PropertyHeader({
 
                 <Link
                   href={`/p/${effectivePropertyId}/settings`}
+                  prefetch={true}
                   onClick={() => setShowProfileMenu(false)}
                   className="flex items-center justify-between p-2 rounded-xl hover:bg-gray-50 text-gray-700 font-bold transition-colors"
                 >
@@ -586,6 +594,7 @@ export function PropertyHeader({
 
                 <Link
                   href={`/p/${effectivePropertyId}/complaints`}
+                  prefetch={true}
                   onClick={() => setShowProfileMenu(false)}
                   className="flex items-center justify-between p-2 rounded-xl hover:bg-gray-50 text-gray-700 font-bold transition-colors"
                 >
