@@ -1879,17 +1879,31 @@ function SelfKycDeskContent({
                     <input
                       type="tel"
                       inputMode="numeric"
-                      maxLength={10}
                       placeholder="9876543210 (Optional if email entered)"
                       value={inviteCandidatePhone}
                       onPaste={(e) => {
                         e.preventDefault();
-                        const pasted = e.clipboardData.getData("text");
-                        const clean = normalizePhoneNumber(pasted);
-                        setInviteCandidatePhone(clean);
+                        const pasted = e.clipboardData.getData("text") || "";
+                        let digits = pasted.replace(/\D/g, "");
+                        if (digits.length === 12 && digits.startsWith("91")) {
+                          digits = digits.slice(2);
+                        } else if (digits.length === 11 && digits.startsWith("0")) {
+                          digits = digits.slice(1);
+                        } else if (digits.length > 10) {
+                          digits = digits.slice(-10);
+                        }
+                        setInviteCandidatePhone(digits.slice(0, 10));
                       }}
                       onChange={(e) => {
-                        setInviteCandidatePhone(e.target.value.replace(/\D/g, "").slice(0, 10));
+                        let digits = e.target.value.replace(/\D/g, "");
+                        if (digits.length === 12 && digits.startsWith("91")) {
+                          digits = digits.slice(2);
+                        } else if (digits.length === 11 && digits.startsWith("0")) {
+                          digits = digits.slice(1);
+                        } else if (digits.length > 10) {
+                          digits = digits.slice(-10);
+                        }
+                        setInviteCandidatePhone(digits.slice(0, 10));
                       }}
                       className={`flex-1 px-3 py-2.5 rounded-xl border text-xs font-semibold text-gray-900 focus:ring-1 transition-colors ${
                         existingResidentConflict
