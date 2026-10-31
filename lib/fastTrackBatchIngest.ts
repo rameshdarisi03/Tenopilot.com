@@ -310,6 +310,8 @@ export async function executeFastTrackBatchIngest(
       securityDeposit: deposit,
       depositStatus: isDepositPaid ? "PAID" : "PENDING",
       arrearsBalance: priorArrears,
+      vehicleNumber: row.vehicleNumber?.trim() || undefined,
+      vehicleNumbers: row.vehicleNumber?.trim() ? [row.vehicleNumber.trim()] : undefined,
       paymentHistory,
     };
 
@@ -335,13 +337,20 @@ export async function executeFastTrackBatchIngest(
       if (cleanNewPhone.length === 10 && cleanNewPhone !== "9876543210" && cleanExPhone === cleanNewPhone) {
         return true;
       }
-      // Case 2: Matching Room + Bed Code
-      if (newRoom && exRoom === newRoom && newBed && exBed === newBed) {
-        return true;
-      }
-      // Case 3: Matching Room + Name
+      // Case 2: Matching Room + Name (Resilient to shuffled rows)
       if (newRoom && exRoom === newRoom && (exNormName === newNormName || exNormName.includes(newNormName) || newNormName.includes(exNormName))) {
         return true;
+      }
+      // Case 3: Exact Global Name Match
+      if (exNormName && newNormName && exNormName.length > 2 && exNormName === newNormName) {
+        return true;
+      }
+      // Case 4: Matching Room + Bed Code ONLY if names are compatible (never overwrite different resident on Bed A)
+      if (newRoom && exRoom === newRoom && newBed && exBed === newBed) {
+        const nameConflict = exNormName && newNormName && exNormName !== newNormName && !exNormName.includes(newNormName) && !newNormName.includes(exNormName);
+        if (!nameConflict) {
+          return true;
+        }
       }
       return false;
     });
@@ -349,6 +358,10 @@ export async function executeFastTrackBatchIngest(
     if (existingIndex >= 0) {
       // Merge into existing occupant with Dual-Ledger Financial Override
       const ex = mergedOccupants[existingIndex];
+      if (newOcc.vehicleNumber) {
+        ex.vehicleNumber = newOcc.vehicleNumber;
+        ex.vehicleNumbers = newOcc.vehicleNumbers;
+      }
       const updatedHistory = [...(ex.paymentHistory || [])];
 
       // 🌟 Security Deposit Dual Ledger Reconciliation:

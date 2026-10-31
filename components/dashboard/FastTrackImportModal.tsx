@@ -311,6 +311,17 @@ export function FastTrackImportModal({
 
   const DRAFT_STORAGE_KEY = `tenopilot_fasttrack_draft_${propertyId}`;
 
+  // Helper to normalize tenant identity for duplicate detection (strips embedded vehicle plates and extra whitespace)
+  const normalizeShieldIdentity = (name?: string) => {
+    if (!name) return "";
+    return name
+      .toLowerCase()
+      .replace(/\b[a-z]{2}[-\s]?\d{1,2}[-\s]?[a-z]{0,3}[-\s]?\d{3,4}\b/i, "")
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+
   // Helper to detect duplicates & overlaps against current table and existing DB occupants
   const detectDuplicates = (
     incoming: FastTrackParsedRow[],
@@ -330,14 +341,14 @@ export function FastTrackImportModal({
 
     currentTable.forEach((r) => {
       const cleanP = r.phone?.replace(/\D/g, "").slice(-10);
-      const cleanN = r.fullName?.toLowerCase().trim();
+      const cleanN = normalizeShieldIdentity(r.fullName);
       if (cleanP && cleanP.length === 10) seenPhones.add(cleanP);
       if (cleanN && cleanN.length > 1) seenNames.add(cleanN);
     });
 
     incoming.forEach((row) => {
       const cleanP = row.phone?.replace(/\D/g, "").slice(-10);
-      const cleanN = row.fullName?.toLowerCase().trim();
+      const cleanN = normalizeShieldIdentity(row.fullName);
 
       let isDuplicate = false;
       let matchedTarget = "";
@@ -351,7 +362,7 @@ export function FastTrackImportModal({
         reason = `Same 10-Digit Mobile (${cleanP})`;
       } else if (cleanN && cleanN.length > 2 && seenNames.has(cleanN)) {
         isDuplicate = true;
-        const match = currentTable.find((r) => r.fullName?.toLowerCase().trim() === cleanN);
+        const match = currentTable.find((r) => normalizeShieldIdentity(r.fullName) === cleanN);
         matchedTarget = match ? `Queued Table Row "${match.fullName}" (Room ${match.roomNumber})` : "Already Queued in Table";
         reason = `Same Tenant Name ("${row.fullName}")`;
       }
@@ -366,7 +377,7 @@ export function FastTrackImportModal({
         }
       }
       if (!isDuplicate && cleanN && cleanN.length > 2) {
-        const dbMatch = activeDbOccupants.find((o) => o.name?.toLowerCase().trim() === cleanN);
+        const dbMatch = activeDbOccupants.find((o) => normalizeShieldIdentity(o.name) === cleanN);
         if (dbMatch) {
           isDuplicate = true;
           matchedTarget = `Enrolled Resident "${dbMatch.name}" (Room ${dbMatch.roomNumber})`;
@@ -398,7 +409,7 @@ export function FastTrackImportModal({
 
     editableRows.forEach((r, i) => {
       const p = r.phone?.replace(/\D/g, "").slice(-10);
-      const n = r.fullName?.toLowerCase().trim();
+      const n = normalizeShieldIdentity(r.fullName);
       if (p && p.length === 10) {
         if (phoneMap.has(p)) {
           dupeSet.add(i);
@@ -732,6 +743,8 @@ export function FastTrackImportModal({
                   paymentMode: "UPI",
                   isCurrentMonthRentPaid: occ.paymentStatus === "Paid",
                   isSecurityDepositPaid: occ.depositStatus === "PAID",
+                  priorArrearsAmount: occ.arrearsBalance || 0,
+                  vehicleNumber: occ.vehicleNumber || (occ.vehicleNumbers && occ.vehicleNumbers[0]) || "",
                   stayType: occ.stayType === "Guest" ? "Guest" : "Tenant",
                   workplace: occ.workplace || "",
                   occupation: occ.occupation || "",
@@ -787,6 +800,8 @@ export function FastTrackImportModal({
             paymentMode: "UPI",
             isCurrentMonthRentPaid: occ.paymentStatus === "Paid",
             isSecurityDepositPaid: occ.depositStatus === "PAID",
+            priorArrearsAmount: occ.arrearsBalance || 0,
+            vehicleNumber: occ.vehicleNumber || (occ.vehicleNumbers && occ.vehicleNumbers[0]) || "",
             stayType: occ.stayType === "Guest" ? "Guest" : "Tenant",
             workplace: occ.workplace || "",
             occupation: occ.occupation || "",
@@ -858,6 +873,7 @@ export function FastTrackImportModal({
     isCurrentMonthRentPaid: markCurrentMonthRentPaid,
     isSecurityDepositPaid: markDepositsPaid,
     priorArrearsAmount: 0,
+    vehicleNumber: "",
     workplace: "",
     occupation: "",
     purposeOfVisit: "",
@@ -1528,10 +1544,8 @@ export function FastTrackImportModal({
           ...r,
           ...validateParsedRow(r),
         }));
-        handleSaveDraft(reconciled);
         return reconciled;
       }
-      handleSaveDraft(updated);
       return updated;
     });
   };
@@ -1543,7 +1557,6 @@ export function FastTrackImportModal({
         ...r,
         ...validateParsedRow(r),
       }));
-      handleSaveDraft(reconciled);
       return reconciled;
     });
   };
@@ -2648,11 +2661,7 @@ export function FastTrackImportModal({
                     onChange={(e) => {
                       const val = e.target.checked;
                       setMarkDepositsPaid(val);
-                      setEditableRows((prev) => {
-                        const updated = prev.map((r) => ({ ...r, isSecurityDepositPaid: val }));
-                        handleSaveDraft(updated);
-                        return updated;
-                      });
+                      setEditableRows((prev) => prev.map((r) => ({ ...r, isSecurityDepositPaid: val })));
                     }}
                     className="rounded text-[#c2652a] focus:ring-[#c2652a]"
                   />
@@ -2666,11 +2675,7 @@ export function FastTrackImportModal({
                     onChange={(e) => {
                       const val = e.target.checked;
                       setMarkCurrentMonthRentPaid(val);
-                      setEditableRows((prev) => {
-                        const updated = prev.map((r) => ({ ...r, isCurrentMonthRentPaid: val }));
-                        handleSaveDraft(updated);
-                        return updated;
-                      });
+                      setEditableRows((prev) => prev.map((r) => ({ ...r, isCurrentMonthRentPaid: val })));
                     }}
                     className="rounded text-[#c2652a] focus:ring-[#c2652a]"
                   />
@@ -3370,7 +3375,7 @@ Anil Verma   9812345678   Room 103   12000"
                             className="text-[11px] font-bold text-purple-700 hover:text-purple-800 flex items-center gap-1 cursor-pointer"
                           >
                             {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                            <span>{isExpanded ? "Hide Optional Details" : "+ Workplace, Profession & Arrears"}</span>
+                            <span>{isExpanded ? "Hide Optional Details" : "+ Workplace, Profession, Arrears & Vehicle"}</span>
                           </button>
 
                           {isExpanded && (
@@ -3403,6 +3408,16 @@ Anil Verma   9812345678   Room 103   12000"
                                   onChange={(e) => updateRowField(idx, "priorArrearsAmount", Number(e.target.value))}
                                   placeholder="0"
                                   className="w-full px-3 py-1.5 mt-1 rounded-xl text-xs font-mono border border-gray-200 bg-white"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-gray-400 uppercase">Vehicle Number (Optional)</label>
+                                <input
+                                  type="text"
+                                  value={row.vehicleNumber || ""}
+                                  onChange={(e) => updateRowField(idx, "vehicleNumber", e.target.value.toUpperCase())}
+                                  placeholder="e.g. KA02LK5689"
+                                  className="w-full px-3 py-1.5 mt-1 rounded-xl text-xs font-mono font-bold border border-gray-200 bg-white uppercase placeholder:font-normal placeholder:normal-case"
                                 />
                               </div>
                             </div>
@@ -3465,6 +3480,9 @@ Anil Verma   9812345678   Room 103   12000"
                       </th>
                       <th className="py-2.5 px-3 min-w-[110px] bg-gray-100 border-b border-gray-200">
                         <span>Prior Arrears</span> <span className="text-gray-400 font-normal text-[10px]">(₹0 default)</span>
+                      </th>
+                      <th className="py-2.5 px-3 min-w-[140px] bg-gray-100 border-b border-gray-200">
+                        <span>Vehicle Number</span> <span className="text-gray-400 font-normal text-[10px]">(Optional)</span>
                       </th>
                       <th className="py-2.5 px-3 text-center bg-gray-100 border-b border-gray-200">Status</th>
                       <th className="py-2.5 px-3 text-center bg-gray-100 border-b border-gray-200">Action</th>
@@ -3809,6 +3827,20 @@ Anil Verma   9812345678   Room 103   12000"
                                 className="w-20 font-mono font-bold text-gray-900 text-xs border-0 p-0 focus:ring-0"
                               />
                             </div>
+                          </td>
+
+                          {/* 16. Vehicle Number (Optional) */}
+                          <td className="py-2 px-3">
+                            <input
+                              type="text"
+                              value={row.vehicleNumber || ""}
+                              placeholder="e.g. KA02LK5689"
+                              onFocus={() => setActiveFocusedRow(idx)}
+                              onBlur={() => setActiveFocusedRow(null)}
+                              title={rowHoverTitle}
+                              onChange={(e) => updateRowField(idx, "vehicleNumber", e.target.value.toUpperCase())}
+                              className="w-28 px-2 py-1.5 rounded-lg border border-gray-200 bg-white font-mono font-bold text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a] uppercase placeholder:font-normal placeholder:normal-case placeholder:text-gray-400"
+                            />
                           </td>
 
                           {/* 16. Status */}

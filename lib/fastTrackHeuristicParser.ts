@@ -23,6 +23,7 @@ export interface FastTrackParsedRow {
   isCurrentMonthRentPaid?: boolean; // Rent Paid This Month (Yes / No, default false)
   isSecurityDepositPaid?: boolean; // Security Deposit Paid (Yes / No, default true)
   priorArrearsAmount?: number; // Previous Arrears / Pending Due (default 0)
+  vehicleNumber?: string; // Optional vehicle / bike / car registration plate number
   workplace?: string; // e.g. "Infosys EC", "Wipro", "Christ Univ"
   occupation?: string; // e.g. "Software Engineer", "Student", "Doctor"
   purposeOfVisit?: string; // for Guests: e.g. "Job Interview", "Exam", "Medical"
@@ -553,9 +554,12 @@ export function parseRawSpreadsheetText(
     sharing: new Array(maxCols).fill(0),
     rentPaid: new Array(maxCols).fill(0),
     arrears: new Array(maxCols).fill(0),
+    vehicle: new Array(maxCols).fill(0),
     email: new Array(maxCols).fill(0),
   };
 
+  const primaryNameKeywords = /^(?:full\s*name|tenant\s*name|resident\s*name|occupant\s*name|student\s*name|candidate\s*name|tenant|resident|student|cust|occupant|name)$/i;
+  const nonTenantKeywords = /\b(?:father|mother|guardian|emergency|company|building|block|property|owner|manager|landlord)\b/i;
   const nameKeywords = /\b(?:full\s*name|tenant\s*name|resident\s*name|student\s*name|customer\s*name|occupant\s*name|member\s*name|name|tenant|resident|student|candidate|boy|girl|member|cust|occupant)\b/i;
   const roomKeywords = /\b(?:room\s*number|room\s*no|room\s*#|room_num|unit\s*no|flat\s*no|kholi\s*no|suite\s*no|room|kholi|flat|unit|rm|r\.no|r\s*no)\b/i;
   const phoneKeywords = /\b(?:mobile\s*number|mobile\s*no|phone\s*number|phone\s*no|contact\s*number|contact\s*no|whatsapp\s*no|cell\s*no|mobile|phone|contact|cell|whatsapp|wp|mob|tel)\b/i;
@@ -565,6 +569,7 @@ export function parseRawSpreadsheetText(
   const rentKeywords = /\b(?:monthly\s*rent|rent\s*amount|monthly\s*fee|tariff\s*amount|tariff|bhadha|rent|monthly)\b/i;
   const depositKeywords = /\b(?:security\s*deposit|advance\s*amount|caution\s*deposit|deposit\s*amount|token\s*amount|deposit|advance|security|caution|token|adv|dep|sec\s*dep)\b/i;
   const arrearsKeywords = /\b(?:prior\s*arrears|arrears\s*amount|unpaid\s*dues|old\s*dues|pending\s*dues|arrears|dues|balance|pending\s*amount)\b/i;
+  const vehicleKeywords = /\b(?:vehicle\s*number|vehicle\s*no|vehicle\s*#|bike\s*number|bike\s*no|bike\s*#|car\s*number|car\s*no|reg\s*number|reg\s*no|registration\s*no|rc\s*number|rc\s*no|two\s*wheeler|vehicle|bike|car)\b/i;
   const dateKeywords = /\b(?:joining\s*date|join\s*date|move\s*in\s*date|check\s*in\s*date|entry\s*date|start\s*date|doj|admission\s*date|date\s*of\s*joining|joining|move\s*in|check\s*in|admit|date)\b/i;
   const sharingKeywords = /\b(?:sharing\s*type|room\s*sharing|room\s*type|bed\s*type|occupancy\s*type|sharing|occupancy|capacity|share)\b/i;
   const bedKeywords = /\b(?:bed\s*slot|bed\s*number|bed\s*no|cot\s*no|slot\s*no|cot|bed|slot|berth)\b/i;
@@ -580,7 +585,7 @@ export function parseRawSpreadsheetText(
     let matchedKeywords = 0;
     row.forEach((cell) => {
       const c = (cell || "").trim();
-      if (nameKeywords.test(c)) matchedKeywords++;
+      if (primaryNameKeywords.test(c) || nameKeywords.test(c)) matchedKeywords++;
       if (roomKeywords.test(c)) matchedKeywords++;
       if (phoneKeywords.test(c)) matchedKeywords++;
       if (emailKeywords.test(c)) matchedKeywords++;
@@ -589,6 +594,7 @@ export function parseRawSpreadsheetText(
       if (depositPaidKeywords.test(c)) matchedKeywords++;
       else if (depositKeywords.test(c)) matchedKeywords++;
       if (arrearsKeywords.test(c)) matchedKeywords++;
+      if (vehicleKeywords.test(c)) matchedKeywords++;
       if (dateKeywords.test(c)) matchedKeywords++;
       if (sharingKeywords.test(c)) matchedKeywords++;
       if (bedKeywords.test(c)) matchedKeywords++;
@@ -616,6 +622,7 @@ export function parseRawSpreadsheetText(
   let sharingCol = -1;
   let rentPaidCol = -1;
   let arrearsCol = -1;
+  let vehicleCol = -1;
   let workplaceCol = -1;
   let professionCol = -1;
   let stayTypeCol = -1;
@@ -627,6 +634,7 @@ export function parseRawSpreadsheetText(
       if (rentPaidKeywords.test(c)) rentPaidCol = idx;
       else if (depositPaidKeywords.test(c)) depositPaidCol = idx;
       else if (arrearsKeywords.test(c)) arrearsCol = idx;
+      else if (vehicleKeywords.test(c)) vehicleCol = idx;
       else if (depositKeywords.test(c) && !depositPaidKeywords.test(c)) depositCol = idx;
       else if (rentKeywords.test(c) && !rentPaidKeywords.test(c)) rentCol = idx;
       else if (roomKeywords.test(c)) roomCol = idx;
@@ -638,7 +646,8 @@ export function parseRawSpreadsheetText(
       else if (workplaceKeywords.test(c)) workplaceCol = idx;
       else if (professionKeywords.test(c)) professionCol = idx;
       else if (stayTypeKeywords.test(c)) stayTypeCol = idx;
-      else if (nameKeywords.test(c) && !depositKeywords.test(c) && !rentKeywords.test(c) && !arrearsKeywords.test(c)) nameCol = idx;
+      else if (primaryNameKeywords.test(c) && !nonTenantKeywords.test(c) && !depositKeywords.test(c) && !rentKeywords.test(c) && !arrearsKeywords.test(c)) nameCol = idx;
+      else if (nameCol === -1 && nameKeywords.test(c) && !nonTenantKeywords.test(c) && !depositKeywords.test(c) && !rentKeywords.test(c) && !arrearsKeywords.test(c)) nameCol = idx;
     });
   }
 
@@ -698,23 +707,33 @@ export function parseRawSpreadsheetText(
         colScores.email[colIdx] += 6;
       }
 
+      // Check vehicle plate pattern: e.g. KA02LK5689, AP16EA0782, TN83Y8974, MH09FZ6705
+      if (/^[A-Za-z]{2}[-\s]?\d{1,2}[-\s]?[A-Za-z]{0,3}[-\s]?\d{3,4}$/.test(val)) {
+        colScores.vehicle[colIdx] += 5;
+      }
+
       // Check name pattern (letters, 1 to 4 words, no pure digits)
       if (/^[A-Za-z\s.'()-]{3,40}$/.test(val) && !/^(room|floor|bed|rent|advance|paid|unpaid|cash|upi|gpay|kholi|single|double|triple|yes|no)$/i.test(val)) {
         colScores.name[colIdx] += 1;
+        // Extra boost for 2-4 word capitalized human names (e.g. Rahul Sharma, Priyaraj Sunny)
+        if (/^[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3}$/.test(val)) {
+          colScores.name[colIdx] += 4;
+        }
       }
     });
   });
 
   // Assign columns based on highest score if not already locked by header
-  if (nameCol === -1) nameCol = getBestColumnIndex(colScores.name, [phoneCol, roomCol, rentCol, depositCol, sharingCol, rentPaidCol, arrearsCol]);
-  if (phoneCol === -1) phoneCol = getBestColumnIndex(colScores.phone, [nameCol, roomCol, rentCol, depositCol, sharingCol, rentPaidCol, arrearsCol]);
-  if (roomCol === -1) roomCol = getBestColumnIndex(colScores.room, [phoneCol, nameCol, rentCol, depositCol, sharingCol, rentPaidCol, arrearsCol]);
-  if (sharingCol === -1) sharingCol = getBestColumnIndex(colScores.sharing, [phoneCol, nameCol, roomCol, rentCol, depositCol, rentPaidCol, arrearsCol]);
-  if (rentCol === -1) rentCol = getBestColumnIndex(colScores.rent, [phoneCol, roomCol, nameCol, depositCol, sharingCol, rentPaidCol, arrearsCol]);
-  if (depositCol === -1) depositCol = getBestColumnIndex(colScores.deposit, [phoneCol, roomCol, nameCol, rentCol, sharingCol, rentPaidCol, arrearsCol]);
-  if (dateCol === -1) dateCol = getBestColumnIndex(colScores.date, [phoneCol, roomCol, nameCol, rentCol, depositCol, sharingCol, rentPaidCol, arrearsCol]);
-  if (rentPaidCol === -1) rentPaidCol = getBestColumnIndex(colScores.rentPaid, [phoneCol, roomCol, nameCol, rentCol, depositCol, sharingCol, dateCol, arrearsCol]);
-  if (emailCol === -1) emailCol = getBestColumnIndex(colScores.email, [phoneCol, roomCol, nameCol, rentCol, depositCol, sharingCol, dateCol, arrearsCol, rentPaidCol]);
+  if (nameCol === -1) nameCol = getBestColumnIndex(colScores.name, [phoneCol, roomCol, rentCol, depositCol, sharingCol, rentPaidCol, arrearsCol, vehicleCol]);
+  if (phoneCol === -1) phoneCol = getBestColumnIndex(colScores.phone, [nameCol, roomCol, rentCol, depositCol, sharingCol, rentPaidCol, arrearsCol, vehicleCol]);
+  if (roomCol === -1) roomCol = getBestColumnIndex(colScores.room, [phoneCol, nameCol, rentCol, depositCol, sharingCol, rentPaidCol, arrearsCol, vehicleCol]);
+  if (sharingCol === -1) sharingCol = getBestColumnIndex(colScores.sharing, [phoneCol, nameCol, roomCol, rentCol, depositCol, rentPaidCol, arrearsCol, vehicleCol]);
+  if (rentCol === -1) rentCol = getBestColumnIndex(colScores.rent, [phoneCol, roomCol, nameCol, depositCol, sharingCol, rentPaidCol, arrearsCol, vehicleCol]);
+  if (depositCol === -1) depositCol = getBestColumnIndex(colScores.deposit, [phoneCol, roomCol, nameCol, rentCol, sharingCol, rentPaidCol, arrearsCol, vehicleCol]);
+  if (dateCol === -1) dateCol = getBestColumnIndex(colScores.date, [phoneCol, roomCol, nameCol, rentCol, depositCol, sharingCol, rentPaidCol, arrearsCol, vehicleCol]);
+  if (rentPaidCol === -1) rentPaidCol = getBestColumnIndex(colScores.rentPaid, [phoneCol, roomCol, nameCol, rentCol, depositCol, sharingCol, dateCol, arrearsCol, vehicleCol]);
+  if (vehicleCol === -1) vehicleCol = getBestColumnIndex(colScores.vehicle, [phoneCol, roomCol, nameCol, rentCol, depositCol, sharingCol, dateCol, arrearsCol, rentPaidCol]);
+  if (emailCol === -1) emailCol = getBestColumnIndex(colScores.email, [phoneCol, roomCol, nameCol, rentCol, depositCol, sharingCol, dateCol, arrearsCol, rentPaidCol, vehicleCol]);
 
   // Fallback defaults if still unbound
   if (nameCol === -1) nameCol = 0;
@@ -740,6 +759,7 @@ export function parseRawSpreadsheetText(
     let rawRentPaid = rentPaidCol !== -1 ? (row[rentPaidCol] || "").trim() : "";
     let rawDepositPaid = depositPaidCol !== -1 ? (row[depositPaidCol] || "").trim() : "";
     let rawArrears = arrearsCol !== -1 ? (row[arrearsCol] || "").trim() : "";
+    let rawVehicle = vehicleCol !== -1 ? (row[vehicleCol] || "").trim() : "";
     let rawWorkplace = workplaceCol !== -1 ? (row[workplaceCol] || "").trim() : "";
     let rawOccupation = professionCol !== -1 ? (row[professionCol] || "").trim() : "";
     let rawStayType = stayTypeCol !== -1 ? (row[stayTypeCol] || "").trim() : "";
@@ -752,6 +772,14 @@ export function parseRawSpreadsheetText(
         rawName = rawName.replace(INDIAN_PHONE_REGEX, "").replace(/[()\-]/g, "").trim();
       }
     }
+
+    // Extract embedded vehicle pattern from name if not in a separate column (e.g. "Rakshit Kumar - KA02lk- 5689")
+    const embeddedVehicleMatch = rawName.match(/\b([A-Za-z]{2}[-\s]?\d{1,2}[-\s]?[A-Za-z]{0,3}[-\s]?\d{3,4})\b/i);
+    if (!rawVehicle && embeddedVehicleMatch) {
+      rawVehicle = embeddedVehicleMatch[1].toUpperCase().replace(/[-\s]/g, "");
+      rawName = rawName.replace(embeddedVehicleMatch[0], "").replace(/[-\/|()]/g, " ").trim();
+    }
+    const cleanVehicle = rawVehicle ? rawVehicle.toUpperCase().replace(/[-\s]/g, "") : undefined;
 
     // Compound room: e.g. "101-Bed A" or "Room A101 (Double)"
     if (rawRoom) {
@@ -820,6 +848,7 @@ export function parseRawSpreadsheetText(
       isCurrentMonthRentPaid: isPaid,
       isSecurityDepositPaid: isDepositPaid,
       priorArrearsAmount: arrearsNum,
+      vehicleNumber: cleanVehicle,
       workplace: rawWorkplace || undefined,
       occupation: rawOccupation || undefined,
       stayType: rawStayType && rawStayType.toLowerCase().includes("guest") ? "Guest" : "Tenant",
