@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect, useMemo } from "react";
+import { use, useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
@@ -38,6 +38,8 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles,
+  Save,
+  RotateCcw,
 } from "lucide-react";
 import { SmartPropertyGeneratorModal } from "@/components/dashboard/SmartPropertyGeneratorModal";
 import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModal";
@@ -111,6 +113,8 @@ export default function PropertySetupPage({
     setKycSubmissions(selfKycStore.getSubmissions(propertyId));
 
     const unsubscribeProperty = propertyStore.subscribe(() => {
+      // Do not overwrite user's local draft changes if they have unsaved modifications pending
+      if (hasUnsavedChangesRef.current) return;
       const updated = propertyStore.getStructure(propertyId);
       setPropertyStructure(updated);
       if (updated && updated.length > 0) {
@@ -244,10 +248,58 @@ export default function PropertySetupPage({
     };
   };
 
-  // Update global store whenever structure mutates
+  // 🛡️ Draft & Save Changes State (Prevents dangerous instant auto-saves)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
+  const [isSavingChanges, setIsSavingChanges] = useState<boolean>(false);
+  const [unsavedChangeCount, setUnsavedChangeCount] = useState<number>(0);
+  const hasUnsavedChangesRef = useRef(false);
+
+  // Warn user before closing or navigating away with unsaved layout modifications
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChangesRef.current) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
+  // Update local draft structure without auto-persisting to Cloud Firestore
   const updateLayoutStructure = (newStructure: FloorConfig[]) => {
     setPropertyStructure(newStructure);
-    propertyStore.updateStructure(newStructure, propertyId);
+    setHasUnsavedChanges(true);
+    hasUnsavedChangesRef.current = true;
+    setUnsavedChangeCount((prev) => prev + 1);
+  };
+
+  // 💾 Persist all pending layout changes to Cloud Firestore SSOT
+  const handleSaveAllStructureChanges = async () => {
+    if (!propertyId || isSavingChanges) return;
+    setIsSavingChanges(true);
+    try {
+      await propertyStore.updateStructure(propertyStructure, propertyId);
+      setHasUnsavedChanges(false);
+      hasUnsavedChangesRef.current = false;
+      setUnsavedChangeCount(0);
+      triggerToast("✅ Building layout saved successfully!");
+    } catch (err) {
+      console.error("Failed to save layout changes:", err);
+      triggerToast("❌ Failed to save layout changes. Please try again.");
+    } finally {
+      setIsSavingChanges(false);
+    }
+  };
+
+  // ↺ Discard uncommitted layout changes and revert back to Cloud Firestore SSOT
+  const handleDiscardStructureChanges = () => {
+    const cleanStructure = propertyStore.getStructure(propertyId);
+    setPropertyStructure(cleanStructure);
+    setHasUnsavedChanges(false);
+    hasUnsavedChangesRef.current = false;
+    setUnsavedChangeCount(0);
+    triggerToast("↺ Reverted all changes to last saved layout");
   };
 
   // Toast notification state
@@ -1588,6 +1640,60 @@ export default function PropertySetupPage({
             triggerToast("🎉 FastTrack Migration Complete! Building layout and tenants are now live.");
           }}
         />
+
+        {/* 💾 Responsive Sticky Bottom Save Bar (Visible across all devices and screen sizes when changes are pending) */}
+        {hasUnsavedChanges && (
+          <div className="fixed bottom-4 sm:bottom-6 inset-x-4 sm:inset-x-8 max-w-4xl mx-auto z-50 animate-in slide-in-from-bottom-5 duration-300">
+            <div className="bg-[#1c140e]/95 backdrop-blur-md text-white px-4 sm:px-6 py-3.5 sm:py-4 rounded-2xl shadow-2xl border border-amber-500/40 ring-1 ring-black/10 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
+              <div className="flex items-center gap-3 w-full sm:w-auto text-left">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400 shrink-0">
+                  <AlertTriangle className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <p className="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+                    <span>Unsaved Layout Changes</span>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-500/30 text-amber-300 border border-amber-400/30 text-[10px] font-mono font-semibold">
+                      {unsavedChangeCount} {unsavedChangeCount === 1 ? "change" : "changes"}
+                    </span>
+                  </p>
+                  <p className="text-[11px] text-gray-300">
+                    Changes are in draft mode. Click Save to persist to live building map.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0">
+                <button
+                  type="button"
+                  onClick={handleDiscardStructureChanges}
+                  disabled={isSavingChanges}
+                  className="flex-1 sm:flex-none px-3.5 py-2 rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Discard</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAllStructureChanges}
+                  disabled={isSavingChanges}
+                  className="flex-1 sm:flex-none px-5 py-2 rounded-xl bg-gradient-to-r from-[#c2652a] to-[#d97736] hover:from-[#b05822] hover:to-[#c2652a] text-white font-bold text-xs shadow-lg shadow-orange-950/40 transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                >
+                  {isSavingChanges ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Save Structure Changes</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

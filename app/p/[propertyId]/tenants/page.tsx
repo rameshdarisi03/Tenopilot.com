@@ -1773,7 +1773,8 @@ export default function TenantsDirectoryPage({
 
       if (!stmt.isFullyPaid) {
         const netDue = stmt.netOutstandingBalance;
-        if (stmt.isOverdue) {
+        const isActuallyOverdue = stmt.isOverdue && !stmt.statusBadgeText.startsWith("DUE");
+        if (isActuallyOverdue) {
           overdueCount++;
           overdueSum += netDue;
         } else {
@@ -2965,14 +2966,15 @@ Scroll vertically to browse all residents without pagination limits
                       const stmt = calculateOccupantFinancialStatement(occ, currentSettings);
                       const isPaid = stmt.isFullyPaid;
                       const isPartial = stmt.isPartialPaid;
-                      const isOverdue = stmt.isOverdue;
+                      // Synchronize with SSOT: if financial statement badge is DUE, the resident is Due (never Overdue)!
+                      const isOverdue = !isPaid && !isPartial && stmt.isOverdue && !stmt.statusBadgeText.startsWith("DUE");
 
                       // Format partial amounts compactly if brackets exist e.g. ₹14,500 -> ₹14.5k
                       const partialAmountCompact = stmt.netOutstandingBalance > 9999
                         ? `₹${(stmt.netOutstandingBalance / 1000).toFixed(stmt.netOutstandingBalance % 1000 === 0 ? 0 : 1)}k`
                         : `₹${stmt.netOutstandingBalance.toLocaleString("en-IN")}`;
 
-                      const statusMain = isPaid ? "Paid" : isPartial ? "Partial" : isOverdue ? "Overdue" : (stmt.paymentStatusLabel || "Due");
+                      const statusMain = isPaid ? "Paid" : isPartial ? "Partial" : isOverdue ? "Overdue" : "Due";
                       const statusExtra = isPartial ? `(${partialAmountCompact})` : "";
                       const fullStatusString = statusExtra ? `${statusMain} ${statusExtra}` : statusMain;
                       const statusLen = fullStatusString.length;

@@ -415,7 +415,7 @@ function PropertyMapContent({
             ? "Guest"
             : isBooked
             ? "Booked"
-            : (bed.status === "Occupied" && !bed.occupant ? "Available" : bed.status);
+            : "Available";
 
           if (effectiveStatus === "Available") available++;
           else if (effectiveStatus === "Occupied") occupied++;
@@ -535,7 +535,7 @@ function PropertyMapContent({
                 ? "Guest"
                 : isBooked
                 ? "Booked"
-                : (bd.status === "Occupied" && !bd.occupant ? "Available" : bd.status || "Available");
+                : "Available";
 
               const matchesStatus = activeFilterStatus === "ALL" || effStatus === activeFilterStatus;
 
@@ -1045,7 +1045,7 @@ function PropertyMapContent({
                                     ? "Guest"
                                     : isBooked
                                     ? "Booked"
-                                    : (bed.status === "Occupied" && !bed.occupant ? "Available" : bed.status);
+                                    : "Available";
 
                                   const isGuestBed = !primaryOcc && nextOcc?.stayType === "Guest";
                                   const isBookedBed = !primaryOcc && isBooked;
