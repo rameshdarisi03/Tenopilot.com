@@ -2293,7 +2293,15 @@ export default function TenantsDirectoryPage({
             {/* 3. Rent Pending Due */}
             <MagneticGlowCard
               glowColor="rgba(245, 158, 11, 0.15)"
-              className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-gray-100 shadow-xs flex flex-col justify-between"
+              onClick={() => {
+                setPaymentStatusFilter((prev) => (prev === "Due" ? "All" : "Due"));
+                setPaymentDueFilter("All");
+              }}
+              className={`bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border shadow-xs flex flex-col justify-between transition-all ${
+                paymentStatusFilter === "Due"
+                  ? "border-amber-400 ring-2 ring-amber-400/50 bg-amber-50/20"
+                  : "border-gray-100 hover:border-amber-200"
+              }`}
             >
               <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
                 <p className="text-[10px] sm:text-[11px] uppercase font-bold text-amber-600 tracking-wider truncate">
@@ -2316,7 +2324,15 @@ export default function TenantsDirectoryPage({
             {/* 4. Overdue Rent */}
             <MagneticGlowCard
               glowColor="rgba(220, 38, 38, 0.15)"
-              className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-gray-100 shadow-xs flex flex-col justify-between"
+              onClick={() => {
+                setPaymentStatusFilter((prev) => (prev === "Overdue" ? "All" : "Overdue"));
+                setPaymentDueFilter("All");
+              }}
+              className={`bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border shadow-xs flex flex-col justify-between transition-all ${
+                paymentStatusFilter === "Overdue"
+                  ? "border-red-400 ring-2 ring-red-400/50 bg-red-50/20"
+                  : "border-gray-100 hover:border-red-200"
+              }`}
             >
               <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
                 <p className="text-[10px] sm:text-[11px] uppercase font-bold text-red-600 tracking-wider truncate">
@@ -2424,18 +2440,58 @@ export default function TenantsDirectoryPage({
                     }}
                   />
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const dueIds = filteredOccupants.map((o) => o.id);
-                    setSelectedIds(dueIds);
-                    setShowRentReminderQRModal(true);
-                  }}
-                  className="px-3 py-1 rounded-full bg-[#c2652a] hover:bg-[#a3521e] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
-                >
-                  <Send className="w-3 h-3" />
-                  <span>Send Automated Rent Reminders</span>
-                </button>
+                {filteredOccupants.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const dueIds = filteredOccupants.map((o) => o.id);
+                      setSelectedIds(dueIds);
+                      setShowRentReminderQRModal(true);
+                    }}
+                    className="px-3 py-1 rounded-full bg-[#c2652a] hover:bg-[#a3521e] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  >
+                    <Send className="w-3 h-3" />
+                    <span>Send Automated Rent Reminders</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {paymentStatusFilter === "Overdue" && (
+              <div className="flex items-center gap-2">
+                <div className="bg-red-500/15 text-red-900 px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-red-300 font-bold">
+                  <span>🚨 Showing Overdue Accounts ({filteredOccupants.length} Residents)</span>
+                  <X
+                    className="w-3.5 h-3.5 cursor-pointer hover:text-red-600"
+                    onClick={() => {
+                      setPaymentStatusFilter("All");
+                      setPaymentDueFilter("All");
+                      setSelectedIds([]);
+                      setIsMobileMultiSelectMode(false);
+                      if (typeof window !== "undefined") {
+                        const url = new URL(window.location.href);
+                        url.searchParams.delete("filter");
+                        url.searchParams.delete("sendReminders");
+                        url.searchParams.delete("action");
+                        window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
+                      }
+                    }}
+                  />
+                </div>
+                {filteredOccupants.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const overdueIds = filteredOccupants.map((o) => o.id);
+                      setSelectedIds(overdueIds);
+                      setShowRentReminderQRModal(true);
+                    }}
+                    className="px-3 py-1 rounded-full bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  >
+                    <Send className="w-3 h-3" />
+                    <span>Send Overdue Notices</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -2512,6 +2568,64 @@ export default function TenantsDirectoryPage({
               )}
             </div>
           </div>
+
+          {/* 🚨 Reassurance Notice Banner when sorting by Overdue and 0 overdue accounts exist */}
+          {sortColumn === "overduePriority" && rentMetrics.overdueCount === 0 && (
+            <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-2xl p-3.5 sm:p-4 text-emerald-950 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-2xs animate-in fade-in slide-in-from-top-1 duration-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-emerald-100 text-emerald-700 shrink-0">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="font-bold text-xs sm:text-sm text-emerald-950">
+                    ✨ All Clear! At present, no tenants are in the overdue category (0 Overdue Accounts).
+                  </p>
+                  <p className="text-[11px] text-emerald-700 mt-0.5">
+                    All resident accounts are completely settled or within their regular billing cycle.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSortColumn("room");
+                  setSortDirection("asc");
+                }}
+                className="px-3.5 py-1.5 rounded-xl bg-white border border-emerald-300 hover:bg-emerald-100 text-emerald-800 font-bold text-xs transition-all cursor-pointer self-start sm:self-auto shadow-2xs whitespace-nowrap active:scale-95"
+              >
+                Reset Sort to Room
+              </button>
+            </div>
+          )}
+
+          {/* ⏳ Reassurance Notice Banner when sorting by Due and 0 pending bills exist */}
+          {sortColumn === "duePriority" && (rentMetrics.dueTodayCount + rentMetrics.dueTomorrowCount + rentMetrics.dueNext2DaysCount === 0) && (
+            <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-2xl p-3.5 sm:p-4 text-emerald-950 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-2xs animate-in fade-in slide-in-from-top-1 duration-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-emerald-100 text-emerald-700 shrink-0">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="font-bold text-xs sm:text-sm text-emerald-950">
+                    ✨ All Paid Up! At present, no tenants have pending dues for this cycle.
+                  </p>
+                  <p className="text-[11px] text-emerald-700 mt-0.5">
+                    All monthly bills and accommodation tariffs for active residents have been settled.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSortColumn("room");
+                  setSortDirection("asc");
+                }}
+                className="px-3 py-1.5 rounded-xl bg-white border border-emerald-300 hover:bg-emerald-100 text-emerald-800 font-bold text-xs transition-all cursor-pointer self-start sm:self-auto shadow-2xs whitespace-nowrap active:scale-95"
+              >
+                Reset Sort to Room
+              </button>
+            </div>
+          )}
 
           {/* Desktop Data Table (Continuous Scroll View - No Page Splitting) */}
           <div className="hidden md:block bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-xs max-h-[75vh] overflow-y-auto">
@@ -2844,8 +2958,75 @@ export default function TenantsDirectoryPage({
                   })
                 ) : (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-xs text-gray-500">
-                      No matching occupants found.
+                    <td colSpan={7} className="py-12 text-center text-xs">
+                      {paymentStatusFilter === "Overdue" || paymentDueFilter === "Overdue" ? (
+                        <div className="max-w-md mx-auto space-y-2 py-4">
+                          <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center shadow-2xs">
+                            <CheckCircle2 className="w-6 h-6" />
+                          </div>
+                          <p className="text-sm font-bold text-gray-900">
+                            🎉 At present, no tenants are in the overdue category
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            All tenant accounts are in good standing with zero overdue balance (0 Overdue Accounts).
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPaymentStatusFilter("All");
+                              setPaymentDueFilter("All");
+                            }}
+                            className="mt-2 px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs transition-all cursor-pointer shadow-2xs active:scale-95"
+                          >
+                            View All Residents
+                          </button>
+                        </div>
+                      ) : paymentStatusFilter === "Due" ? (
+                        <div className="max-w-md mx-auto space-y-2 py-4">
+                          <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center shadow-2xs">
+                            <CheckCircle2 className="w-6 h-6" />
+                          </div>
+                          <p className="text-sm font-bold text-gray-900">
+                            ✨ At present, no tenants have pending dues
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            All rent payments for the current billing cycle have been settled.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPaymentStatusFilter("All");
+                              setPaymentDueFilter("All");
+                            }}
+                            className="mt-2 px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs transition-all cursor-pointer shadow-2xs active:scale-95"
+                          >
+                            View All Residents
+                          </button>
+                        </div>
+                      ) : rawSearchTerm ? (
+                        <div className="max-w-md mx-auto space-y-2 py-4">
+                          <Users className="w-8 h-8 text-gray-400 mx-auto" />
+                          <p className="text-sm font-bold text-gray-700">No matching occupants found</p>
+                          <p className="text-xs text-gray-400">
+                            No resident matched "{rawSearchTerm}".
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setRawSearchTerm("")}
+                            className="mt-2 px-4 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-[#c2652a] font-bold text-xs transition-all cursor-pointer shadow-2xs"
+                          >
+                            Clear Search
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="max-w-md mx-auto space-y-2 py-4">
+                          <Users className="w-8 h-8 text-gray-400 mx-auto" />
+                          <p className="text-sm font-bold text-gray-700">No matching occupants found</p>
+                          <p className="text-xs text-gray-400">
+                            Try adjusting your filters or tab selection.
+                          </p>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 )}
@@ -3227,12 +3408,75 @@ Scroll vertically to browse all residents without pagination limits
                 );
               })
             ) : (
-              <div className="p-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                <Users className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-xs font-bold text-gray-600">No matching tenants found</p>
-                <p className="text-[11px] text-gray-400 mt-1">
-                  Try adjusting your search query or status filter.
-                </p>
+              <div className="p-6 sm:p-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200 space-y-2.5">
+                {paymentStatusFilter === "Overdue" || paymentDueFilter === "Overdue" ? (
+                  <>
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center shadow-2xs mb-1">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <p className="text-xs sm:text-sm font-bold text-gray-900">
+                      🎉 At present, no tenants are in the overdue category
+                    </p>
+                    <p className="text-[11px] text-gray-500 max-w-xs mx-auto">
+                      All resident accounts are in good standing with zero overdue balance (0 Overdue Accounts).
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentStatusFilter("All");
+                        setPaymentDueFilter("All");
+                      }}
+                      className="mt-2 px-4 py-2 rounded-xl bg-white border border-gray-200 hover:bg-gray-100 text-gray-800 font-bold text-xs transition-all cursor-pointer shadow-2xs active:scale-95"
+                    >
+                      View All Residents
+                    </button>
+                  </>
+                ) : paymentStatusFilter === "Due" ? (
+                  <>
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center shadow-2xs mb-1">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <p className="text-xs sm:text-sm font-bold text-gray-900">
+                      ✨ At present, no tenants have pending dues
+                    </p>
+                    <p className="text-[11px] text-gray-500 max-w-xs mx-auto">
+                      All rent payments for the current billing cycle have been settled.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentStatusFilter("All");
+                        setPaymentDueFilter("All");
+                      }}
+                      className="mt-2 px-4 py-2 rounded-xl bg-white border border-gray-200 hover:bg-gray-100 text-gray-800 font-bold text-xs transition-all cursor-pointer shadow-2xs active:scale-95"
+                    >
+                      View All Residents
+                    </button>
+                  </>
+                ) : rawSearchTerm ? (
+                  <>
+                    <Users className="w-8 h-8 text-gray-400 mx-auto mb-1" />
+                    <p className="text-xs font-bold text-gray-700">No matching tenants found</p>
+                    <p className="text-[11px] text-gray-400">
+                      No resident matched "{rawSearchTerm}".
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setRawSearchTerm("")}
+                      className="mt-2 px-3.5 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-[#c2652a] font-bold text-xs transition-all cursor-pointer shadow-2xs"
+                    >
+                      Clear Search
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Users className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-xs font-bold text-gray-600">No matching tenants found</p>
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      Try adjusting your search query or status filter.
+                    </p>
+                  </>
+                )}
               </div>
             )}
 

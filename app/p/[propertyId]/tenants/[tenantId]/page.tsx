@@ -3569,9 +3569,6 @@ export default function IndividualTenantProfilePage({
                         <Lock className="w-3 h-3 text-gray-500" /> Private Desk
                       </span>
                     </h3>
-                    <p className="text-[11px] text-gray-500">
-                      Internal property management remarks, food preferences, fee concessions, or guardian instructions.
-                    </p>
                   </div>
                 </div>
 
@@ -3597,50 +3594,45 @@ export default function IndividualTenantProfilePage({
                     onChange={(e) => setNotesText(e.target.value)}
                     rows={4}
                     placeholder="Enter private remarks for this tenant (e.g. 'Works night shifts 10pm-6am. Prefers lower berth. Security deposit paid in cash ₹4,000 on 30 Oct to reception desk. College student at MVSR.')..."
-                    className="w-full p-3.5 border border-gray-300 rounded-xl text-xs sm:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a] leading-relaxed resize-y font-normal"
+                    className="w-full p-3.5 border border-gray-300 rounded-xl text-xs sm:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a] leading-relaxed resize-y font-medium"
                     autoFocus
                   />
-                  <div className="flex items-center justify-between">
-                    <p className="text-[11px] text-gray-400 italic">
-                      🔒 Notes are securely stored in Cloud Firestore and only visible to authorized property staff.
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setNotesText(occupantState.notes || "");
-                          setIsEditingNotes(false);
-                        }}
-                        disabled={isSavingNotes}
-                        className="px-3.5 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-100 text-xs font-bold text-gray-700 transition-all cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleSaveNotes}
-                        disabled={isSavingNotes}
-                        className="px-4 py-1.5 rounded-xl bg-[#c2652a] hover:bg-[#a8451f] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
-                      >
-                        {isSavingNotes ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            <span>Saving...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Save className="w-3.5 h-3.5" />
-                            <span>Save Notes</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNotesText(occupantState.notes || "");
+                        setIsEditingNotes(false);
+                      }}
+                      disabled={isSavingNotes}
+                      className="px-3.5 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-100 text-xs font-bold text-gray-700 transition-all cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveNotes}
+                      disabled={isSavingNotes}
+                      className="px-4 py-1.5 rounded-xl bg-[#c2652a] hover:bg-[#a8451f] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                    >
+                      {isSavingNotes ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Saving...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-3.5 h-3.5" />
+                          <span>Save Notes</span>
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
               ) : (
                 <div className="pt-1">
                   {occupantState.notes && occupantState.notes.trim() ? (
-                    <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100 text-xs sm:text-sm text-gray-800 font-normal leading-relaxed whitespace-pre-wrap select-text">
+                    <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 text-xs sm:text-sm text-gray-900 font-bold leading-relaxed whitespace-pre-wrap select-text shadow-2xs">
                       {occupantState.notes}
                     </div>
                   ) : (
