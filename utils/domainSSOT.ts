@@ -573,32 +573,18 @@ export function resolveOccupantBillingCycleContext(
   let targetDueDate: Date;
   let resetDate: Date;
 
-  if (desiredDueDay === 1) {
+  if (day >= desiredDueDay) {
+    // Current month due date has arrived
     const daysInCurrentMonth = new Date(year, month + 1, 0).getDate();
-    if (day === daysInCurrentMonth) {
-      // (n-1) day for 1st of upcoming month! Resets today.
-      targetDueDate = new Date(year, month + 1, 1);
-      resetDate = new Date(year, month, daysInCurrentMonth);
-    } else {
-      // Active calendar month cycle
-      const daysInPrevMonth = new Date(year, month, 0).getDate();
-      targetDueDate = new Date(year, month, 1);
-      resetDate = new Date(year, month - 1, daysInPrevMonth);
-    }
+    const safeDay = Math.min(desiredDueDay, daysInCurrentMonth);
+    targetDueDate = new Date(year, month, safeDay);
+    resetDate = new Date(year, month, Math.max(1, safeDay - 1));
   } else {
-    // desiredDueDay > 1 (e.g. 5th, 30th, 31st) -> (n-1) day is (desiredDueDay - 1)
-    if (day >= desiredDueDay - 1) {
-      const daysInCurrentMonth = new Date(year, month + 1, 0).getDate();
-      const safeDay = Math.min(desiredDueDay, daysInCurrentMonth);
-      targetDueDate = new Date(year, month, safeDay);
-      resetDate = new Date(year, month, Math.min(desiredDueDay - 1, daysInCurrentMonth));
-    } else {
-      // Prior to (n-1) day in the current calendar month
-      const daysInPrevMonth = new Date(year, month, 0).getDate();
-      const safeDay = Math.min(desiredDueDay, daysInPrevMonth);
-      targetDueDate = new Date(year, month - 1, safeDay);
-      resetDate = new Date(year, month - 1, Math.min(desiredDueDay - 1, daysInPrevMonth));
-    }
+    // Current month due date has not arrived yet -> Active cycle belongs to previous month
+    const daysInPrevMonth = new Date(year, month, 0).getDate();
+    const safeDay = Math.min(desiredDueDay, daysInPrevMonth);
+    targetDueDate = new Date(year, month - 1, safeDay);
+    resetDate = new Date(year, month - 1, Math.max(1, safeDay - 1));
   }
 
   // Guard: A resident's due date cannot be set in the past before the date they actually joined!
@@ -629,7 +615,7 @@ export function resolveOccupantBillingCycleContext(
   // Choice B: If occupant has custom due day in the current month (e.g. 6th),
   // and today is strictly before their reset day (e.g. 1st - 4th of month),
   // they are postponed to a future date in this month.
-  const isCustomFuturePostponed = hasCustomDueOverride && day < desiredDueDay - 1;
+  const isCustomFuturePostponed = hasCustomDueOverride && day < desiredDueDay;
 
   return {
     targetDueDate,
@@ -648,10 +634,8 @@ export function resolveOccupantPaymentDueDate(
   settings?: any
 ): string {
   if (!occupant) return "—";
-  const cycle = resolveOccupantBillingCycleContext(occupant, settings);
-  const dayPadded = String(cycle.targetDueDate.getDate()).padStart(2, "0");
-  const monthStr = cycle.targetDueDate.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
-  return `${dayPadded} ${monthStr}`;
+  const stmt = calculateOccupantFinancialStatement(occupant, settings);
+  return stmt.nextDueDateStr || stmt.targetDueDateStr || "—";
 }
 
 
@@ -725,6 +709,7 @@ export interface FinancialStatementSummary {
   graceCutoffDay: number;
   isPastGrace: boolean;
   targetDueDateStr?: string;
+  nextDueDateStr?: string;
   resetDateStr?: string;
   graceCutoffDateStr?: string;
   hasCustomDueOverride?: boolean;
@@ -982,16 +967,61 @@ export function calculateOccupantFinancialStatement(
 
   // Rent Clearance:
   // Evaluates receipts and payments against the current active billing cycle.
-  // When an occupant has paid receipts matching proRataRent OR is explicitly marked Paid,
-  // they remain Paid during their cleared billing cycle.
-  const isRentCleared = occupant.paymentStatus === "Paid" || totalRentPaidFromReceipts >= proRataRent;
+  const targetYear = cycleCtx.targetDueDate.getFullYear();
+  const targetMonth = cycleCtx.targetDueDate.getMonth(); // 0-based
+  const targetMonthKey = cycleCtx.targetMonthKey;
+  const targetShortMonth = cycleCtx.targetDueDate.toLocaleDateString("en-US", { month: "short" }).toLowerCase();
+  const targetLongMonth = cycleCtx.targetDueDate.toLocaleDateString("en-US", { month: "long" }).toLowerCase();
+
+  // Check if receipt belongs to the current target cycle
+  const isReceiptForTargetCycle = (item: PaymentHistoryItem) => {
+    const m = (item.month || "").toLowerCase();
+    if (m.includes(targetShortMonth) || m.includes(targetLongMonth)) {
+      if (m.includes(String(targetYear))) return true;
+    }
+    if (item.date) {
+      if (String(item.date).startsWith(targetMonthKey)) return true;
+      const pDate = parseOccupantDate(item.date);
+      if (pDate && pDate.getFullYear() === targetYear && pDate.getMonth() === targetMonth) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const currentCycleRentPaid = rentReceipts
+    .filter(isReceiptForTargetCycle)
+    .reduce((sum, item) => {
+      if (item.rentAmount !== undefined && item.rentAmount > 0) return sum + item.rentAmount;
+      return sum + (item.amount || 0);
+    }, 0);
+
+  // Check if occupant.lastPaidDate indicates this cycle was paid
+  let hasActiveCycleLastPaid = false;
+  if (occupant.lastPaidDate) {
+    const lpd = String(occupant.lastPaidDate).toLowerCase();
+    if ((lpd.includes(targetShortMonth) || lpd.includes(targetLongMonth)) && lpd.includes(String(targetYear))) {
+      hasActiveCycleLastPaid = true;
+    }
+  }
+
+  // If occupant has joiningDate in current cycle and was created as Paid with no receipts yet
+  let isNewJoinerPaid = false;
+  if (occupant.joiningDate && occupant.paymentStatus === "Paid" && history.length === 0) {
+    const jDate = parseOccupantDate(occupant.joiningDate);
+    if (jDate && jDate.getFullYear() === targetYear && jDate.getMonth() === targetMonth) {
+      isNewJoinerPaid = true;
+    }
+  }
+
+  const isRentCleared = currentCycleRentPaid >= proRataRent || hasActiveCycleLastPaid || isNewJoinerPaid;
   const remainingRentDue = isRentCleared
     ? 0
-    : Math.max(0, proRataRent - totalRentPaidFromReceipts);
+    : Math.max(0, proRataRent - currentCycleRentPaid);
 
   const parkingFee = resolveOccupantParkingFee(occupant, settings);
   const totalParkingPaidFromReceipts = history.reduce((sum, item) => sum + (item.parkingAmount || 0), 0);
-  const remainingParkingDue = (occupant.paymentStatus === "Paid" || totalParkingPaidFromReceipts >= parkingFee)
+  const remainingParkingDue = (isRentCleared || totalParkingPaidFromReceipts >= parkingFee)
     ? 0
     : Math.max(0, parkingFee - totalParkingPaidFromReceipts);
 
@@ -1010,15 +1040,15 @@ export function calculateOccupantFinancialStatement(
 
   // Total payments tracked
   const effectiveDepositPaid = baselineDepositPaid;
-  const effectiveRentPaid = isRentCleared && totalRentPaidFromReceipts === 0
+  const effectiveRentPaid = isRentCleared && currentCycleRentPaid === 0
     ? proRataRent
-    : totalRentPaidFromReceipts;
+    : currentCycleRentPaid;
   const totalPaid = effectiveDepositPaid + effectiveRentPaid + totalParkingPaidFromReceipts;
 
   const isFullyPaid = includeDepositInOutstanding
     ? netOutstandingBalance === 0
     : remainingRentDue === 0 && priorArrears === 0 && remainingParkingDue === 0;
-  const isPartialPaid = !isFullyPaid && (totalRentPaidFromReceipts > 0 || totalDepositPaidFromReceipts > 0);
+  const isPartialPaid = !isFullyPaid && (currentCycleRentPaid > 0 || totalDepositPaidFromReceipts > 0);
   const isOverdue = !isFullyPaid && (priorArrears > 0 || isPastGrace);
 
   const paymentStatusLabel: "Paid" | "Due" | "Overdue" = isFullyPaid
@@ -1032,6 +1062,21 @@ export function calculateOccupantFinancialStatement(
     : occupant.depositStatus === "PARTIAL" || totalDepositPaidFromReceipts > 0
     ? "PARTIAL"
     : "PENDING";
+
+  // Next Due Date display calculation:
+  // If current cycle is cleared, the next due date is next month's due date!
+  // If current cycle is not cleared, the due date is this cycle's targetDueDate!
+  let nextDueDate: Date;
+  if (isRentCleared) {
+    const daysInNextMonth = new Date(targetYear, targetMonth + 2, 0).getDate();
+    const safeNextDay = Math.min(desiredDueDay, daysInNextMonth);
+    nextDueDate = new Date(targetYear, targetMonth + 1, safeNextDay);
+  } else {
+    nextDueDate = cycleCtx.targetDueDate;
+  }
+  const nextDueDateDayPadded = String(nextDueDate.getDate()).padStart(2, "0");
+  const nextDueDateMonthStr = nextDueDate.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+  const nextDueDateStr = `${nextDueDateDayPadded} ${nextDueDateMonthStr}`;
 
   // Dynamic Status Badge formatting matching exact business rules
   let statusBadgeText = "DUE 🟧";
@@ -1075,7 +1120,8 @@ export function calculateOccupantFinancialStatement(
     dueDay: desiredDueDay,
     graceCutoffDay,
     isPastGrace,
-    targetDueDateStr: cycleCtx.targetDueDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+    nextDueDateStr,
+    targetDueDateStr: nextDueDateStr,
     resetDateStr: cycleCtx.resetDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
     graceCutoffDateStr: cycleCtx.graceCutoffDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
     hasCustomDueOverride: cycleCtx.hasCustomDueOverride,

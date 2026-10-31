@@ -38,6 +38,7 @@ import { isMockOccupantId } from "@/lib/firestoreService";
 import { CopilotPropertySnapshot, CopilotApiResponse } from "@/lib/aiCopilotPrompt";
 import { tryFastClientQuery } from "@/lib/aiFastQueryEngine";
 import { buildWhatsAppUrl } from "@/utils/security";
+import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
 
 interface ChatMessage {
   id: string;
@@ -199,12 +200,11 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
     // Real financial calculation
     const totalExpectedRent = activeOccupants.reduce((acc, cur) => acc + (cur.rentAmount || 0), 0);
     const defaulters = activeOccupants.filter((o) => {
-      const isUnpaid = o.paymentStatus !== "Paid";
-      const hasDues = (o.rentAmount || 0) > 0 || (o.arrearsBalance || 0) > 0;
-      return isUnpaid && hasDues;
+      const stmt = calculateOccupantFinancialStatement(o, settings);
+      return !stmt.isFullyPaid && stmt.netOutstandingBalance > 0;
     });
     const totalPendingDues = defaulters.reduce(
-      (acc, cur) => acc + (cur.rentAmount || 0) + (cur.arrearsBalance || 0),
+      (acc, cur) => acc + calculateOccupantFinancialStatement(cur, settings).netOutstandingBalance,
       0
     );
 
@@ -218,31 +218,34 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
       occupiedBeds,
       vacantBeds,
       occupancyRatePercentage: occupancyRate,
-      occupants: occupants.map((o) => ({
-        id: o.id,
-        name: o.name,
-        phone: o.phone,
-        stayType: o.stayType || "Tenant",
-        roomNumber: o.roomNumber,
-        bedCode: o.bedCode,
-        rentAmount: o.rentAmount || 0,
-        paymentStatus: o.paymentStatus || "Due",
-        lifecycleStatus: o.lifecycleStatus || "Active",
-        joiningDate: o.joiningDate,
-        vacatingDate: o.vacatingDate,
-        daysRemainingText: o.daysRemainingText,
-        depositAmount: (o as any).depositAmount || o.securityDeposit || 0,
-        arrearsBalance: o.arrearsBalance || 0,
-        kycVerified: Boolean(o.kycVerified),
-        aadhaarNumber: o.aadhaarNumber || "",
-        hasKycDocs: Boolean(o.kycDocs?.aadhaarFrontUrl || o.kycDocs?.aadhaarPdfUrl),
-        emergencyContact:
-          typeof o.emergencyContact === "object" && o.emergencyContact
-            ? `${(o.emergencyContact as any).name || ""} (${(o.emergencyContact as any).relation || ""}: ${(o.emergencyContact as any).phone || ""})`
-            : typeof o.emergencyContact === "string"
-            ? o.emergencyContact
-            : (o as any).guardianPhone || "",
-      })),
+      occupants: occupants.map((o) => {
+        const stmt = calculateOccupantFinancialStatement(o, settings);
+        return {
+          id: o.id,
+          name: o.name,
+          phone: o.phone,
+          stayType: o.stayType || "Tenant",
+          roomNumber: o.roomNumber,
+          bedCode: o.bedCode,
+          rentAmount: o.rentAmount || 0,
+          paymentStatus: stmt.paymentStatusLabel,
+          lifecycleStatus: o.lifecycleStatus || "Active",
+          joiningDate: o.joiningDate,
+          vacatingDate: o.vacatingDate,
+          daysRemainingText: o.daysRemainingText,
+          depositAmount: (o as any).depositAmount || o.securityDeposit || 0,
+          arrearsBalance: o.arrearsBalance || 0,
+          kycVerified: Boolean(o.kycVerified),
+          aadhaarNumber: o.aadhaarNumber || "",
+          hasKycDocs: Boolean(o.kycDocs?.aadhaarFrontUrl || o.kycDocs?.aadhaarPdfUrl),
+          emergencyContact:
+            typeof o.emergencyContact === "object" && o.emergencyContact
+              ? `${(o.emergencyContact as any).name || ""} (${(o.emergencyContact as any).relation || ""}: ${(o.emergencyContact as any).phone || ""})`
+              : typeof o.emergencyContact === "string"
+              ? o.emergencyContact
+              : (o as any).guardianPhone || "",
+        };
+      }),
       complaints: complaints.map((c) => ({
         id: c.id,
         complaintNumber: c.complaintNumber || c.id,

@@ -1836,7 +1836,9 @@ export default function TenantsDirectoryPage({
           if (!isDueOrOverdue) return false;
         } else if (paymentStatusFilter === "Overdue") {
           if (!isOverdue) return false;
-        } else if (effectivePaymentStatus !== paymentStatusFilter && occ.paymentStatus !== paymentStatusFilter) {
+        } else if (paymentStatusFilter === "Paid") {
+          if (!isPaid) return false;
+        } else if (effectivePaymentStatus !== paymentStatusFilter) {
           return false;
         }
       }
