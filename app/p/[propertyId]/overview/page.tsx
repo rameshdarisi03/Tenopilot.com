@@ -58,6 +58,8 @@ import {
   getBedOccupantsTimeline,
   getCanonicalBedIndex,
   getDynamicProgressGradient,
+  parsePaymentDateToIso,
+  getNowIST,
 } from "@/utils/domainSSOT";
 
 function getTimeAwareGreeting(): string {
@@ -317,8 +319,45 @@ export default function PropertyOverviewPage({
     return calculatePropertyRentComplianceSummary(occupants, propertySettings);
   }, [occupants, propertySettings]);
 
+  // Dynamic Rent Metrics Calculations (100% SSOT matching Tenants, Property Map, and Financial Hub)
+  const rentMetrics = useMemo(() => {
+    const billableOccupants = occupants.filter(
+      (o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice"
+    );
+
+    const { year: currentYear, month: currentMonthIndex } = getNowIST();
+    const currentMonthIsoPrefix = `${currentYear}-${String(currentMonthIndex + 1).padStart(2, "0")}`;
+
+    let sumCollected = 0;
+    let totalExpected = 0;
+
+    // STRICT SSOT: Collect real cash inflows for the current month across receipts, strictly excluding VOIDED/CANCELLED/FAILED receipts
+    occupants.forEach((occ) => {
+      const rawHistory = occ.paymentHistory || [];
+      const validReceipts = rawHistory.filter(
+        (pm) => pm.status !== "VOIDED" && (pm as any).status !== "FAILED" && (pm as any).status !== "CANCELLED"
+      );
+      validReceipts.forEach((pm) => {
+        const iso = parsePaymentDateToIso(pm.date, (pm as any).timestamp);
+        if (iso && iso.startsWith(currentMonthIsoPrefix)) {
+          sumCollected += (pm.amount || 0);
+        }
+      });
+    });
+
+    billableOccupants.forEach((curr) => {
+      const stmt = calculateOccupantFinancialStatement(curr, propertySettings);
+      totalExpected += stmt.proRataRent + stmt.priorArrears;
+    });
+
+    return {
+      sumCollected,
+      totalExpected,
+    };
+  }, [occupants, propertySettings]);
+
   // Financial Metrics Calculation
-  let totalCollectedThisMonth = rentCompliance.totalCollectedThisCycle;
+  let totalCollectedThisMonth = rentMetrics.sumCollected;
   let totalPendingDue = rentCompliance.totalPendingDueAmount;
   let overdueCount = rentCompliance.overdueTenantsCount;
   let pendingCount = rentCompliance.totalPendingDueCount;
@@ -579,25 +618,41 @@ export default function PropertyOverviewPage({
               </div>
             </Link>
 
-            {/* Card 2: Rent Collected */}
-            <div className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs hover:border-emerald-500/60 transition-all flex flex-col justify-between group">
+            {/* Card 2: Revenue Collected (Same as Tenants Page) */}
+            <Link
+              href={`/p/${propertyId}/financial-hub`}
+              className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs hover:border-emerald-500 hover:shadow-md transition-all flex flex-col justify-between group cursor-pointer active:scale-[0.98]"
+              title="Click to view live revenues & cashflow in Financial Hub"
+            >
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                  RENT COLLECTED
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">
+                  REVENUE COLLECTED
                 </span>
-                <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 group-hover:scale-105 transition-transform">
-                  <Wallet className="w-4 h-4" />
+                <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 group-hover:scale-110 group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                  <CheckCircle2 className="w-4 h-4" />
                 </div>
               </div>
               <div className="mt-3">
-                <p className="font-sans font-bold text-3xl text-emerald-600 tracking-tight">
-                  {formatCompactCurrency(totalCollectedThisMonth)}
+                <p className="font-sans font-bold text-3xl text-gray-900 tracking-tight">
+                  <AnimatedNumberCounter value={rentMetrics.sumCollected} prefix="₹" />
                 </p>
-                <p className="text-xs font-bold text-emerald-700 mt-1">
-                  Collected this month
-                </p>
+                <div className="flex items-center gap-2 mt-2.5 w-full">
+                  <div className="flex-1 h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
+                    <div
+                      className={`h-full rounded-full ${getDynamicProgressGradient(
+                        rentMetrics.totalExpected > 0 ? (rentMetrics.sumCollected / rentMetrics.totalExpected) * 100 : 0
+                      )} transition-all duration-700 ease-out`}
+                      style={{
+                        width: `${Math.min(100, Math.max(0, rentMetrics.totalExpected > 0 ? (rentMetrics.sumCollected / rentMetrics.totalExpected) * 100 : 0))}%`,
+                      }}
+                    />
+                  </div>
+                  <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums">
+                    (<AnimatedNumberCounter value={rentMetrics.totalExpected} prefix="₹" />)
+                  </span>
+                </div>
               </div>
-            </div>
+            </Link>
 
             {/* Card 3: Rent Pending (Overdue Compliance SSOT) */}
             <Link

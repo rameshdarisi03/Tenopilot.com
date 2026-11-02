@@ -1901,6 +1901,55 @@ export function getDynamicProgressGradient(percentage: number): string {
   return "bg-gradient-to-r from-emerald-500 via-teal-400 to-green-500";
 }
 
+/**
+ * SSOT Helper to parse dates and timestamps into ISO YYYY-MM-DD
+ */
+export function parsePaymentDateToIso(dateStr?: string, timestamp?: number): string {
+  if (timestamp && !isNaN(timestamp)) {
+    try {
+      const d = new Date(timestamp);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    } catch (_) {}
+  }
+  if (!dateStr) return "";
+  const trimmed = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+    return trimmed.slice(0, 10);
+  }
+  const dmyMatch = trimmed.match(/^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})/);
+  if (dmyMatch) {
+    const dNum = parseInt(dmyMatch[1], 10);
+    const mStr = dmyMatch[2].toLowerCase();
+    const yr = parseInt(dmyMatch[3], 10);
+    const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+    const mIdx = months.findIndex((m) => mStr.startsWith(m));
+    if (mIdx !== -1) {
+      return `${yr}-${String(mIdx + 1).padStart(2, "0")}-${String(dNum).padStart(2, "0")}`;
+    }
+  }
+  const myMatch = trimmed.match(/^([A-Za-z]{3,})\s+(\d{4})/);
+  if (myMatch) {
+    const mStr = myMatch[1].toLowerCase();
+    const yr = parseInt(myMatch[2], 10);
+    const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+    const mIdx = months.findIndex((m) => mStr.startsWith(m));
+    if (mIdx !== -1) {
+      return `${yr}-${String(mIdx + 1).padStart(2, "0")}-01`;
+    }
+  }
+  const parsed = parseOccupantDate(trimmed);
+  if (parsed && !isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, "0");
+    const day = String(parsed.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+  return "";
+}
+
 
 
 
