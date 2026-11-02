@@ -27,6 +27,7 @@ import {
   normalizeRoomNumber,
   matchesTenoPilotSearch,
   calculateOccupantFinancialStatement,
+  getNowIST,
 } from "@/utils/domainSSOT";
 import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
 import { AnimatedNumberCounter } from "@/components/motion/AnimatedNumberCounter";
@@ -662,11 +663,61 @@ function PropertyMapContent({
     }
   };
 
+  // Helper to parse dates into ISO YYYY-MM-DD
+  const parsePaymentDateToIso = (dateStr?: string, timestamp?: number): string => {
+    if (timestamp && !isNaN(timestamp)) {
+      try {
+        const d = new Date(timestamp);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${y}-${m}-${day}`;
+      } catch (_) {}
+    }
+    if (!dateStr) return "";
+    const trimmed = dateStr.trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+      return trimmed.slice(0, 10);
+    }
+    const dmyMatch = trimmed.match(/^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})/);
+    if (dmyMatch) {
+      const dNum = parseInt(dmyMatch[1], 10);
+      const mStr = dmyMatch[2].toLowerCase();
+      const yr = parseInt(dmyMatch[3], 10);
+      const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+      const mIdx = months.findIndex((m) => mStr.startsWith(m));
+      if (mIdx !== -1) {
+        return `${yr}-${String(mIdx + 1).padStart(2, "0")}-${String(dNum).padStart(2, "0")}`;
+      }
+    }
+    const myMatch = trimmed.match(/^([A-Za-z]{3,})\s+(\d{4})/);
+    if (myMatch) {
+      const mStr = myMatch[1].toLowerCase();
+      const yr = parseInt(myMatch[2], 10);
+      const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+      const mIdx = months.findIndex((m) => mStr.startsWith(m));
+      if (mIdx !== -1) {
+        return `${yr}-${String(mIdx + 1).padStart(2, "0")}-01`;
+      }
+    }
+    const parsed = parseOccupantDate(trimmed);
+    if (parsed && !isNaN(parsed.getTime())) {
+      const y = parsed.getFullYear();
+      const m = String(parsed.getMonth() + 1).padStart(2, "0");
+      const day = String(parsed.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
+    return "";
+  };
+
   // Dynamic Rent & Financial SSOT Metrics Calculations (Matching Tenants Operations)
   const rentMetrics = useMemo(() => {
     const billableOccupants = occupants.filter(
       (o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice"
     );
+
+    const { year: currentYear, month: currentMonthIndex } = getNowIST();
+    const currentMonthIsoPrefix = `${currentYear}-${String(currentMonthIndex + 1).padStart(2, "0")}`;
 
     let dueCount = 0;
     let dueSum = 0;
@@ -675,15 +726,27 @@ function PropertyMapContent({
     let sumCollected = 0;
     let totalExpected = 0;
 
+    // 🛡️ STRICT SSOT: Collect real cash inflows for the current month across receipts, strictly excluding VOIDED/CANCELLED/FAILED receipts
+    occupants.forEach((occ) => {
+      const rawHistory = occ.paymentHistory || [];
+      const validReceipts = rawHistory.filter(
+        (pm) => pm.status !== "VOIDED" && (pm as any).status !== "FAILED" && (pm as any).status !== "CANCELLED"
+      );
+      validReceipts.forEach((pm) => {
+        const iso = parsePaymentDateToIso(pm.date, (pm as any).timestamp);
+        if (iso && iso.startsWith(currentMonthIsoPrefix)) {
+          sumCollected += (pm.amount || 0);
+        }
+      });
+    });
+
     billableOccupants.forEach((curr) => {
       const stmt = calculateOccupantFinancialStatement(curr, propertySettings);
       totalExpected += stmt.proRataRent + stmt.priorArrears;
-      sumCollected += stmt.totalRentPaid;
 
       if (!stmt.isFullyPaid) {
         const netDue = stmt.netOutstandingBalance;
-        const isActuallyOverdue = stmt.isOverdue && !stmt.statusBadgeText.startsWith("DUE");
-        if (isActuallyOverdue) {
+        if (stmt.isOverdue) {
           overdueCount++;
           overdueSum += netDue;
         } else {
