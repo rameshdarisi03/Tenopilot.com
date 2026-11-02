@@ -363,6 +363,8 @@ export default function PropertyOverviewPage({
   let pendingCount = rentCompliance.totalPendingDueCount;
 
   const openComplaintsCount = complaints.filter((c) => c.status === "OPEN" || c.status === "IN_PROGRESS").length;
+  const inProgressComplaintsCount = complaints.filter((c) => c.status === "IN_PROGRESS").length;
+  const resolvedComplaintsCount = complaints.filter((c) => c.status === "RESOLVED").length;
 
   // Format Large Currency (e.g. ₹4.25L or ₹75K)
   const formatCompactCurrency = (val: number) => {
@@ -743,34 +745,34 @@ export default function PropertyOverviewPage({
               </div>
             </div>
 
-            {/* Card 4: Maintenance */}
-            <div className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs hover:border-rose-500/60 transition-all flex flex-col justify-between group">
+            {/* Card 4: Maintenance Tickets */}
+            <Link
+              href={`/p/${propertyId}/complaints?status=active`}
+              className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs hover:border-rose-500 hover:shadow-md transition-all flex flex-col justify-between group cursor-pointer active:scale-[0.98]"
+              title="Click to view active maintenance complaints"
+            >
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
                   MAINTENANCE TICKETS
                 </span>
-                <div className="p-2.5 rounded-xl bg-rose-50 text-rose-600 group-hover:scale-105 transition-transform">
+                <div className="p-2.5 rounded-xl bg-rose-50 text-rose-600 group-hover:scale-110 group-hover:bg-rose-600 group-hover:text-white transition-all">
                   <Wrench className="w-4 h-4" />
                 </div>
               </div>
-              <div className="mt-3 flex items-baseline justify-between">
-                <div>
-                  <p className="font-serif font-bold text-3xl text-rose-600 tracking-tight">
-                    {openComplaintsCount}
-                  </p>
-                  <p className="text-xs font-bold text-rose-700 mt-1">
-                    Open Complaints
-                  </p>
-                </div>
-                <Link
-                  href={`/p/${propertyId}/complaints`}
-                  className="text-xs font-extrabold text-[#c2652a] hover:underline flex items-center gap-0.5"
-                >
-                  <span>View Tickets</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </Link>
+              <div className="mt-3">
+                <p className="font-sans font-bold text-3xl text-gray-900 tracking-tight">
+                  <AnimatedNumberCounter value={openComplaintsCount} />{" "}
+                  <span className="text-lg font-semibold text-gray-500">
+                    {openComplaintsCount === 1 ? "Open Complaint" : "Open Complaints"}
+                  </span>
+                </p>
+                <p className="text-xs font-semibold text-gray-500 mt-2 flex items-center gap-1.5 truncate">
+                  <span className="text-amber-700 font-bold">{inProgressComplaintsCount} in progress</span>
+                  <span className="text-gray-300">•</span>
+                  <span className="text-emerald-700 font-bold">{resolvedComplaintsCount} resolved</span>
+                </p>
               </div>
-            </div>
+            </Link>
           </div>
 
           {/* Main 2-Column Split View */}

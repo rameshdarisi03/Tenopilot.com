@@ -3,6 +3,7 @@
 import { use, useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/providers/AuthProvider";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import {
@@ -127,9 +128,24 @@ export default function AdminComplaintsPage({
   const [floors, setFloors] = useState<FloorConfig[]>([]);
 
   // Search & Filters
+  const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
+
+  useEffect(() => {
+    const statusParam = searchParams?.get("status")?.toUpperCase();
+    const filterParam = searchParams?.get("filter")?.toUpperCase();
+    if (statusParam === "ACTIVE" || filterParam === "ACTIVE") {
+      setStatusFilter("ACTIVE");
+    } else if (statusParam === "OPEN" || filterParam === "OPEN") {
+      setStatusFilter("OPEN");
+    } else if (statusParam === "IN_PROGRESS" || filterParam === "IN_PROGRESS") {
+      setStatusFilter("IN_PROGRESS");
+    } else if (statusParam === "RESOLVED" || filterParam === "RESOLVED") {
+      setStatusFilter("RESOLVED");
+    }
+  }, [searchParams]);
 
   // Modals & Drawers State
   const [showLogModal, setShowLogModal] = useState(false);
@@ -240,7 +256,11 @@ export default function AdminComplaintsPage({
         c.complaintNumber.toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchStatus =
-        statusFilter === "ALL" || c.status === statusFilter;
+        statusFilter === "ALL"
+          ? true
+          : statusFilter === "ACTIVE"
+          ? c.status === "OPEN" || c.status === "IN_PROGRESS"
+          : c.status === statusFilter;
 
       const matchCategory =
         categoryFilter === "ALL" || c.category === categoryFilter;
@@ -754,7 +774,7 @@ export default function AdminComplaintsPage({
               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
                 {/* Status Segment Pills */}
                 <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-xl sm:rounded-2xl text-xs font-bold shrink-0">
-                  {(["ALL", "OPEN", "IN_PROGRESS", "RESOLVED"] as const).map((st) => (
+                  {(["ALL", "ACTIVE", "OPEN", "IN_PROGRESS", "RESOLVED"] as const).map((st) => (
                     <button
                       key={st}
                       onClick={() => setStatusFilter(st)}
@@ -766,6 +786,8 @@ export default function AdminComplaintsPage({
                     >
                       {st === "ALL"
                         ? `All (${complaints.length})`
+                        : st === "ACTIVE"
+                        ? `Active (${openCount + inProgressCount})`
                         : st === "OPEN"
                         ? `Open (${openCount})`
                         : st === "IN_PROGRESS"
