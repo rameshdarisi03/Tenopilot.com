@@ -1231,20 +1231,8 @@ function PropertyMapContent({
                 {(() => {
                   const revCollectPct = rentMetrics.totalExpected > 0 ? (rentMetrics.sumCollected / rentMetrics.totalExpected) * 100 : 0;
                   return (
-                    <div className="flex items-end gap-2 mt-5 w-full">
-                      <div className="relative flex-1 pb-0.5">
-                        <div
-                          className="absolute -top-5 sm:-top-5.5 -translate-x-1/2 flex flex-col items-center pointer-events-none transition-all duration-700 ease-out z-10"
-                          style={{
-                            left: `${Math.min(100, Math.max(0, revCollectPct))}%`,
-                          }}
-                        >
-                          <div className="bg-[#7c3aed] text-white text-[8.5px] sm:text-[9px] font-black tracking-tight px-1.5 py-0.5 rounded-full shadow-xs whitespace-nowrap flex items-center justify-center leading-none">
-                            {isPrivacyMode ? "••%" : (revCollectPct >= 10 ? `${Math.round(revCollectPct)}%` : `${revCollectPct.toFixed(1)}%`)}
-                          </div>
-                          <div className="w-0 h-0 border-x-[3px] border-x-transparent border-t-[3.5px] border-t-[#7c3aed] -mt-[0.5px]" />
-                        </div>
-
+                    <div className="flex items-center gap-2 mt-3.5 w-full">
+                      <div className="relative flex-1 pb-4">
                         <div className="h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
                           <div
                             className={`h-full rounded-full ${getDynamicProgressGradient(revCollectPct)} transition-all duration-700 ease-out`}
@@ -1253,8 +1241,21 @@ function PropertyMapContent({
                             }}
                           />
                         </div>
+
+                        {/* Floating Purple Cloud Badge Pointed Below */}
+                        <div
+                          className="absolute top-2 sm:top-2.5 -translate-x-1/2 flex flex-col items-center pointer-events-none transition-all duration-700 ease-out z-10"
+                          style={{
+                            left: `${Math.min(100, Math.max(0, revCollectPct))}%`,
+                          }}
+                        >
+                          <div className="w-0 h-0 border-x-[3px] border-x-transparent border-b-[3.5px] border-b-[#7c3aed] -mb-[0.5px]" />
+                          <div className="bg-[#7c3aed] text-white text-[8.5px] sm:text-[9px] font-black tracking-tight px-1.5 py-0.5 rounded-full shadow-xs whitespace-nowrap flex items-center justify-center leading-none">
+                            {isPrivacyMode ? "••%" : (revCollectPct >= 10 ? `${Math.round(revCollectPct)}%` : `${revCollectPct.toFixed(1)}%`)}
+                          </div>
+                        </div>
                       </div>
-                      <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums">
+                      <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums mb-4">
                         ({isPrivacyMode ? "₹••••••" : <AnimatedNumberCounter value={rentMetrics.totalExpected} prefix="₹" />})
                       </span>
                     </div>
@@ -1339,88 +1340,7 @@ function PropertyMapContent({
                     Real-time bed-level tracking across all {bedCounts.total} property beds
                   </p>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  {/* ☑️ Multi-Select Toggle Button (for Batch Reminders) */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (isMultiSelectMode) {
-                        setIsMultiSelectMode(false);
-                        setSelectedOccupantIds([]);
-                      } else {
-                        setIsMultiSelectMode(true);
-                        const dueIds = allDueOccupants.map((o) => o.id);
-                        setSelectedOccupantIds(dueIds);
-                        if (dueIds.length > 0) {
-                          triggerToast(`Selected ${dueIds.length} tenants with pending dues. Tap beds to add/remove or tap Send Reminders.`);
-                        }
-                      }
-                    }}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer shadow-2xs active:scale-95 ${
-                      isMultiSelectMode
-                        ? "bg-[#c2652a] text-white border-[#c2652a] ring-2 ring-orange-300"
-                        : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-                    }`}
-                    title="Select multiple tenants to send batch reminders"
-                  >
-                    <CheckSquare className="w-3.5 h-3.5" />
-                    <span>{isMultiSelectMode ? "Exit Select" : "Select"}</span>
-                    {selectedOccupantIds.length > 0 && (
-                      <span className={`px-1.5 py-0.2 rounded-full font-mono text-[10px] ${
-                        isMultiSelectMode ? "bg-white text-[#c2652a] font-extrabold" : "bg-orange-100 text-[#c2652a]"
-                      }`}>
-                        {selectedOccupantIds.length}
-                      </span>
-                    )}
-                  </button>
-
-                  {/* ⇅ Interactive Sort Dropdown (Matching Tenants Operations) */}
-                  <div className="relative" ref={sortDropdownRef}>
-                  <button
-                    type="button"
-                    onClick={() => setIsSortDropdownOpen(!isSortDropdownOpen)}
-                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 shadow-2xs transition-all cursor-pointer"
-                    title="Sort rooms by number, pending dues, overdue priority, or resident name"
-                  >
-                    <ArrowUpDown className="w-3.5 h-3.5 text-[#c2652a]" />
-                    <span>{currentSortOption.icon} {currentSortOption.shortLabel}</span>
-                    <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isSortDropdownOpen ? "rotate-180" : ""}`} />
-                  </button>
-
-                  {isSortDropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl border border-gray-200 shadow-xl py-1.5 z-50 text-xs font-semibold text-gray-800 animate-in fade-in">
-                      <div className="px-3 py-1.5 text-[10px] uppercase font-bold text-gray-400 tracking-wider border-b border-gray-100">
-                        Sort Property Map
-                      </div>
-                      {sortOptions.map((opt) => {
-                        const isSelected = opt.column === sortColumn && opt.direction === sortDirection;
-                        return (
-                          <button
-                            key={opt.id}
-                            type="button"
-                            onClick={() => {
-                              setSortColumn(opt.column);
-                              setSortDirection(opt.direction);
-                              setIsSortDropdownOpen(false);
-                            }}
-                            className={`w-full text-left px-3.5 py-2 flex items-center justify-between transition-colors cursor-pointer ${
-                              isSelected ? "bg-orange-50 text-[#c2652a] font-bold" : "hover:bg-gray-50 text-gray-700"
-                            }`}
-                          >
-                            <span className="flex items-center gap-2">
-                              <span>{opt.icon}</span>
-                              <span>{opt.label}</span>
-                            </span>
-                            {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-[#c2652a]" />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
               </div>
-            </div>
 
               {/* Status Filter Pills */}
               <div className="flex flex-wrap items-center gap-2 text-xs font-bold pt-1">

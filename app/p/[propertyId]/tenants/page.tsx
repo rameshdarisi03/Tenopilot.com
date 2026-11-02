@@ -2383,20 +2383,8 @@ export default function TenantsDirectoryPage({
                 {(() => {
                   const revCollectPct = rentMetrics.totalExpected > 0 ? (rentMetrics.sumCollected / rentMetrics.totalExpected) * 100 : 0;
                   return (
-                    <div className="flex items-end gap-2 mt-5 w-full">
-                      <div className="relative flex-1 pb-0.5">
-                        <div
-                          className="absolute -top-5 sm:-top-5.5 -translate-x-1/2 flex flex-col items-center pointer-events-none transition-all duration-700 ease-out z-10"
-                          style={{
-                            left: `${Math.min(100, Math.max(0, revCollectPct))}%`,
-                          }}
-                        >
-                          <div className="bg-[#7c3aed] text-white text-[8.5px] sm:text-[9px] font-black tracking-tight px-1.5 py-0.5 rounded-full shadow-xs whitespace-nowrap flex items-center justify-center leading-none">
-                            {revCollectPct >= 10 ? `${Math.round(revCollectPct)}%` : `${revCollectPct.toFixed(1)}%`}
-                          </div>
-                          <div className="w-0 h-0 border-x-[3px] border-x-transparent border-t-[3.5px] border-t-[#7c3aed] -mt-[0.5px]" />
-                        </div>
-
+                    <div className="flex items-center gap-2 mt-3.5 w-full">
+                      <div className="relative flex-1 pb-4">
                         <div className="h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
                           <div
                             className={`h-full rounded-full ${getDynamicProgressGradient(revCollectPct)} transition-all duration-700 ease-out`}
@@ -2405,8 +2393,21 @@ export default function TenantsDirectoryPage({
                             }}
                           />
                         </div>
+
+                        {/* Floating Purple Cloud Badge Pointed Below */}
+                        <div
+                          className="absolute top-2 sm:top-2.5 -translate-x-1/2 flex flex-col items-center pointer-events-none transition-all duration-700 ease-out z-10"
+                          style={{
+                            left: `${Math.min(100, Math.max(0, revCollectPct))}%`,
+                          }}
+                        >
+                          <div className="w-0 h-0 border-x-[3px] border-x-transparent border-b-[3.5px] border-b-[#7c3aed] -mb-[0.5px]" />
+                          <div className="bg-[#7c3aed] text-white text-[8.5px] sm:text-[9px] font-black tracking-tight px-1.5 py-0.5 rounded-full shadow-xs whitespace-nowrap flex items-center justify-center leading-none">
+                            {revCollectPct >= 10 ? `${Math.round(revCollectPct)}%` : `${revCollectPct.toFixed(1)}%`}
+                          </div>
+                        </div>
                       </div>
-                      <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums">
+                      <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums mb-4">
                         (<AnimatedNumberCounter value={rentMetrics.totalExpected} prefix="₹" />)
                       </span>
                     </div>
