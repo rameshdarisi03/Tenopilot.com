@@ -83,7 +83,19 @@ export default function FinancialHubPage({
 }) {
   const resolvedParams = use(params);
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
-  const [activeTab, setActiveTab] = useState("Expenses");
+  const [activeRole, setActiveRole] = useState<UserRole>(() => staffStore.getActiveRole());
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      const tabParam = sp.get("tab")?.toLowerCase();
+      const role = staffStore.getActiveRole();
+      if (role === "receptionist") return "Expenses";
+      if (tabParam === "expenses") return "Expenses";
+      if (tabParam === "partner settlement" || tabParam === "settlement" || tabParam === "partner-settlement") return "Partner Settlement";
+      return "Revenues";
+    }
+    return staffStore.getActiveRole() === "receptionist" ? "Expenses" : "Revenues";
+  });
   const [showRecordDrawer, setShowRecordDrawer] = useState(false);
   const [showToast, setShowToast] = useState(true);
   const [isOccupantsLoading, setIsOccupantsLoading] = useState(() => {
@@ -97,8 +109,6 @@ export default function FinancialHubPage({
   const [propertySettings, setPropertySettings] = useState(() =>
     propertySettingsStore.getSettings(propertyId)
   );
-
-  const [activeRole, setActiveRole] = useState<UserRole>(() => staffStore.getActiveRole());
 
   useEffect(() => {
     propertySettingsStore.initFirebaseListener(propertyId);
@@ -150,16 +160,22 @@ export default function FinancialHubPage({
   useEffect(() => {
     if (typeof window !== "undefined") {
       const searchParams = new URLSearchParams(window.location.search);
-      const tabParam = searchParams.get("tab");
+      const tabParam = searchParams.get("tab")?.toLowerCase();
       const partnerParam = searchParams.get("partnerId");
-      if (tabParam === "Partner Settlement" || tabParam === "Settlement") {
+      if (activeRole === "receptionist") {
+        setActiveTab("Expenses");
+      } else if (tabParam === "partner settlement" || tabParam === "settlement" || tabParam === "partner-settlement") {
         setActiveTab("Partner Settlement");
+      } else if (tabParam === "expenses") {
+        setActiveTab("Expenses");
+      } else if (tabParam === "revenues") {
+        setActiveTab("Revenues");
       }
       if (partnerParam) {
         setSelectedPartnerId(partnerParam);
       }
     }
-  }, []);
+  }, [activeRole]);
 
   // Helper: Resolve active start and end date bounds based on timeline filter
   const resolveActiveDateBounds = () => {

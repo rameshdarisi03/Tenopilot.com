@@ -38,6 +38,7 @@ import { WhatsAppWalletModal } from "@/components/dashboard/WhatsAppWalletModal"
 import { ThemedAccountSelect } from "@/components/dashboard/ThemedAccountSelect";
 import { whatsappCreditStore } from "@/constants/whatsappCreditStore";
 import { emailCreditStore } from "@/constants/emailCreditStore";
+import { staffStore, UserRole } from "@/lib/staffStore";
 import { generateReceiptNumber } from "@/lib/invoiceNumberEngine";
 import {
   Search,
@@ -93,6 +94,14 @@ export default function TenantsDirectoryPage({
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
 
   const { user, profile } = useAuth();
+  const [activeRole, setActiveRole] = useState<UserRole>(() => staffStore.getActiveRole());
+  useEffect(() => {
+    const unsub = staffStore.subscribe(() => {
+      setActiveRole(staffStore.getActiveRole());
+    });
+    return unsub;
+  }, []);
+  const isReceptionist = activeRole === "receptionist" || profile?.role === "receptionist";
   const sub = evaluateSubscription(profile);
   const { config: platformConfig } = usePlatformConfig();
 
@@ -2427,11 +2436,11 @@ export default function TenantsDirectoryPage({
           )}
 
           {/* Operational Metrics Row - Mobile Optimized (No Cropping) */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
             {/* 1. Active Members */}
             <MagneticGlowCard
               glowColor="rgba(150, 68, 7, 0.15)"
-              className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-gray-100 shadow-xs flex flex-col justify-between"
+              className="bg-white p-3.5 sm:p-5 rounded-xl sm:rounded-2xl border border-gray-100 shadow-xs flex flex-col justify-between"
             >
               <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
                 <p className="text-[10px] sm:text-[11px] uppercase font-bold text-[#964407] tracking-wider truncate">
@@ -2452,119 +2461,66 @@ export default function TenantsDirectoryPage({
             </MagneticGlowCard>
 
             {/* 2. Collected This Month */}
-            <MagneticGlowCard
-              glowColor="rgba(16, 185, 129, 0.15)"
-              className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-gray-100 shadow-xs flex flex-col justify-between"
+            <Link
+              href={isReceptionist ? `/p/${propertyId}/financial-hub` : `/p/${propertyId}/financial-hub?tab=revenues`}
+              className="block group"
             >
-              <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
-                <p className="text-[10px] sm:text-[11px] uppercase font-bold text-emerald-600 tracking-wider truncate">
-                  Revenue Collected
-                </p>
-                <div className="bg-emerald-50 text-emerald-600 p-1.5 sm:p-2 h-7 w-7 sm:h-9 sm:w-9 flex items-center justify-center rounded-lg shrink-0">
-                  <CheckCircle2 className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+              <MagneticGlowCard
+                glowColor="rgba(16, 185, 129, 0.15)"
+                className="bg-white p-3.5 sm:p-5 rounded-xl sm:rounded-2xl border border-gray-100 shadow-xs flex flex-col justify-between group-hover:border-emerald-500 group-hover:shadow-md transition-all cursor-pointer h-full"
+              >
+                <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
+                  <p className="text-[10px] sm:text-[11px] uppercase font-bold text-emerald-600 tracking-wider truncate">
+                    Revenue Collected
+                  </p>
+                  <div className="bg-emerald-50 text-emerald-600 p-1.5 sm:p-2 h-7 w-7 sm:h-9 sm:w-9 flex items-center justify-center rounded-lg shrink-0 group-hover:scale-110 group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                    <CheckCircle2 className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+                  </div>
                 </div>
-              </div>
-              <div>
-                <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
-                  <AnimatedNumberCounter value={rentMetrics.sumCollected} prefix="₹" />
-                </p>
-                {(() => {
-                  const revCollectPct = rentMetrics.totalExpected > 0 ? (rentMetrics.sumCollected / rentMetrics.totalExpected) * 100 : 0;
-                  return (
-                    <div className="flex items-center gap-2 mt-3.5 w-full">
-                      <div className="relative flex-1 pb-4">
-                        <div className="h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
-                          <div
-                            className={`h-full rounded-full ${getDynamicProgressGradient(revCollectPct)} transition-all duration-700 ease-out`}
-                            style={{
-                              width: `${Math.min(100, Math.max(0, revCollectPct))}%`,
-                            }}
-                          />
-                        </div>
+                <div>
+                  <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
+                    {isReceptionist
+                      ? "*****"
+                      : <AnimatedNumberCounter value={rentMetrics.sumCollected} prefix="₹" />}
+                  </p>
+                  {(() => {
+                    const revCollectPct = rentMetrics.totalExpected > 0 ? (rentMetrics.sumCollected / rentMetrics.totalExpected) * 100 : 0;
+                    return (
+                      <div className="flex items-center gap-2 mt-3.5 w-full">
+                        <div className="relative flex-1 pb-4">
+                          <div className="h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
+                            <div
+                              className={`h-full rounded-full ${getDynamicProgressGradient(revCollectPct)} transition-all duration-700 ease-out`}
+                              style={{
+                                width: `${Math.min(100, Math.max(0, revCollectPct))}%`,
+                              }}
+                            />
+                          </div>
 
-                        {/* Floating Purple Cloud Badge Pointed Below */}
-                        <div
-                          className="absolute top-2 sm:top-2.5 -translate-x-1/2 flex flex-col items-center pointer-events-none transition-all duration-700 ease-out z-10"
-                          style={{
-                            left: `${Math.min(100, Math.max(0, revCollectPct))}%`,
-                          }}
-                        >
-                          <div className="w-0 h-0 border-x-[3px] border-x-transparent border-b-[3.5px] border-b-[#7c3aed] -mb-[0.5px]" />
-                          <div className="bg-[#7c3aed] text-white text-[8.5px] sm:text-[9px] font-black tracking-tight px-1.5 py-0.5 rounded-full shadow-xs whitespace-nowrap flex items-center justify-center leading-none">
-                            {revCollectPct >= 10 ? `${Math.round(revCollectPct)}%` : `${revCollectPct.toFixed(1)}%`}
+                          {/* Floating Purple Cloud Badge Pointed Below */}
+                          <div
+                            className="absolute top-2 sm:top-2.5 -translate-x-1/2 flex flex-col items-center pointer-events-none transition-all duration-700 ease-out z-10"
+                            style={{
+                              left: `${Math.min(100, Math.max(0, revCollectPct))}%`,
+                            }}
+                          >
+                            <div className="w-0 h-0 border-x-[3px] border-x-transparent border-b-[3.5px] border-b-[#7c3aed] -mb-[0.5px]" />
+                            <div className="bg-[#7c3aed] text-white text-[8.5px] sm:text-[9px] font-black tracking-tight px-1.5 py-0.5 rounded-full shadow-xs whitespace-nowrap flex items-center justify-center leading-none">
+                              {revCollectPct >= 10 ? `${Math.round(revCollectPct)}%` : `${revCollectPct.toFixed(1)}%`}
+                            </div>
                           </div>
                         </div>
+                        <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums mb-4">
+                          ({isReceptionist
+                            ? "*****"
+                            : <AnimatedNumberCounter value={rentMetrics.totalExpected} prefix="₹" />})
+                        </span>
                       </div>
-                      <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums mb-4">
-                        (<AnimatedNumberCounter value={rentMetrics.totalExpected} prefix="₹" />)
-                      </span>
-                    </div>
-                  );
-                })()}
-              </div>
-            </MagneticGlowCard>
-
-            {/* 3. Rent Pending Due */}
-            <MagneticGlowCard
-              glowColor="rgba(245, 158, 11, 0.15)"
-              onClick={() => {
-                setPaymentStatusFilter((prev) => (prev === "Due" ? "All" : "Due"));
-                setPaymentDueFilter("All");
-              }}
-              className={`bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border shadow-xs flex flex-col justify-between transition-all ${
-                paymentStatusFilter === "Due"
-                  ? "border-amber-400 ring-2 ring-amber-400/50 bg-amber-50/20"
-                  : "border-gray-100 hover:border-amber-200"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
-                <p className="text-[10px] sm:text-[11px] uppercase font-bold text-amber-600 tracking-wider truncate">
-                  Pending Due
-                </p>
-                <div className="bg-amber-50 text-amber-600 p-1.5 sm:p-2 h-7 w-7 sm:h-9 sm:w-9 flex items-center justify-center rounded-lg shrink-0">
-                  <Clock className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+                    );
+                  })()}
                 </div>
-              </div>
-              <div>
-                <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
-                  <AnimatedNumberCounter value={rentMetrics.dueTodaySum + rentMetrics.dueTomorrowSum + rentMetrics.dueNext2DaysSum} prefix="₹" />
-                </p>
-                <p className="text-[10px] sm:text-xs text-gray-500 font-medium truncate mt-0.5">
-                  {rentMetrics.dueTodayCount + rentMetrics.dueTomorrowCount + rentMetrics.dueNext2DaysCount} Pending Bills
-                </p>
-              </div>
-            </MagneticGlowCard>
-
-            {/* 4. Overdue Rent */}
-            <MagneticGlowCard
-              glowColor="rgba(220, 38, 38, 0.15)"
-              onClick={() => {
-                setPaymentStatusFilter((prev) => (prev === "Overdue" ? "All" : "Overdue"));
-                setPaymentDueFilter("All");
-              }}
-              className={`bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border shadow-xs flex flex-col justify-between transition-all ${
-                paymentStatusFilter === "Overdue"
-                  ? "border-red-400 ring-2 ring-red-400/50 bg-red-50/20"
-                  : "border-gray-100 hover:border-red-200"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
-                <p className="text-[10px] sm:text-[11px] uppercase font-bold text-red-600 tracking-wider truncate">
-                  Overdue Rent
-                </p>
-                <div className="bg-red-100 text-red-600 p-1.5 sm:p-2 h-7 w-7 sm:h-9 sm:w-9 flex items-center justify-center rounded-lg shrink-0">
-                  <AlertTriangle className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
-                </div>
-              </div>
-              <div>
-                <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
-                  <AnimatedNumberCounter value={rentMetrics.overdueSum} prefix="₹" />
-                </p>
-                <p className="text-[10px] sm:text-xs text-gray-500 font-medium truncate mt-0.5">
-                  <AnimatedNumberCounter value={rentMetrics.overdueCount} /> Overdue Accounts
-                </p>
-              </div>
-            </MagneticGlowCard>
+              </MagneticGlowCard>
+            </Link>
           </div>
 
           {/* 🔍 Dedicated In-Page Search Bar (Full-Width on Mobile & Desktop) */}

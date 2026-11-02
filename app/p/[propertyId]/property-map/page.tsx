@@ -125,6 +125,8 @@ function PropertyMapContent({
     return unsub;
   }, []);
 
+  const isReceptionist = activeRole === "receptionist" || profile?.role === "receptionist";
+
   useEffect(() => {
     setIsMounted(true);
     propertyStore.initFirebaseListener(propertyId);
@@ -1179,7 +1181,7 @@ function PropertyMapContent({
           )}
 
           {/* 📊 Operational Financial Metrics Row - Matching Tenants Operations */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
             {/* 1. Active Members & Total Beds */}
             <MagneticGlowCard
               glowColor="rgba(150, 68, 7, 0.15)"
@@ -1187,7 +1189,7 @@ function PropertyMapContent({
                 setActiveFilterStatus("ALL");
                 setRawSearchTerm("");
               }}
-              className={`bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border shadow-xs flex flex-col justify-between cursor-pointer transition-all ${
+              className={`bg-white p-3.5 sm:p-5 rounded-xl sm:rounded-2xl border shadow-xs flex flex-col justify-between cursor-pointer transition-all ${
                 activeFilterStatus === "ALL"
                   ? "border-[#c2652a]/40 ring-2 ring-[#c2652a]/20"
                   : "border-gray-100 hover:border-[#c2652a]/30"
@@ -1212,119 +1214,70 @@ function PropertyMapContent({
             </MagneticGlowCard>
 
             {/* 2. Collected This Month */}
-            <MagneticGlowCard
-              glowColor="rgba(16, 185, 129, 0.15)"
-              className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-gray-100 shadow-xs flex flex-col justify-between"
+            <Link
+              href={isReceptionist ? `/p/${propertyId}/financial-hub` : `/p/${propertyId}/financial-hub?tab=revenues`}
+              className="block group"
             >
-              <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
-                <p className="text-[10px] sm:text-[11px] uppercase font-bold text-emerald-600 tracking-wider truncate">
-                  Revenue Collected
-                </p>
-                <div className="bg-emerald-50 text-emerald-600 p-1.5 sm:p-2 h-7 w-7 sm:h-9 sm:w-9 flex items-center justify-center rounded-lg shrink-0">
-                  <CheckCircle2 className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+              <MagneticGlowCard
+                glowColor="rgba(16, 185, 129, 0.15)"
+                className="bg-white p-3.5 sm:p-5 rounded-xl sm:rounded-2xl border border-gray-100 shadow-xs flex flex-col justify-between group-hover:border-emerald-500 group-hover:shadow-md transition-all cursor-pointer h-full"
+              >
+                <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
+                  <p className="text-[10px] sm:text-[11px] uppercase font-bold text-emerald-600 tracking-wider truncate">
+                    Revenue Collected
+                  </p>
+                  <div className="bg-emerald-50 text-emerald-600 p-1.5 sm:p-2 h-7 w-7 sm:h-9 sm:w-9 flex items-center justify-center rounded-lg shrink-0 group-hover:scale-110 group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                    <CheckCircle2 className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+                  </div>
                 </div>
-              </div>
-              <div>
-                <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
-                  {isPrivacyMode ? "₹••••••" : <AnimatedNumberCounter value={rentMetrics.sumCollected} prefix="₹" />}
-                </p>
-                {(() => {
-                  const revCollectPct = rentMetrics.totalExpected > 0 ? (rentMetrics.sumCollected / rentMetrics.totalExpected) * 100 : 0;
-                  return (
-                    <div className="flex items-center gap-2 mt-3.5 w-full">
-                      <div className="relative flex-1 pb-4">
-                        <div className="h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
-                          <div
-                            className={`h-full rounded-full ${getDynamicProgressGradient(revCollectPct)} transition-all duration-700 ease-out`}
-                            style={{
-                              width: `${Math.min(100, Math.max(0, revCollectPct))}%`,
-                            }}
-                          />
-                        </div>
+                <div>
+                  <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
+                    {isReceptionist
+                      ? "*****"
+                      : isPrivacyMode
+                      ? "₹••••••"
+                      : <AnimatedNumberCounter value={rentMetrics.sumCollected} prefix="₹" />}
+                  </p>
+                  {(() => {
+                    const revCollectPct = rentMetrics.totalExpected > 0 ? (rentMetrics.sumCollected / rentMetrics.totalExpected) * 100 : 0;
+                    return (
+                      <div className="flex items-center gap-2 mt-3.5 w-full">
+                        <div className="relative flex-1 pb-4">
+                          <div className="h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
+                            <div
+                              className={`h-full rounded-full ${getDynamicProgressGradient(revCollectPct)} transition-all duration-700 ease-out`}
+                              style={{
+                                width: `${Math.min(100, Math.max(0, revCollectPct))}%`,
+                              }}
+                            />
+                          </div>
 
-                        {/* Floating Purple Cloud Badge Pointed Below */}
-                        <div
-                          className="absolute top-2 sm:top-2.5 -translate-x-1/2 flex flex-col items-center pointer-events-none transition-all duration-700 ease-out z-10"
-                          style={{
-                            left: `${Math.min(100, Math.max(0, revCollectPct))}%`,
-                          }}
-                        >
-                          <div className="w-0 h-0 border-x-[3px] border-x-transparent border-b-[3.5px] border-b-[#7c3aed] -mb-[0.5px]" />
-                          <div className="bg-[#7c3aed] text-white text-[8.5px] sm:text-[9px] font-black tracking-tight px-1.5 py-0.5 rounded-full shadow-xs whitespace-nowrap flex items-center justify-center leading-none">
-                            {isPrivacyMode ? "••%" : (revCollectPct >= 10 ? `${Math.round(revCollectPct)}%` : `${revCollectPct.toFixed(1)}%`)}
+                          {/* Floating Purple Cloud Badge Pointed Below */}
+                          <div
+                            className="absolute top-2 sm:top-2.5 -translate-x-1/2 flex flex-col items-center pointer-events-none transition-all duration-700 ease-out z-10"
+                            style={{
+                              left: `${Math.min(100, Math.max(0, revCollectPct))}%`,
+                            }}
+                          >
+                            <div className="w-0 h-0 border-x-[3px] border-x-transparent border-b-[3.5px] border-b-[#7c3aed] -mb-[0.5px]" />
+                            <div className="bg-[#7c3aed] text-white text-[8.5px] sm:text-[9px] font-black tracking-tight px-1.5 py-0.5 rounded-full shadow-xs whitespace-nowrap flex items-center justify-center leading-none">
+                              {isPrivacyMode ? "••%" : (revCollectPct >= 10 ? `${Math.round(revCollectPct)}%` : `${revCollectPct.toFixed(1)}%`)}
+                            </div>
                           </div>
                         </div>
+                        <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums mb-4">
+                          ({isReceptionist
+                            ? "*****"
+                            : isPrivacyMode
+                            ? "₹••••••"
+                            : <AnimatedNumberCounter value={rentMetrics.totalExpected} prefix="₹" />})
+                        </span>
                       </div>
-                      <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums mb-4">
-                        ({isPrivacyMode ? "₹••••••" : <AnimatedNumberCounter value={rentMetrics.totalExpected} prefix="₹" />})
-                      </span>
-                    </div>
-                  );
-                })()}
-              </div>
-            </MagneticGlowCard>
-
-            {/* 3. Rent Pending Due */}
-            <MagneticGlowCard
-              glowColor="rgba(245, 158, 11, 0.15)"
-              onClick={() => {
-                setActiveFilterStatus((prev) => (prev === "Due" ? "ALL" : "Due"));
-                setRawSearchTerm("");
-              }}
-              className={`bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border shadow-xs flex flex-col justify-between cursor-pointer transition-all ${
-                activeFilterStatus === "Due"
-                  ? "border-amber-400 ring-2 ring-amber-400/50 bg-amber-50/20"
-                  : "border-gray-100 hover:border-amber-200"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
-                <p className="text-[10px] sm:text-[11px] uppercase font-bold text-amber-600 tracking-wider truncate">
-                  Pending Due
-                </p>
-                <div className="bg-amber-50 text-amber-600 p-1.5 sm:p-2 h-7 w-7 sm:h-9 sm:w-9 flex items-center justify-center rounded-lg shrink-0">
-                  <Clock className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+                    );
+                  })()}
                 </div>
-              </div>
-              <div>
-                <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
-                  {isPrivacyMode ? "₹••••" : <AnimatedNumberCounter value={rentMetrics.dueSum} prefix="₹" />}
-                </p>
-                <p className="text-[10px] sm:text-xs text-gray-500 font-medium truncate mt-0.5">
-                  <AnimatedNumberCounter value={rentMetrics.dueCount} /> Pending Bill{rentMetrics.dueCount === 1 ? "" : "s"}
-                </p>
-              </div>
-            </MagneticGlowCard>
-
-            {/* 4. Overdue Rent */}
-            <MagneticGlowCard
-              glowColor="rgba(220, 38, 38, 0.15)"
-              onClick={() => {
-                setActiveFilterStatus((prev) => (prev === "Overdue" ? "ALL" : "Overdue"));
-                setRawSearchTerm("");
-              }}
-              className={`bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border shadow-xs flex flex-col justify-between cursor-pointer transition-all ${
-                activeFilterStatus === "Overdue"
-                  ? "border-red-400 ring-2 ring-red-400/50 bg-red-50/20"
-                  : "border-gray-100 hover:border-red-200"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
-                <p className="text-[10px] sm:text-[11px] uppercase font-bold text-red-600 tracking-wider truncate">
-                  Overdue Rent
-                </p>
-                <div className="bg-red-100 text-red-600 p-1.5 sm:p-2 h-7 w-7 sm:h-9 sm:w-9 flex items-center justify-center rounded-lg shrink-0">
-                  <AlertTriangle className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
-                </div>
-              </div>
-              <div>
-                <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
-                  {isPrivacyMode ? "₹••••" : <AnimatedNumberCounter value={rentMetrics.overdueSum} prefix="₹" />}
-                </p>
-                <p className="text-[10px] sm:text-xs text-gray-500 font-medium truncate mt-0.5">
-                  <AnimatedNumberCounter value={rentMetrics.overdueCount} /> Overdue Account{rentMetrics.overdueCount === 1 ? "" : "s"}
-                </p>
-              </div>
-            </MagneticGlowCard>
+              </MagneticGlowCard>
+            </Link>
           </div>
 
           {/* Compact Floor Navigation & Native Donut Ring Header Card */}

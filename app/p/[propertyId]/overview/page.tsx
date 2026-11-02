@@ -44,6 +44,7 @@ import {
 import { GuidedSpotlightTour, TourStep } from "@/components/onboarding/GuidedSpotlightTour";
 
 import { propertySettingsStore } from "@/constants/propertySettings";
+import { staffStore, UserRole } from "@/lib/staffStore";
 import { usePlatformConfig } from "@/lib/usePlatformConfig";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
@@ -174,6 +175,15 @@ export default function PropertyOverviewPage({
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { profile } = useAuth();
+  const [activeRole, setActiveRole] = useState<UserRole>(() => staffStore.getActiveRole());
+  useEffect(() => {
+    const unsub = staffStore.subscribe(() => {
+      setActiveRole(staffStore.getActiveRole());
+    });
+    return unsub;
+  }, []);
+  const isReceptionist = activeRole === "receptionist" || profile?.role === "receptionist";
+
   const sub = evaluateSubscription(profile);
   const { config: platformConfig } = usePlatformConfig();
   const userName =
@@ -468,7 +478,7 @@ export default function PropertyOverviewPage({
         </button>
 
         <Link
-          href={`/p/${propertyId}/financial-hub`}
+          href={isReceptionist ? `/p/${propertyId}/financial-hub` : `/p/${propertyId}/financial-hub?tab=revenues`}
           className="p-4 rounded-2xl bg-gray-50 border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/40 text-center transition-all flex flex-col items-center justify-center gap-2 group shadow-2xs"
         >
           <div className="p-2.5 rounded-xl bg-white border border-gray-200 text-[#c2652a] group-hover:scale-110 transition-transform">
@@ -544,7 +554,7 @@ export default function PropertyOverviewPage({
 
               <Link
                 data-tour="financial-hub-btn"
-                href={`/p/${propertyId}/financial-hub`}
+                href={isReceptionist ? `/p/${propertyId}/financial-hub` : `/p/${propertyId}/financial-hub?tab=revenues`}
                 className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2 active:scale-95 cursor-pointer shrink-0"
               >
                 <span>Go to Financial Hub</span>
@@ -641,7 +651,7 @@ export default function PropertyOverviewPage({
 
             {/* Card 2: Revenue Collected (Same as Tenants Page) */}
             <Link
-              href={`/p/${propertyId}/financial-hub`}
+              href={isReceptionist ? `/p/${propertyId}/financial-hub` : `/p/${propertyId}/financial-hub?tab=revenues`}
               className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs hover:border-emerald-500 hover:shadow-md transition-all flex flex-col justify-between group cursor-pointer active:scale-[0.98]"
               title="Click to view live revenues & cashflow in Financial Hub"
             >
@@ -655,7 +665,7 @@ export default function PropertyOverviewPage({
               </div>
               <div className="mt-3">
                 <p className="font-sans font-bold text-3xl text-gray-900 tracking-tight">
-                  <AnimatedNumberCounter value={rentMetrics.sumCollected} prefix="₹" />
+                  {isReceptionist ? "*****" : <AnimatedNumberCounter value={rentMetrics.sumCollected} prefix="₹" />}
                 </p>
                 {/* Dynamic Collection Progress Bar with Floating % Pointer */}
                 {(() => {
@@ -686,7 +696,7 @@ export default function PropertyOverviewPage({
                         </div>
                       </div>
                       <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums mb-4">
-                        (<AnimatedNumberCounter value={rentMetrics.totalExpected} prefix="₹" />)
+                        ({isReceptionist ? "*****" : <AnimatedNumberCounter value={rentMetrics.totalExpected} prefix="₹" />})
                       </span>
                     </div>
                   );
