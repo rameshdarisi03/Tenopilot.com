@@ -1590,31 +1590,39 @@ export default function FinancialHubPage({
                         `₹${revenueMetrics.totalGrossRevenue.toLocaleString("en-IN")}`
                       )}
                     </h2>
-                    <div className="flex items-center gap-2 mt-2 w-full">
-                      <div className="flex-1 h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
-                        <div
-                          className={`h-full rounded-full ${getDynamicProgressGradient(
-                            (revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 0) > 0
-                              ? (revenueMetrics.totalGrossRevenue / (revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 1)) * 100
-                              : 0
-                          )} transition-all duration-700 ease-out`}
-                          style={{
-                            width: `${Math.min(
-                              100,
-                              Math.max(
-                                0,
-                                (revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 1) > 0
-                                  ? (revenueMetrics.totalGrossRevenue / (revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 1)) * 100
-                                  : 0
-                              )
-                            )}%`,
-                          }}
-                        />
-                      </div>
-                      <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums">
-                        (₹{(revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 0).toLocaleString("en-IN")})
-                      </span>
-                    </div>
+                    {(() => {
+                      const targetExpected = revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 0;
+                      const revPct = targetExpected > 0 ? (revenueMetrics.totalGrossRevenue / targetExpected) * 100 : 0;
+                      return (
+                        <div className="flex items-end gap-2 mt-3.5 w-full">
+                          <div className="relative flex-1 pb-0.5">
+                            <div
+                              className="absolute -top-3.5 -translate-x-1/2 flex flex-col items-center pointer-events-none transition-all duration-700 ease-out"
+                              style={{
+                                left: `${Math.min(94, Math.max(6, revPct))}%`,
+                              }}
+                            >
+                              <span className="text-[8.5px] font-black leading-none text-gray-700 tracking-tight select-none">
+                                {revPct >= 10 ? `${Math.round(revPct)}%` : `${revPct.toFixed(1)}%`}
+                              </span>
+                              <div className="w-[1.5px] h-1 bg-gray-400/80 rounded-full mt-0.5" />
+                            </div>
+
+                            <div className="h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
+                              <div
+                                className={`h-full rounded-full ${getDynamicProgressGradient(revPct)} transition-all duration-700 ease-out`}
+                                style={{
+                                  width: `${Math.min(100, Math.max(0, revPct))}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                          <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums">
+                            (₹{targetExpected.toLocaleString("en-IN")})
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* KPI 2: Rent Collection Efficiency Rate */}
@@ -3786,31 +3794,39 @@ export default function FinancialHubPage({
                             `₹${revenueMetrics.totalGrossRevenue.toLocaleString("en-IN")}`
                           )}
                         </p>
-                        <div className="flex items-center gap-2 mt-2 w-full">
-                          <div className="flex-1 h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
-                            <div
-                              className={`h-full rounded-full ${getDynamicProgressGradient(
-                                (revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 0) > 0
-                                  ? (revenueMetrics.totalGrossRevenue / (revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 1)) * 100
-                                  : 0
-                              )} transition-all duration-700 ease-out`}
-                              style={{
-                                width: `${Math.min(
-                                  100,
-                                  Math.max(
-                                    0,
-                                    (revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 1) > 0
-                                      ? (revenueMetrics.totalGrossRevenue / (revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 1)) * 100
-                                      : 0
-                                  )
-                                )}%`,
-                              }}
-                            />
-                          </div>
-                          <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums">
-                            (₹{(revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 0).toLocaleString("en-IN")})
-                          </span>
-                        </div>
+                        {(() => {
+                          const targetExpected = revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 0;
+                          const revPct = targetExpected > 0 ? (revenueMetrics.totalGrossRevenue / targetExpected) * 100 : 0;
+                          return (
+                            <div className="flex items-end gap-2 mt-3.5 w-full">
+                              <div className="relative flex-1 pb-0.5">
+                                <div
+                                  className="absolute -top-3.5 -translate-x-1/2 flex flex-col items-center pointer-events-none transition-all duration-700 ease-out"
+                                  style={{
+                                    left: `${Math.min(94, Math.max(6, revPct))}%`,
+                                  }}
+                                >
+                                  <span className="text-[8.5px] font-black leading-none text-gray-700 tracking-tight select-none">
+                                    {revPct >= 10 ? `${Math.round(revPct)}%` : `${revPct.toFixed(1)}%`}
+                                  </span>
+                                  <div className="w-[1.5px] h-1 bg-gray-400/80 rounded-full mt-0.5" />
+                                </div>
+
+                                <div className="h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
+                                  <div
+                                    className={`h-full rounded-full ${getDynamicProgressGradient(revPct)} transition-all duration-700 ease-out`}
+                                    style={{
+                                      width: `${Math.min(100, Math.max(0, revPct))}%`,
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                              <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums">
+                                (₹{targetExpected.toLocaleString("en-IN")})
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* Stat Card 2 */}

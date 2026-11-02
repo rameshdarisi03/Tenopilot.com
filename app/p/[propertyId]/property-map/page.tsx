@@ -1228,21 +1228,38 @@ function PropertyMapContent({
                 <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
                   {isPrivacyMode ? "₹••••••" : <AnimatedNumberCounter value={rentMetrics.sumCollected} prefix="₹" />}
                 </p>
-                <div className="flex items-center gap-2 mt-2 w-full">
-                  <div className="flex-1 h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
-                    <div
-                      className={`h-full rounded-full ${getDynamicProgressGradient(
-                        rentMetrics.totalExpected > 0 ? (rentMetrics.sumCollected / rentMetrics.totalExpected) * 100 : 0
-                      )} transition-all duration-700 ease-out`}
-                      style={{
-                        width: `${Math.min(100, Math.max(0, rentMetrics.totalExpected > 0 ? (rentMetrics.sumCollected / rentMetrics.totalExpected) * 100 : 0))}%`,
-                      }}
-                    />
-                  </div>
-                  <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums">
-                    ({isPrivacyMode ? "₹••••••" : <AnimatedNumberCounter value={rentMetrics.totalExpected} prefix="₹" />})
-                  </span>
-                </div>
+                {(() => {
+                  const revCollectPct = rentMetrics.totalExpected > 0 ? (rentMetrics.sumCollected / rentMetrics.totalExpected) * 100 : 0;
+                  return (
+                    <div className="flex items-end gap-2 mt-3.5 w-full">
+                      <div className="relative flex-1 pb-0.5">
+                        <div
+                          className="absolute -top-3.5 -translate-x-1/2 flex flex-col items-center pointer-events-none transition-all duration-700 ease-out"
+                          style={{
+                            left: `${Math.min(94, Math.max(6, revCollectPct))}%`,
+                          }}
+                        >
+                          <span className="text-[8.5px] font-black leading-none text-gray-700 tracking-tight select-none">
+                            {isPrivacyMode ? "••%" : (revCollectPct >= 10 ? `${Math.round(revCollectPct)}%` : `${revCollectPct.toFixed(1)}%`)}
+                          </span>
+                          <div className="w-[1.5px] h-1 bg-gray-400/80 rounded-full mt-0.5" />
+                        </div>
+
+                        <div className="h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
+                          <div
+                            className={`h-full rounded-full ${getDynamicProgressGradient(revCollectPct)} transition-all duration-700 ease-out`}
+                            style={{
+                              width: `${Math.min(100, Math.max(0, revCollectPct))}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums">
+                        ({isPrivacyMode ? "₹••••••" : <AnimatedNumberCounter value={rentMetrics.totalExpected} prefix="₹" />})
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
             </MagneticGlowCard>
 
