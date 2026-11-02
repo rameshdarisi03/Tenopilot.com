@@ -344,6 +344,8 @@ function PropertyMapContent({
       setActiveFilterStatus("Due");
     } else if (f === "overdue") {
       setActiveFilterStatus("Overdue");
+    } else {
+      setActiveFilterStatus("ALL");
     }
   }, [searchParams]);
 

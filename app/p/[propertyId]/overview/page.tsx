@@ -52,7 +52,12 @@ import { subscribeToComplaints, Complaint } from "@/lib/complaintStore";
 import { subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
 import { buildWhatsAppUrl } from "@/utils/security";
 import { useAuth } from "@/providers/AuthProvider";
-import { calculateOccupantFinancialStatement, calculatePropertyRentComplianceSummary } from "@/utils/domainSSOT";
+import {
+  calculateOccupantFinancialStatement,
+  calculatePropertyRentComplianceSummary,
+  getBedOccupantsTimeline,
+  getCanonicalBedIndex,
+} from "@/utils/domainSSOT";
 
 function getTimeAwareGreeting(): string {
   const hour = new Date().getHours();
@@ -198,6 +203,7 @@ export default function PropertyOverviewPage({
   }, [propertyId]);
 
   useEffect(() => {
+    propertyStore.initFirebaseListener(propertyId);
     setOccupants(occupantStore.getOccupants(propertyId));
     setStructure(propertyStore.getStructure(propertyId));
 
@@ -218,6 +224,7 @@ export default function PropertyOverviewPage({
         occupantStore.setOccupantsFromFirestore([], propertyId);
       }
       setOccupants(occupantStore.getOccupants(propertyId));
+      setStructure(propertyStore.getStructure(propertyId));
     });
 
     return () => {
@@ -228,20 +235,80 @@ export default function PropertyOverviewPage({
     };
   }, [propertyId]);
 
-  // Dynamic Property Layout & Occupancy Metrics
-  let totalBeds = 0;
-  let occupiedBeds = 0;
-  structure.forEach((fl) => {
-    fl.rooms.forEach((rm) => {
-      rm.beds.forEach((bd) => {
-        totalBeds++;
-        if (bd.status === "Occupied" || bd.status === "Vacating" || bd.status === "Guest" || bd.occupant) {
-          occupiedBeds++;
-        }
+  // Dynamic Property Layout & Occupancy Metrics (Synchronized 100% with Property Map SSOT)
+  const bedMetrics = useMemo(() => {
+    let total = 0;
+    let available = 0;
+    let occupied = 0;
+    let vacating = 0;
+    let booked = 0;
+    let guest = 0;
+
+    structure.forEach((floor) => {
+      floor.rooms.forEach((room) => {
+        const sortedBeds = [...(room.beds || [])].sort(
+          (a, b) => getCanonicalBedIndex(a.bedCode) - getCanonicalBedIndex(b.bedCode)
+        );
+        const roomClaimedOccIds = new Set<string>();
+
+        sortedBeds.forEach((bed) => {
+          total++;
+          const timeline = getBedOccupantsTimeline(room.roomNumber, bed.bedCode, bed, propertyId, room.beds);
+          let primaryOcc = timeline.activeOccupant;
+
+          if (primaryOcc) {
+            if (roomClaimedOccIds.has(primaryOcc.id)) {
+              primaryOcc = undefined;
+            } else {
+              roomClaimedOccIds.add(primaryOcc.id);
+            }
+          }
+          const rawNext = timeline.nextBooking;
+          const nextOcc =
+            rawNext && primaryOcc && (rawNext.id === primaryOcc.id || rawNext.name?.toLowerCase() === primaryOcc.name?.toLowerCase())
+              ? undefined
+              : rawNext;
+
+          const isBooked =
+            (!primaryOcc && !!nextOcc && nextOcc.stayType !== "Guest") ||
+            bed.status === "Booked";
+
+          const effectiveStatus = primaryOcc
+            ? primaryOcc.lifecycleStatus === "Notice"
+              ? "Vacating"
+              : primaryOcc.stayType === "Guest"
+              ? "Guest"
+              : "Occupied"
+            : nextOcc && nextOcc.stayType === "Guest"
+            ? "Guest"
+            : isBooked
+            ? "Booked"
+            : "Available";
+
+          if (effectiveStatus === "Available") available++;
+          else if (effectiveStatus === "Occupied") occupied++;
+          else if (effectiveStatus === "Vacating") vacating++;
+          else if (effectiveStatus === "Booked") booked++;
+          else if (effectiveStatus === "Guest") guest++;
+        });
       });
     });
-  });
 
+    const activeOccupied = occupied + vacating + guest;
+    const vacantBeds = total > 0 ? Math.max(0, total - activeOccupied - booked) : 0;
+
+    return {
+      total,
+      available: vacantBeds,
+      occupied: activeOccupied,
+      vacating,
+      booked,
+      guest,
+    };
+  }, [structure, occupants, propertyId]);
+
+  const totalBeds = bedMetrics.total;
+  const occupiedBeds = bedMetrics.occupied;
   const occRatePct = totalBeds > 0 ? ((occupiedBeds / totalBeds) * 100).toFixed(1) : "0.0";
 
   // SSOT Property-Wide Rent Compliance Summary
@@ -474,7 +541,7 @@ export default function PropertyOverviewPage({
 
           {/* 4 High-Impact Operational KPI Bento Cards */}
           <div data-tour="kpi-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Card 1: Vacant Inventory & Occupancy */}
+            {/* Card 1: Vacant Beds */}
             <Link
               href={`/p/${propertyId}/property-map?filter=available`}
               className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs hover:border-[#c2652a] hover:shadow-md transition-all flex flex-col justify-between group cursor-pointer active:scale-[0.98]"
@@ -482,7 +549,7 @@ export default function PropertyOverviewPage({
             >
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                  VACANT INVENTORY
+                  VACANT BEDS
                 </span>
                 <div className="p-2.5 rounded-xl bg-orange-50 text-[#c2652a] group-hover:scale-110 group-hover:bg-[#c2652a] group-hover:text-white transition-all">
                   <Building2 className="w-4 h-4" />
@@ -490,14 +557,20 @@ export default function PropertyOverviewPage({
               </div>
               <div className="mt-3">
                 <p className="font-sans font-bold text-3xl text-gray-900 tracking-tight">
-                  {totalBeds - occupiedBeds} <span className="text-lg font-semibold text-gray-500">Vacant Beds</span>
+                  <AnimatedNumberCounter value={bedMetrics.available} />{" "}
+                  <span className="text-lg font-semibold text-gray-500">Vacant</span>
                 </p>
-                <div className="flex items-center justify-between mt-1">
-                  <p className="text-xs font-bold text-[#c2652a]">
-                    {occupiedBeds} / {totalBeds} Beds Occupied ({occRatePct}%)
-                  </p>
-                  <span className="text-[10px] font-extrabold text-[#c2652a] group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
-                    View Floor Map ➔
+                <div className="flex items-center gap-2 mt-2.5 w-full">
+                  <div className="flex-1 h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-amber-500 via-orange-500 to-[#c2652a] transition-all duration-500 ease-out"
+                      style={{
+                        width: `${Math.min(100, Math.max(0, bedMetrics.total > 0 ? (bedMetrics.occupied / bedMetrics.total) * 100 : 0))}%`,
+                      }}
+                    />
+                  </div>
+                  <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums">
+                    (<AnimatedNumberCounter value={bedMetrics.total} />)
                   </span>
                 </div>
               </div>
