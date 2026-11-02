@@ -603,23 +603,25 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         const onboardTokenParam = p.onboardUrl ? (p.onboardUrl.split("/self-onboard/")[1] || "") : "";
 
         if (onboardTokenParam) {
-          // 🚀 Primary: New Meta WhatsApp Template "pg_self_kyc_invite_actions_v1" with Complete KYC & Call Desk buttons
+          // 🚀 Primary: Meta WhatsApp Template "pg_digital_kyc_reminder_v1" with Submit Digital KYC & Call Desk buttons
+          const bedLabel = p.bedCode ? (p.bedCode.toLowerCase().startsWith("bed") ? p.bedCode : `Bed ${p.bedCode}`) : "Bed";
           requestBody = {
             messaging_product: "whatsapp",
             recipient_type: "individual",
             to: formattedPhone,
             type: "template",
             template: {
-              name: "pg_self_kyc_invite_actions_v1",
+              name: "pg_digital_kyc_reminder_v1",
               language: { code: "en_US" },
               components: [
                 {
                   type: "body",
                   parameters: [
-                    { type: "text", text: pName },
                     { type: "text", text: payload.recipientName },
-                    { type: "text", text: roomStay },
-                    { type: "text", text: tariffStr },
+                    { type: "text", text: pName },
+                    { type: "text", text: p.roomNumber || "N/A" },
+                    { type: "text", text: bedLabel },
+                    { type: "text", text: p.joiningDate || checkinDate },
                   ],
                 },
                 {
@@ -1121,6 +1123,66 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
                   { type: "text", text: paidDateStr },
                   { type: "text", text: modeStr },
                   { type: "text", text: roomStay },
+                ],
+              },
+            ],
+          },
+        };
+
+        response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${metaToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(fallbackBody),
+        });
+        resData = await response.json();
+      }
+
+      // Graceful fallback for ONBOARDING_INVITE: If pg_digital_kyc_reminder_v1 is pending Meta review, fallback to approved pg_self_kyc_invite_actions_v1
+      if (!response.ok && payload.type === "ONBOARDING_INVITE" && requestBody?.template?.name === "pg_digital_kyc_reminder_v1") {
+        console.warn("Notice: pg_digital_kyc_reminder_v1 pending approval, falling back to pg_self_kyc_invite_actions_v1:", resData?.error?.message);
+        const p = payload.params || {};
+        const pName = payload.propertyName || "TenoPilot PG & Living";
+        const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` (${p.bedCode})` : ""}`;
+        const tariffStr = String(p.amount || "12000");
+        const rawManagerPhone = p.managerPhone || p.propertyPhone || p.ownerPhone || "9206651295";
+        const cleanManagerPhone = rawManagerPhone.replace(/\D/g, "").slice(-10) || "9206651295";
+        const onboardTokenParam = p.onboardUrl ? (p.onboardUrl.split("/self-onboard/")[1] || "") : "";
+
+        const fallbackBody = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "template",
+          template: {
+            name: "pg_self_kyc_invite_actions_v1",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: pName },
+                  { type: "text", text: payload.recipientName },
+                  { type: "text", text: roomStay },
+                  { type: "text", text: tariffStr },
+                ],
+              },
+              {
+                type: "button",
+                sub_type: "url",
+                index: "0",
+                parameters: [
+                  { type: "text", text: onboardTokenParam },
+                ],
+              },
+              {
+                type: "button",
+                sub_type: "url",
+                index: "1",
+                parameters: [
+                  { type: "text", text: cleanManagerPhone },
                 ],
               },
             ],
