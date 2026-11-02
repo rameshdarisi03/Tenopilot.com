@@ -22,6 +22,7 @@ import { sanitizeOccupantForCompliance } from "@/utils/dpdpRetentionEngine";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { getCanonicalPortalOrigin } from "@/utils/urlUtils";
 import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
+import { saveOccupantToFirestore } from "@/lib/firestoreService";
 
 export function CheckOutSettlementModal({
   occupant,
@@ -68,6 +69,8 @@ export function CheckOutSettlementModal({
 
   // Step 3: Financial Settlement Calculator State
   const initialDeposit = actualDepositReceived;
+  const [exitDisposition, setExitDisposition] = useState<"NORMAL" | "ABSCONDED" | "DEFAULTED">("NORMAL");
+
   const [unpaidRentDues, setUnpaidRentDues] = useState<number>(() => {
     if (occupant.checkoutSettlement?.unpaidRentDeduction !== undefined) {
       return occupant.checkoutSettlement.unpaidRentDeduction;
@@ -77,11 +80,18 @@ export function CheckOutSettlementModal({
   const [repairDeductions, setRepairDeductions] = useState<number>(() => occupant.checkoutSettlement?.repairDeduction ?? 0);
   const [maintenanceExpenses, setMaintenanceExpenses] = useState<number>(() => occupant.checkoutSettlement?.maintenanceDeduction ?? 0); // Cleaning, painting fees
 
-  // Calculated Net Settlement Math (2-Way: Refund vs Deficit)
+  const isBadDebtExit = exitDisposition === "ABSCONDED" || exitDisposition === "DEFAULTED";
+
+  // Calculated Net Settlement Math (2-Way: Refund vs Deficit vs Bad Debt)
   const totalDeductions = unpaidRentDues + repairDeductions + maintenanceExpenses;
   const netDifference = initialDeposit - totalDeductions;
-  const netRefundableAmount = Math.max(0, netDifference);
-  const netDeficitToCollect = Math.max(0, -netDifference);
+
+  // For absconded or defaulted exits, no refund is ever given to the resident.
+  const netRefundableAmount = isBadDebtExit ? 0 : Math.max(0, netDifference);
+  const netDeficitToCollect = isBadDebtExit ? 0 : Math.max(0, -netDifference);
+
+  // Bad Debt loss: Outstanding dues exceeding the forfeited security deposit
+  const badDebtAmount = isBadDebtExit ? Math.max(0, totalDeductions - initialDeposit) : 0;
 
   const [paymentChannel, setPaymentChannel] = useState<"Online payments (UPI)" | "Cash Desk">(() =>
     (occupant.checkoutSettlement?.paymentChannel as any) || "Online payments (UPI)"
@@ -101,8 +111,12 @@ export function CheckOutSettlementModal({
         year: "numeric",
       });
 
-      const settlementStatus: "FULL_REFUND" | "PARTIAL_REFUND" | "NO_REFUND" =
-        totalDeductions === 0
+      const settlementStatus: "FULL_REFUND" | "PARTIAL_REFUND" | "NO_REFUND" | "BAD_DEBT_WRITTEN_OFF" =
+        isBadDebtExit
+          ? badDebtAmount > 0
+            ? "BAD_DEBT_WRITTEN_OFF"
+            : "NO_REFUND"
+          : totalDeductions === 0
           ? "FULL_REFUND"
           : netRefundableAmount > 0
           ? "PARTIAL_REFUND"
@@ -112,7 +126,7 @@ export function CheckOutSettlementModal({
       const settlementRecords: any[] = [];
 
       // A. If unpaid rent dues were settled (adjusted against deposit or collected on exit)
-      if (unpaidRentDues > 0) {
+      if (unpaidRentDues > 0 && !isBadDebtExit) {
         settlementRecords.push({
           id: `pay-settle-rent-${Date.now()}`,
           amount: unpaidRentDues,
@@ -124,8 +138,8 @@ export function CheckOutSettlementModal({
         });
       }
 
-      // B. If net deposit refund is returned to the tenant
-      if (netRefundableAmount > 0) {
+      // B. If net deposit refund is returned to the tenant (only on normal exit)
+      if (netRefundableAmount > 0 && !isBadDebtExit) {
         settlementRecords.push({
           id: `pay-ref-${Date.now()}`,
           amount: netRefundableAmount,
@@ -146,19 +160,23 @@ export function CheckOutSettlementModal({
         totalDeductions,
         netRefunded: netRefundableAmount,
         netDeficitCollected: netDeficitToCollect,
+        badDebtWrittenOff: badDebtAmount,
+        exitDisposition,
         status: settlementStatus,
         paymentChannel,
         notes: settlementNotes.trim() || undefined,
       };
 
-      // 1. Update Occupant Status to "Past" (Reusing standard Past Alumni Tenant category)
+      // 1. Update Occupant Status to "Past" with strict Defaulter and Forfeited Deposit audit
       const updatedOccupant: Occupant = {
         ...occupant,
         lifecycleStatus: "Past",
-        depositStatus: "REFUNDED",
+        depositStatus: isBadDebtExit ? (initialDeposit > 0 ? "FORFEITED" : "PENDING") : "REFUNDED",
+        exitDisposition,
+        badDebtAmount,
+        paymentStatus: badDebtAmount > 0 ? "Overdue" : "Paid",
+        arrearsBalance: badDebtAmount,
         vacatingDate: todayStr,
-        paymentStatus: "Paid",
-        arrearsBalance: 0,
         checkoutSettlement,
         paymentHistory: [
           ...(occupant.paymentHistory || []),
@@ -166,16 +184,18 @@ export function CheckOutSettlementModal({
         ],
       };
 
-      // Update occupantStore SSOT
+      // Update occupantStore SSOT & Cloud Firestore
       occupantStore.updateOccupant(updatedOccupant, propertyId);
+      await saveOccupantToFirestore(propertyId, updatedOccupant);
 
       // 2. Reset Bed Status to "Available" (Reusing standard Available category)
       propertyStore.freeUpBedSlot(propertyId, roomNumber || occupant.roomNumber, bedCode || occupant.bedCode, occupant.id);
 
-      // 3. Log Financial Outflow in expenseStore (Expense Ledger)
-      if (netRefundableAmount > 0) {
-        const propName = propertySettingsStore.getSettings(propertyId)?.propertyName || "PG Property";
-        const todayIso = new Date().toISOString().slice(0, 10);
+      // 3. Log Financial Outflow / Bad Debt in expenseStore (Expense Ledger)
+      const propName = propertySettingsStore.getSettings(propertyId)?.propertyName || "PG Property";
+      const todayIso = new Date().toISOString().slice(0, 10);
+
+      if (netRefundableAmount > 0 && !isBadDebtExit) {
         expenseStore.addExpense(propertyId, {
           category: "Security Deposit Refund",
           amount: netRefundableAmount,
@@ -184,6 +204,17 @@ export function CheckOutSettlementModal({
           date: todayIso,
           hasReceipt: false,
           notes: `Check-out deposit refund for ${occupant.name} (Room ${roomNumber || occupant.roomNumber || "N/A"} - ${bedCode || occupant.bedCode || "N/A"})`,
+        });
+      } else if (badDebtAmount > 0) {
+        // Record non-cash bad debt operating write-off
+        expenseStore.addExpense(propertyId, {
+          category: "Bad Debt & Absconded Losses",
+          amount: badDebtAmount,
+          paidFrom: "Non-Cash Write-Off",
+          property: propName,
+          date: todayIso,
+          hasReceipt: false,
+          notes: `Unrecovered bad debt write-off for ${occupant.name} (${occupant.stayType} - Rm ${roomNumber || occupant.roomNumber}) - ${exitDisposition === "ABSCONDED" ? "Absconded without notice" : "Disputed default / Refused to pay dues"}. Rent/Dues: ₹${totalDeductions.toLocaleString("en-IN")}, Forfeited Deposit: ₹${initialDeposit.toLocaleString("en-IN")}.`,
         });
       }
 
@@ -340,10 +371,10 @@ export function CheckOutSettlementModal({
         <div className="flex items-center justify-between border-b border-gray-100 pb-4">
           <div>
             <span className="badge-booked px-3 py-1 rounded-full text-[10px] font-bold">
-              🔑 FORMAL TENANT CHECK-OUT & SETTLEMENT
+              🔑 FORMAL RESIDENT CHECK-OUT & SETTLEMENT
             </span>
             <h2 className="font-serif font-bold text-xl text-gray-900 mt-2">
-              Check-Out: {occupant.name}
+              Check-Out: {occupant.name} ({occupant.stayType === "Guest" ? "Guest" : "Tenant"})
             </h2>
             <p className="text-gray-500 text-xs mt-0.5">
               Room {roomNumber} ({bedCode}) • {occupant.vacatingDate ? `Promised Vacating Date: ${occupant.vacatingDate}` : "Immediate Departure (No Notice Logged)"}
@@ -358,10 +389,99 @@ export function CheckOutSettlementModal({
           </button>
         </div>
 
+        {/* SECTION 0: Exit Disposition Selector */}
+        <div className="space-y-2">
+          <label className="text-[11px] font-bold uppercase tracking-wider text-gray-700 block">
+            Exit Type / Departure Reason
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setExitDisposition("NORMAL");
+                setKeysReturned(true);
+                setDrawerKeysReturned(true);
+                setAcRemoteReturned(true);
+                setRoomInspected(true);
+                setSendThankYouNotice(true);
+                setSettlementNotes("");
+              }}
+              className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                exitDisposition === "NORMAL"
+                  ? "border-emerald-500 bg-emerald-50/80 ring-2 ring-emerald-500/20 text-emerald-950 font-bold shadow-2xs"
+                  : "border-gray-200 bg-white hover:bg-gray-50 text-gray-700"
+              }`}
+            >
+              <div className="flex items-center gap-1.5 font-bold text-xs text-emerald-800">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>Normal Departure</span>
+              </div>
+              <p className="text-[10px] text-gray-500 mt-1 leading-snug">
+                Keys returned, room inspected, deposit settled cleanly.
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setExitDisposition("ABSCONDED");
+                setKeysReturned(false);
+                setDrawerKeysReturned(false);
+                setAcRemoteReturned(false);
+                setRoomInspected(false);
+                setSendThankYouNotice(false);
+                setSettlementNotes("Resident absconded without notice/intimation. Left room uninspected with pending dues.");
+              }}
+              className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                exitDisposition === "ABSCONDED"
+                  ? "border-red-500 bg-red-50/80 ring-2 ring-red-500/20 text-red-950 font-bold shadow-2xs"
+                  : "border-gray-200 bg-white hover:bg-gray-50 text-gray-700"
+              }`}
+            >
+              <div className="flex items-center gap-1.5 font-bold text-xs text-red-700">
+                <AlertTriangle className="w-4 h-4 text-red-600" />
+                <span>🚨 Absconded / Runaway</span>
+              </div>
+              <p className="text-[10px] text-gray-500 mt-1 leading-snug">
+                Escaped without notice. Deposit forfeited & bad debt recorded.
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setExitDisposition("DEFAULTED");
+                setSendThankYouNotice(false);
+                setSettlementNotes("Resident refused to clear outstanding rent/damages before vacating.");
+              }}
+              className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                exitDisposition === "DEFAULTED"
+                  ? "border-amber-500 bg-amber-50/80 ring-2 ring-amber-500/20 text-amber-950 font-bold shadow-2xs"
+                  : "border-gray-200 bg-white hover:bg-gray-50 text-gray-700"
+              }`}
+            >
+              <div className="flex items-center gap-1.5 font-bold text-xs text-amber-800">
+                <TrendingDown className="w-4 h-4 text-amber-600" />
+                <span>⚠️ Refused to Pay</span>
+              </div>
+              <p className="text-[10px] text-gray-500 mt-1 leading-snug">
+                Disputed checkout. Unpaid dues logged as written-off loss.
+              </p>
+            </button>
+          </div>
+        </div>
+
         {/* SECTION 1: Physical Assets Handover Checklist */}
-        <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200 space-y-3">
-          <div className="flex items-center gap-2 text-amber-900 font-bold text-xs">
-            <Key className="w-4 h-4 text-[#c2652a]" /> Physical Key & Asset Handover Checklist
+        <div className={`p-4 rounded-2xl border space-y-3 transition-colors ${isBadDebtExit ? "bg-red-50/40 border-red-200" : "bg-amber-50/60 border-amber-200"}`}>
+          <div className="flex items-center justify-between text-xs font-bold">
+            <div className={`flex items-center gap-2 ${isBadDebtExit ? "text-red-900" : "text-amber-900"}`}>
+              <Key className="w-4 h-4 text-[#c2652a]" /> Physical Key & Asset Handover Checklist
+            </div>
+            {isBadDebtExit && (
+              <span className="text-[10px] font-black text-red-700 uppercase bg-red-100 px-2 py-0.5 rounded-full">
+                Uninspected Departure
+              </span>
+            )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
             <label className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-amber-200 cursor-pointer hover:bg-amber-100/40">
@@ -496,12 +616,49 @@ export function CheckOutSettlementModal({
             </div>
           </div>
 
-          {/* Dynamic Net Settlement Summary Banner (2-Way: Refund vs Deficit) */}
-          {netDifference >= 0 ? (
+          {/* Dynamic Net Settlement Summary Banner */}
+          {isBadDebtExit ? (
+            <div className="p-4 rounded-2xl bg-red-50 border-2 border-red-300 space-y-2 animate-in fade-in">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-red-900 bg-red-200/80 px-2 py-0.5 rounded-full">
+                  Security Deposit: FORFEITED
+                </span>
+                {badDebtAmount > 0 ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-red-600 text-white animate-pulse">
+                    🚨 Bad Debt Write-Off Required
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-200 text-amber-900">
+                    🛡️ Covered by Forfeited Deposit
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <div>
+                  <span className="text-xs font-bold text-gray-800 block">
+                    Unrecovered Net Loss / Bad Debt:
+                  </span>
+                  <span className="text-xl font-serif font-black text-red-950 font-sans">
+                    ₹{badDebtAmount.toLocaleString("en-IN")}
+                  </span>
+                </div>
+                <div className="text-right text-[10px] text-red-800 font-medium">
+                  Deposit Forfeited: ₹{initialDeposit.toLocaleString("en-IN")} • Dues: ₹{totalDeductions.toLocaleString("en-IN")}
+                </div>
+              </div>
+
+              <p className="text-[11px] text-red-900 leading-snug pt-1">
+                {badDebtAmount > 0
+                  ? `₹${badDebtAmount.toLocaleString("en-IN")} will be written off as an unrecovered operating loss in Financial Hub. Resident's Phone & Aadhaar will be flagged on the Property Blacklist.`
+                  : `Security deposit of ₹${initialDeposit.toLocaleString("en-IN")} is retained as penalty income. No refund will be issued.`}
+              </p>
+            </div>
+          ) : netDifference >= 0 ? (
             <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">
-                  👉 Net Refund to Pay to Tenant
+                  👉 Net Refund to Pay to Resident
                 </span>
                 <span className="text-xl font-serif font-bold text-emerald-950">
                   ₹{netRefundableAmount.toLocaleString("en-IN")}
@@ -515,7 +672,7 @@ export function CheckOutSettlementModal({
             <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-300 flex items-center justify-between animate-in fade-in">
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800 block">
-                  👉 Net Deficit to Collect from Tenant
+                  👉 Net Deficit to Collect from Resident
                 </span>
                 <span className="text-xl font-serif font-bold text-rose-950">
                   ₹{netDeficitToCollect.toLocaleString("en-IN")} 🔴
@@ -529,51 +686,55 @@ export function CheckOutSettlementModal({
         </div>
 
         {/* SECTION 3: Refund / Deficit Payment Channel & Notes */}
-        <div className="space-y-3">
-          <label className="block font-bold text-gray-900 text-xs">
-            {netDifference >= 0 ? "Refund Payment Mode (Channel) *" : "Deficit Collection Mode (Channel) *"}
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => setPaymentChannel("Online payments (UPI)")}
-              className={`p-3 rounded-xl border font-bold text-xs transition-all cursor-pointer text-left flex items-center gap-2 ${
-                paymentChannel === "Online payments (UPI)"
-                  ? "bg-orange-50 border-[#c2652a] text-[#c2652a] ring-1 ring-[#c2652a]"
-                  : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              <CreditCard className="w-4 h-4" /> Online payments (UPI)
-            </button>
+        {!isBadDebtExit && (
+          <div className="space-y-3">
+            <label className="block font-bold text-gray-900 text-xs">
+              {netDifference >= 0 ? "Refund Payment Mode (Channel) *" : "Deficit Collection Mode (Channel) *"}
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setPaymentChannel("Online payments (UPI)")}
+                className={`p-3 rounded-xl border font-bold text-xs transition-all cursor-pointer text-left flex items-center gap-2 ${
+                  paymentChannel === "Online payments (UPI)"
+                    ? "bg-orange-50 border-[#c2652a] text-[#c2652a] ring-1 ring-[#c2652a]"
+                    : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                <CreditCard className="w-4 h-4" /> Online payments (UPI)
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setPaymentChannel("Cash Desk")}
-              className={`p-3 rounded-xl border font-bold text-xs transition-all cursor-pointer text-left flex items-center gap-2 ${
-                paymentChannel === "Cash Desk"
-                  ? "bg-orange-50 border-[#c2652a] text-[#c2652a] ring-1 ring-[#c2652a]"
-                  : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              <ShieldCheck className="w-4 h-4" /> Cash Desk
-            </button>
+              <button
+                type="button"
+                onClick={() => setPaymentChannel("Cash Desk")}
+                className={`p-3 rounded-xl border font-bold text-xs transition-all cursor-pointer text-left flex items-center gap-2 ${
+                  paymentChannel === "Cash Desk"
+                    ? "bg-orange-50 border-[#c2652a] text-[#c2652a] ring-1 ring-[#c2652a]"
+                    : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                <ShieldCheck className="w-4 h-4" /> Cash Desk
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* SECTION 4: Automated Digital Dispatch (WhatsApp & Email) */}
-        <div className="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-emerald-950">
-          <label className="flex items-center gap-2.5 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={sendThankYouNotice}
-              onChange={(e) => setSendThankYouNotice(e.target.checked)}
-              className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-            />
-            <span className="font-bold text-xs text-emerald-950 flex items-center gap-1.5">
-              <span>💬</span> Send Thank You note & Settlement PDF Receipt via WhatsApp & Email
-            </span>
-          </label>
-        </div>
+        {!isBadDebtExit && (
+          <div className="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-emerald-950">
+            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={sendThankYouNotice}
+                onChange={(e) => setSendThankYouNotice(e.target.checked)}
+                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+              />
+              <span className="font-bold text-xs text-emerald-950 flex items-center gap-1.5">
+                <span>💬</span> Send Thank You note & Settlement PDF Receipt via WhatsApp & Email
+              </span>
+            </label>
+          </div>
+        )}
 
         {/* SECTION 5: Final Execution Action */}
         <div className="pt-2 flex gap-3">
@@ -586,17 +747,23 @@ export function CheckOutSettlementModal({
           </button>
           <button
             type="button"
-            disabled={isSubmitting || !keysReturned}
+            disabled={isSubmitting || (!isBadDebtExit && !keysReturned)}
             onClick={handleExecuteCheckout}
             className={`flex-1 py-3.5 rounded-xl text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 ${
-              netDifference >= 0
+              isBadDebtExit
+                ? "bg-red-600 hover:bg-red-700"
+                : netDifference >= 0
                 ? "bg-[#c2652a] hover:bg-[#c2652a]/90"
                 : "bg-rose-600 hover:bg-rose-700"
             }`}
           >
             <CheckCircle2 className="w-4 h-4" />
             <span>
-              {netDifference >= 0
+              {isBadDebtExit
+                ? exitDisposition === "ABSCONDED"
+                  ? `Confirm Absconded (${badDebtAmount > 0 ? `₹${badDebtAmount.toLocaleString("en-IN")} Bad Debt` : "Forfeit Deposit"})`
+                  : `Confirm Default (${badDebtAmount > 0 ? `₹${badDebtAmount.toLocaleString("en-IN")} Loss` : "Forfeit Deposit"})`
+                : netDifference >= 0
                 ? "Complete Check-Out & Release Bed"
                 : `Collect ₹${netDeficitToCollect.toLocaleString("en-IN")} & Complete Check-Out`}
             </span>

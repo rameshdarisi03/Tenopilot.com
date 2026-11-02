@@ -54,8 +54,9 @@ import {
   ProcessedDocument,
 } from "@/utils/documentSecurity";
 import { uploadKycDocumentToFirebase } from "@/utils/uploadDocument";
-import { lookupExistingOccupant, lookupExistingOccupantByEmail, formatBedLabel } from "@/utils/phoneLookup";
+import { lookupExistingOccupant, lookupExistingOccupantByEmail, formatBedLabel, lookupBlacklistedDefaulter, DefaulterRecord } from "@/utils/phoneLookup";
 import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
+import { BlacklistDefaulterAlertModal } from "@/components/dashboard/BlacklistDefaulterAlertModal";
 import { saveOccupantToFirestore, subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
 import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModal";
 import { useAuth } from "@/providers/AuthProvider";
@@ -183,6 +184,10 @@ export default function OnboardGuestPage({
   const [createdGuest, setCreatedGuest] = useState<Occupant | null>(null);
   const [sendWelcomeWa, setSendWelcomeWa] = useState(true);
   const [waDispatchStatus, setWaDispatchStatus] = useState<"idle" | "sent" | "failed" | "skipped">("idle");
+
+  // Blacklist & Defaulter Shield State
+  const [detectedDefaulter, setDetectedDefaulter] = useState<DefaulterRecord | null>(null);
+  const [isBlacklistBypassed, setIsBlacklistBypassed] = useState(false);
 
   // Reactive property structure state subscribed to propertyStore
   const [propertyStructure, setPropertyStructure] = useState<FloorConfig[]>(() =>
@@ -402,7 +407,7 @@ export default function OnboardGuestPage({
   };
 
   // Final Action: Complete Guest Onboarding
-  const handleFinalGuestSubmit = () => {
+  const handleFinalGuestSubmit = (bypassBlacklistCheck = false) => {
     if (sub.status === "EXPIRED") {
       alert("🔒 Free Trial Ended: Your trial has expired. Upgrade to the Pro Plan to onboard new guests.");
       router.push(`/p/${propertyId}/subscription`);
@@ -412,6 +417,15 @@ export default function OnboardGuestPage({
     if (capacityStatus.isAtCapacity) {
       alert(`⚠️ Platform Tenant Capacity Limit (${effectiveTenantLimit}) reached! Upgrade to Pro or purchase a Tenant Extension Pack (+25 slots for ₹{(platformConfig?.tenantPackPrice || TENANT_EXTENSION_MONTHLY_PRICE || 125)}/mo) to onboard additional occupants.`);
       return;
+    }
+
+    // 🚨 Blacklist & Fraud Defaulter Check (Phone & Aadhaar)
+    if (!bypassBlacklistCheck && !isBlacklistBypassed) {
+      const match = lookupBlacklistedDefaulter(phone, undefined, propertyId);
+      if (match) {
+        setDetectedDefaulter(match);
+        return;
+      }
     }
 
     const newId = `og-guest-${Date.now()}`;
@@ -1611,7 +1625,7 @@ export default function OnboardGuestPage({
                 ) : (
                   <button
                     type="button"
-                    onClick={handleFinalGuestSubmit}
+                    onClick={() => handleFinalGuestSubmit(false)}
                     className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all min-h-[48px]"
                   >
                     <CheckCircle2 className="w-4 h-4" /> Complete Guest Onboarding
@@ -1701,6 +1715,19 @@ export default function OnboardGuestPage({
           onSuccess={() => {
             setShowFastTrackModal(false);
             router.refresh();
+          }}
+        />
+        {/* 🚨 Blacklist & Defaulter Alert Shield Modal */}
+        <BlacklistDefaulterAlertModal
+          isOpen={!!detectedDefaulter}
+          defaulter={detectedDefaulter}
+          onCancel={() => setDetectedDefaulter(null)}
+          onProceedAnyway={() => {
+            setIsBlacklistBypassed(true);
+            setDetectedDefaulter(null);
+            setTimeout(() => {
+              handleFinalGuestSubmit(true);
+            }, 50);
           }}
         />
       </div>

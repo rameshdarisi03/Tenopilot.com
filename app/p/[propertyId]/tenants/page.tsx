@@ -2888,6 +2888,30 @@ export default function TenantsDirectoryPage({
                         </td>
                         <td className="p-4">
                           {(() => {
+                            if (isPastTenant) {
+                              if (occ.exitDisposition === "ABSCONDED") {
+                                return (
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-red-100 text-red-700 border border-red-300 inline-flex items-center gap-1">
+                                    <span>🚨 ABSCONDED</span>
+                                    {occ.badDebtAmount ? <span>(₹{occ.badDebtAmount.toLocaleString("en-IN")})</span> : null}
+                                  </span>
+                                );
+                              }
+                              if (occ.exitDisposition === "DEFAULTED") {
+                                return (
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1">
+                                    <span>⚠️ DEFAULTED</span>
+                                    {occ.badDebtAmount ? <span>(₹{occ.badDebtAmount.toLocaleString("en-IN")})</span> : null}
+                                  </span>
+                                );
+                              }
+                              return (
+                                <span className="px-2.5 py-1 rounded text-[10px] font-bold uppercase bg-gray-100 text-gray-700 border border-gray-200">
+                                  Checked Out
+                                </span>
+                              );
+                            }
+
                             const stmt = calculateOccupantFinancialStatement(occ, currentSettings);
                             const isPaid = stmt.isFullyPaid;
                             const isPartial = stmt.isPartialPaid;
@@ -3357,24 +3381,42 @@ Scroll vertically to browse all residents without pagination limits
 
                             {/* Status Badge & Fast WhatsApp Button Pinned to Right */}
                             <div className="flex items-center gap-1 shrink-0 ml-1">
-                              <span
-                                className={`inline-flex items-center gap-1 rounded font-bold uppercase select-none shrink-0 ${statusSizeClass} ${
-                                  isPaid
-                                    ? "bg-green-100 text-green-700"
-                                    : isPartial
-                                    ? "bg-orange-100 text-orange-800 border border-orange-200"
-                                    : isOverdue
-                                    ? "bg-red-100 text-red-600 border border-red-200"
-                                    : "bg-orange-100 text-orange-600"
-                                }`}
-                              >
-                                <span>{statusMain}</span>
-                                {statusExtra && (
-                                  <span className="font-mono font-bold lowercase tracking-normal">
-                                    {statusExtra}
+                              {isPastTenant ? (
+                                occ.exitDisposition === "ABSCONDED" ? (
+                                  <span className="inline-flex items-center gap-1 rounded font-black uppercase text-[9px] px-1.5 py-0.5 bg-red-100 text-red-700 border border-red-300 shrink-0">
+                                    <span>🚨 ABSCONDED</span>
+                                    {occ.badDebtAmount ? <span>(₹{(occ.badDebtAmount / 1000).toFixed(0)}k)</span> : null}
                                   </span>
-                                )}
-                              </span>
+                                ) : occ.exitDisposition === "DEFAULTED" ? (
+                                  <span className="inline-flex items-center gap-1 rounded font-black uppercase text-[9px] px-1.5 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 shrink-0">
+                                    <span>⚠️ DEFAULTED</span>
+                                    {occ.badDebtAmount ? <span>(₹{(occ.badDebtAmount / 1000).toFixed(0)}k)</span> : null}
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center rounded font-bold uppercase text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-700 shrink-0">
+                                    Checked Out
+                                  </span>
+                                )
+                              ) : (
+                                <span
+                                  className={`inline-flex items-center gap-1 rounded font-bold uppercase select-none shrink-0 ${statusSizeClass} ${
+                                    isPaid
+                                      ? "bg-green-100 text-green-700"
+                                      : isPartial
+                                      ? "bg-orange-100 text-orange-800 border border-orange-200"
+                                      : isOverdue
+                                      ? "bg-red-100 text-red-600 border border-red-200"
+                                      : "bg-orange-100 text-orange-600"
+                                  }`}
+                                >
+                                  <span>{statusMain}</span>
+                                  {statusExtra && (
+                                    <span className="font-mono font-bold lowercase tracking-normal">
+                                      {statusExtra}
+                                    </span>
+                                  )}
+                                </span>
+                              )}
 
                               {/* Mobile WhatsApp Chat Action Button */}
                               <div className={`relative ${activeWhatsAppMenuId === occ.id ? "z-50" : ""}`}>
@@ -5077,8 +5119,14 @@ Scroll vertically to browse all residents without pagination limits
             propertyId={propertyId}
             isOpen={!!checkOutModalOccupant}
             onClose={() => setCheckOutModalOccupant(null)}
-            onSuccess={() => {
-              triggerToast(`🎉 Completed formal check-out & deposit settlement for ${checkOutModalOccupant.name}! Bed ${checkOutModalOccupant.roomNumber} (${checkOutModalOccupant.bedCode}) is now Available 🟢`);
+            onSuccess={(updated) => {
+              if (updated?.exitDisposition === "ABSCONDED") {
+                triggerToast(`🚨 Recorded absconded departure for ${updated.name}. Bed is now Available 🟢. Unrecovered loss logged to bad debt.`);
+              } else if (updated?.exitDisposition === "DEFAULTED") {
+                triggerToast(`⚠️ Recorded payment default for ${updated.name}. Bed is now Available 🟢. Loss written off.`);
+              } else {
+                triggerToast(`🎉 Completed formal check-out & deposit settlement for ${checkOutModalOccupant.name}! Bed ${checkOutModalOccupant.roomNumber} (${checkOutModalOccupant.bedCode}) is now Available 🟢`);
+              }
             }}
           />
         )}

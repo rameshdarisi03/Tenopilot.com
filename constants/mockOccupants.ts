@@ -45,7 +45,9 @@ export interface CheckoutSettlementAudit {
   totalDeductions: number;
   netRefunded: number;
   netDeficitCollected?: number;
-  status: "FULL_REFUND" | "PARTIAL_REFUND" | "NO_REFUND";
+  badDebtWrittenOff?: number;
+  exitDisposition?: "NORMAL" | "ABSCONDED" | "DEFAULTED";
+  status: "FULL_REFUND" | "PARTIAL_REFUND" | "NO_REFUND" | "BAD_DEBT_WRITTEN_OFF";
   paymentChannel?: string;
   notes?: string;
 }
@@ -105,7 +107,9 @@ export interface Occupant {
     aadhaarPdfUrl?: string;
   };
   securityDeposit?: number;
-  depositStatus?: "PAID" | "PENDING" | "PARTIAL" | "REFUNDED";
+  depositStatus?: "PAID" | "PENDING" | "PARTIAL" | "REFUNDED" | "FORFEITED";
+  exitDisposition?: "NORMAL" | "ABSCONDED" | "DEFAULTED";
+  badDebtAmount?: number;
   partialPaidThisCycle?: number;
   arrearsBalance?: number;
   vehicleNumber?: string;

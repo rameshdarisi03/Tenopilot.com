@@ -64,8 +64,9 @@ import {
 import { uploadKycDocumentToFirebase } from "@/utils/uploadDocument";
 import { downloadRentalAgreementPdf } from "@/utils/pdfGenerator";
 import { sanitizeVehicleNumber, normalizePhoneNumber } from "@/utils/security";
-import { lookupExistingOccupant, lookupExistingOccupantByEmail, formatBedLabel } from "@/utils/phoneLookup";
+import { lookupExistingOccupant, lookupExistingOccupantByEmail, formatBedLabel, lookupBlacklistedDefaulter, DefaulterRecord } from "@/utils/phoneLookup";
 import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
+import { BlacklistDefaulterAlertModal } from "@/components/dashboard/BlacklistDefaulterAlertModal";
 import { saveOccupantToFirestore, subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
 import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModal";
 import { useAuth } from "@/providers/AuthProvider";
@@ -184,6 +185,10 @@ export default function OnboardTenantPage({
   const [createdTenant, setCreatedTenant] = useState<Occupant | null>(null);
   const [sendWelcomeWa, setSendWelcomeWa] = useState(true);
   const [waDispatchStatus, setWaDispatchStatus] = useState<"idle" | "sent" | "failed" | "skipped">("idle");
+
+  // Blacklist & Defaulter Shield State
+  const [detectedDefaulter, setDetectedDefaulter] = useState<DefaulterRecord | null>(null);
+  const [isBlacklistBypassed, setIsBlacklistBypassed] = useState(false);
 
   // User Profile & Tenant Capacity Limits
   const { profile } = useAuth();
@@ -521,7 +526,7 @@ export default function OnboardTenantPage({
   };
 
   // Final Action: Agree & Onboard Tenant
-  const handleFinalSubmit = () => {
+  const handleFinalSubmit = (bypassBlacklistCheck = false) => {
     if (sub.status === "EXPIRED") {
       triggerToast("🔒 Free Trial Ended: Upgrade to Pro to onboard new tenants.");
       router.push(`/p/${propertyId}/subscription`);
@@ -536,6 +541,15 @@ export default function OnboardTenantPage({
       setShowExtensionModal(true);
       triggerToast(`⚠️ Tenant capacity limit (${effectiveTenantLimit}) reached! Upgrade to proceed.`);
       return;
+    }
+
+    // 🚨 Blacklist & Fraud Defaulter Check (Phone & Aadhaar)
+    if (!bypassBlacklistCheck && !isBlacklistBypassed) {
+      const match = lookupBlacklistedDefaulter(phone, undefined, propertyId);
+      if (match) {
+        setDetectedDefaulter(match);
+        return;
+      }
     }
 
     const newId = `og-tenant-${Date.now()}`;
@@ -1916,7 +1930,7 @@ export default function OnboardTenantPage({
                 ) : (
                   <button
                     type="button"
-                    onClick={handleFinalSubmit}
+                    onClick={() => handleFinalSubmit(false)}
                     className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all min-h-[48px] cursor-pointer"
                   >
                     <CheckCircle2 className="w-4 h-4" /> Agree & Onboard Tenant
@@ -2234,6 +2248,19 @@ export default function OnboardTenantPage({
             </div>
           </div>
         )}
+        {/* 🚨 Blacklist & Defaulter Alert Shield Modal */}
+        <BlacklistDefaulterAlertModal
+          isOpen={!!detectedDefaulter}
+          defaulter={detectedDefaulter}
+          onCancel={() => setDetectedDefaulter(null)}
+          onProceedAnyway={() => {
+            setIsBlacklistBypassed(true);
+            setDetectedDefaulter(null);
+            setTimeout(() => {
+              handleFinalSubmit(true);
+            }, 50);
+          }}
+        />
       </div>
     </div>
   );
