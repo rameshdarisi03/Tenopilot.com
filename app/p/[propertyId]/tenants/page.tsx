@@ -5463,23 +5463,61 @@ Scroll vertically to browse all residents without pagination limits
 
                               setIsSendingCloudKYC(true);
                               try {
-                                recipients.forEach((occ) => {
-                                  whatsappCreditStore.deductCredit(propertyId, {
-                                    recipientPhone: occ.phone,
-                                    recipientName: occ.name,
-                                    messageType: "ONBOARDING_INVITE",
-                                    description: `Digital Check-in & KYC Invitation for ${occ.name} (Room ${occ.roomNumber})`,
-                                  });
-                                });
-                                const remaining = whatsappCreditStore.getCredits(propertyId);
-                                setWhatsappCredits(remaining);
+                                const pSettings = propertySettingsStore.getSettings(propertyId);
+                                const pName = pSettings?.propertyName || currentSettings?.propertyName || "TenoPilot PG";
+                                const deskPhone = currentSettings?.managerPhone || pSettings?.managerPhone || "";
 
-                                fireCelebrationConfetti();
-                                setKycSuccessModalData({
-                                  count: recipients.length,
-                                  creditsRemaining: remaining,
+                                const messagesToSend = recipients.map((occ) => {
+                                  const shortToken = `${encodeURIComponent(occ.id)}?p=${encodeURIComponent(propertyId)}&name=${encodeURIComponent(occ.name)}&jd=${encodeURIComponent(occ.joiningDate || "")}`;
+                                  return {
+                                    toPhone: occ.phone,
+                                    recipientName: occ.name,
+                                    propertyId,
+                                    propertyName: pName,
+                                    type: "ONBOARDING_INVITE" as const,
+                                    params: {
+                                      roomNumber: occ.roomNumber || "N/A",
+                                      bedCode: occ.bedCode || "Bed A",
+                                      joiningDate: occ.joiningDate || "On Arrival",
+                                      managerPhone: deskPhone,
+                                      propertyPhone: deskPhone,
+                                      onboardUrl: `https://www.tenopilot.com/self-onboard/${shortToken}`,
+                                    },
+                                  };
                                 });
-                                triggerToast(`⚡ Sent digital KYC invitations to ${recipients.length} residents!`);
+
+                                const res = await fetch("/api/whatsapp/send", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    propertyId,
+                                    userId: profile?.uid,
+                                    userEmail: profile?.email,
+                                    messages: messagesToSend,
+                                  }),
+                                });
+
+                                const resData = await res.json().catch(() => ({}));
+
+                                if (res.ok) {
+                                  await whatsappCreditStore.fetchWalletFromFirestore(propertyId);
+                                  const remaining = typeof resData.creditsRemaining === "number"
+                                    ? resData.creditsRemaining
+                                    : whatsappCreditStore.getCredits(propertyId);
+                                  setWhatsappCredits(remaining);
+
+                                  fireCelebrationConfetti();
+                                  setKycSuccessModalData({
+                                    count: resData.successfulCount || recipients.length,
+                                    creditsRemaining: remaining,
+                                  });
+                                  triggerToast(`⚡ Sent digital KYC invitations to ${resData.successfulCount || recipients.length} residents!`);
+                                } else {
+                                  if (resData?.requiresPro) {
+                                    setShowProReminderPaywall(true);
+                                  }
+                                  triggerToast(resData?.error || "⚠️ Failed to dispatch WhatsApp KYC invitations.");
+                                }
                               } catch (err) {
                                 console.error(err);
                                 triggerToast("⚠️ Error sending KYC invitations.");
