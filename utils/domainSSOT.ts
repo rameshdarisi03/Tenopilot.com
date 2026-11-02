@@ -1690,7 +1690,7 @@ export function calculatePropertyRentComplianceSummary(
       paidTenantsCount++;
     } else {
       totalPendingDueAmount += stmt.netOutstandingBalance;
-      if (stmt.isOverdue || occ.paymentStatus === "Overdue" || (occ.daysDiff !== undefined && occ.daysDiff < 0)) {
+      if (stmt.isOverdue) {
         overdueTenantsCount++;
         overduePendingAmount += stmt.netOutstandingBalance;
       } else {

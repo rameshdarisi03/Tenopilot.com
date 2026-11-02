@@ -701,58 +701,42 @@ export default function PropertyOverviewPage({
                 </div>
               </div>
 
-              {/* Two Horizontal Sub-Cards: Due & Overdue */}
+              {/* Two Horizontal Sub-Cards: Due (Orange) & Overdue (Red) */}
               <div className="grid grid-cols-2 gap-2 mt-3 w-full">
-                {/* 1. Due Mini-Card */}
+                {/* 1. Due Mini-Card (Orange) */}
                 <Link
                   href={`/p/${propertyId}/tenants?filter=due&sort=due-priority-desc&sendReminders=true`}
-                  className="p-3 rounded-2xl bg-amber-50/50 hover:bg-amber-100/70 border border-amber-200 hover:border-amber-400 transition-all flex flex-col justify-between group/due cursor-pointer active:scale-95 shadow-2xs"
+                  className="p-3.5 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white transition-all flex flex-col justify-between group/due cursor-pointer active:scale-95 shadow-sm"
                   title="Click to view Due residents (High to Low Priority) and send reminders"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900">
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-white">
                       Due
                     </span>
-                    <span className="text-[10px] font-extrabold text-amber-700 opacity-60 group-hover/due:opacity-100 group-hover/due:translate-x-0.5 transition-all">
+                    <span className="text-[11px] font-extrabold text-white/90 group-hover/due:translate-x-0.5 transition-transform">
                       ➔
                     </span>
                   </div>
-                  <p className="font-sans font-bold text-2xl sm:text-3xl text-gray-900 tracking-tight mt-1.5 tabular-nums">
+                  <p className="font-sans font-black text-2xl sm:text-3xl text-white tracking-tight mt-1.5 tabular-nums">
                     <AnimatedNumberCounter value={rentCompliance.gracePendingCount} />
                   </p>
                 </Link>
 
-                {/* 2. Overdue Mini-Card */}
+                {/* 2. Overdue Mini-Card (Red) */}
                 <Link
                   href={`/p/${propertyId}/tenants?filter=overdue&sort=overdue-priority-desc&sendReminders=true`}
-                  className={`p-3 rounded-2xl border transition-all flex flex-col justify-between group/overdue cursor-pointer active:scale-95 shadow-2xs ${
-                    rentCompliance.overdueTenantsCount > 0
-                      ? "bg-rose-50/70 hover:bg-rose-100/80 border-rose-200 hover:border-rose-400"
-                      : "bg-gray-50/80 hover:bg-gray-100 border-gray-200 hover:border-gray-300"
-                  }`}
+                  className="p-3.5 rounded-2xl bg-red-500 hover:bg-red-600 text-white transition-all flex flex-col justify-between group/overdue cursor-pointer active:scale-95 shadow-sm"
                   title="Click to view Overdue residents (High to Low Priority) and send reminders"
                 >
                   <div className="flex items-center justify-between">
-                    <span
-                      className={`text-[11px] font-bold uppercase tracking-wider ${
-                        rentCompliance.overdueTenantsCount > 0 ? "text-rose-800" : "text-gray-600"
-                      }`}
-                    >
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-white">
                       Overdue
                     </span>
-                    <span
-                      className={`text-[10px] font-extrabold opacity-60 group-hover/overdue:opacity-100 group-hover/overdue:translate-x-0.5 transition-all ${
-                        rentCompliance.overdueTenantsCount > 0 ? "text-rose-700" : "text-gray-400"
-                      }`}
-                    >
+                    <span className="text-[11px] font-extrabold text-white/90 group-hover/overdue:translate-x-0.5 transition-transform">
                       ➔
                     </span>
                   </div>
-                  <p
-                    className={`font-sans font-bold text-2xl sm:text-3xl tracking-tight mt-1.5 tabular-nums ${
-                      rentCompliance.overdueTenantsCount > 0 ? "text-rose-600" : "text-gray-900"
-                    }`}
-                  >
+                  <p className="font-sans font-black text-2xl sm:text-3xl text-white tracking-tight mt-1.5 tabular-nums">
                     <AnimatedNumberCounter value={rentCompliance.overdueTenantsCount} />
                   </p>
                 </Link>

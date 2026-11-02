@@ -546,7 +546,7 @@ export default function TenantsDirectoryPage({
           const stmt = calculateOccupantFinancialStatement(o, currentSettings);
           if (stmt.isFullyPaid) return false;
           if (isOverdueRequest) {
-            return stmt.isOverdue || o.paymentStatus === "Overdue" || (o.daysDiff !== undefined && o.daysDiff < 0);
+            return stmt.isOverdue;
           }
           return true;
         });
@@ -556,7 +556,7 @@ export default function TenantsDirectoryPage({
           setSelectedIds(targetIds);
         }
 
-        if (sendRemindersParam || actionParam === "reminders") {
+        if ((sendRemindersParam || actionParam === "reminders") && targetIds.length > 0) {
           setShowRentReminderQRModal(true);
         }
         initialUrlActionHandledRef.current = true;
