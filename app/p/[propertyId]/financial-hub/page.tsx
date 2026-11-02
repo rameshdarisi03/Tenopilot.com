@@ -55,7 +55,7 @@ import { CATEGORIZED_ICON_LIBRARY, RenderDynamicCategoryIcon, ReceiptRupeeIcon }
 import { occupantStore } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
-import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
+import { calculateOccupantFinancialStatement, getDynamicProgressGradient } from "@/utils/domainSSOT";
 import { complianceLogStore } from "@/constants/complianceLogStore";
 import { staffStore, UserRole } from "@/lib/staffStore";
 import { ThemedAccountSelect } from "@/components/dashboard/ThemedAccountSelect";
@@ -1593,7 +1593,11 @@ export default function FinancialHubPage({
                     <div className="flex items-center gap-2 mt-2 w-full">
                       <div className="flex-1 h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 transition-all duration-500 ease-out"
+                          className={`h-full rounded-full ${getDynamicProgressGradient(
+                            (revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 0) > 0
+                              ? (revenueMetrics.totalGrossRevenue / (revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 1)) * 100
+                              : 0
+                          )} transition-all duration-700 ease-out`}
                           style={{
                             width: `${Math.min(
                               100,
@@ -3785,7 +3789,11 @@ export default function FinancialHubPage({
                         <div className="flex items-center gap-2 mt-2 w-full">
                           <div className="flex-1 h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
                             <div
-                              className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 transition-all duration-500 ease-out"
+                              className={`h-full rounded-full ${getDynamicProgressGradient(
+                                (revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 0) > 0
+                                  ? (revenueMetrics.totalGrossRevenue / (revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 1)) * 100
+                                  : 0
+                              )} transition-all duration-700 ease-out`}
                               style={{
                                 width: `${Math.min(
                                   100,

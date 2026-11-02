@@ -1880,5 +1880,27 @@ export function matchesTenoPilotSearch(
   });
 }
 
+/**
+ * Dynamic Progress Gradient Calculator:
+ * Smoothly transitions based on achievement percentage:
+ * - Low progress (< 20%): Warm orange to amber
+ * - Moderate progress (20% - 45%): Orange transitioning through amber to warm yellow
+ * - Good progress (45% - 70%): Amber transitioning into lime-green
+ * - High progress (>= 70%): Vibrant emerald to teal/green
+ */
+export function getDynamicProgressGradient(percentage: number): string {
+  if (percentage < 20) {
+    return "bg-gradient-to-r from-orange-600 via-orange-500 to-amber-500";
+  }
+  if (percentage < 45) {
+    return "bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-400";
+  }
+  if (percentage < 70) {
+    return "bg-gradient-to-r from-amber-500 via-lime-500 to-emerald-500";
+  }
+  return "bg-gradient-to-r from-emerald-500 via-teal-400 to-green-500";
+}
+
+
 
 

@@ -57,6 +57,7 @@ import {
   calculatePropertyRentComplianceSummary,
   getBedOccupantsTimeline,
   getCanonicalBedIndex,
+  getDynamicProgressGradient,
 } from "@/utils/domainSSOT";
 
 function getTimeAwareGreeting(): string {
@@ -563,7 +564,9 @@ export default function PropertyOverviewPage({
                 <div className="flex items-center gap-2 mt-2.5 w-full">
                   <div className="flex-1 h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-amber-500 via-orange-500 to-[#c2652a] transition-all duration-500 ease-out"
+                      className={`h-full rounded-full ${getDynamicProgressGradient(
+                        bedMetrics.total > 0 ? (bedMetrics.occupied / bedMetrics.total) * 100 : 0
+                      )} transition-all duration-700 ease-out`}
                       style={{
                         width: `${Math.min(100, Math.max(0, bedMetrics.total > 0 ? (bedMetrics.occupied / bedMetrics.total) * 100 : 0))}%`,
                       }}

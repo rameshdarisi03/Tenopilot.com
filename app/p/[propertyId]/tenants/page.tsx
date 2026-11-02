@@ -14,7 +14,7 @@ import { propertySettingsStore, DEFAULT_QR_PROFILES, PaymentQRProfile, PAY_BY_CA
 import { partnerStore, PaymentAccountConfig, PartnerConfig } from "@/constants/partnerStore";
 import { subscribeOccupantsFromFirestore, saveOccupantToFirestore, updateOccupantInFirestore, deleteOccupantFromFirestore, purgeAllMockOccupantsFromFirestore, isGenuineOccupantId } from "@/lib/firestoreService";
 import { sanitizeSearchInput, normalizePhoneNumber, formatWhatsAppPhone, formatDisplayPhone, buildWhatsAppUrl, sanitizeVehicleNumber } from "@/utils/security";
-import { calculateOccupantFinancialStatement, calculateProRataRent, resolveOccupantLastPaidInfo, resolveOccupantPaymentDueDate, parseOccupantDate, matchesTenoPilotSearch, getNowIST } from "@/utils/domainSSOT";
+import { calculateOccupantFinancialStatement, calculateProRataRent, resolveOccupantLastPaidInfo, resolveOccupantPaymentDueDate, parseOccupantDate, matchesTenoPilotSearch, getNowIST, getDynamicProgressGradient } from "@/utils/domainSSOT";
 import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot, doc, setDoc, getDoc } from "firebase/firestore";
 import { PaymentProofReviewModal, PaymentProofRecord } from "@/components/dashboard/PaymentProofReviewModal";
@@ -2361,7 +2361,9 @@ export default function TenantsDirectoryPage({
                 <div className="flex items-center gap-2 mt-2 w-full">
                   <div className="flex-1 h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 transition-all duration-500 ease-out"
+                      className={`h-full rounded-full ${getDynamicProgressGradient(
+                        rentMetrics.totalExpected > 0 ? (rentMetrics.sumCollected / rentMetrics.totalExpected) * 100 : 0
+                      )} transition-all duration-700 ease-out`}
                       style={{
                         width: `${Math.min(100, Math.max(0, rentMetrics.totalExpected > 0 ? (rentMetrics.sumCollected / rentMetrics.totalExpected) * 100 : 0))}%`,
                       }}
