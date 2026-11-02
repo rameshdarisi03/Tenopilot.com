@@ -1215,7 +1215,7 @@ function PropertyMapContent({
             >
               <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
                 <p className="text-[10px] sm:text-[11px] uppercase font-bold text-emerald-600 tracking-wider truncate">
-                  Collected
+                  Revenue Collected
                 </p>
                 <div className="bg-emerald-50 text-emerald-600 p-1.5 sm:p-2 h-7 w-7 sm:h-9 sm:w-9 flex items-center justify-center rounded-lg shrink-0">
                   <CheckCircle2 className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
