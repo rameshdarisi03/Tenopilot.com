@@ -1594,18 +1594,18 @@ export default function FinancialHubPage({
                       const targetExpected = revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 0;
                       const revPct = targetExpected > 0 ? (revenueMetrics.totalGrossRevenue / targetExpected) * 100 : 0;
                       return (
-                        <div className="flex items-end gap-2 mt-3.5 w-full">
+                        <div className="flex items-end gap-2 mt-5 w-full">
                           <div className="relative flex-1 pb-0.5">
                             <div
-                              className="absolute -top-3.5 -translate-x-1/2 flex flex-col items-center pointer-events-none transition-all duration-700 ease-out"
+                              className="absolute -top-5 sm:-top-5.5 -translate-x-1/2 flex flex-col items-center pointer-events-none transition-all duration-700 ease-out z-10"
                               style={{
-                                left: `${Math.min(94, Math.max(6, revPct))}%`,
+                                left: `${Math.min(100, Math.max(0, revPct))}%`,
                               }}
                             >
-                              <span className="text-[8.5px] font-black leading-none text-gray-700 tracking-tight select-none">
+                              <div className="bg-[#7c3aed] text-white text-[8.5px] sm:text-[9px] font-black tracking-tight px-1.5 py-0.5 rounded-full shadow-xs whitespace-nowrap flex items-center justify-center leading-none">
                                 {revPct >= 10 ? `${Math.round(revPct)}%` : `${revPct.toFixed(1)}%`}
-                              </span>
-                              <div className="w-[1.5px] h-1 bg-gray-400/80 rounded-full mt-0.5" />
+                              </div>
+                              <div className="w-0 h-0 border-x-[3px] border-x-transparent border-t-[3.5px] border-t-[#7c3aed] -mt-[0.5px]" />
                             </div>
 
                             <div className="h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
@@ -3798,18 +3798,18 @@ export default function FinancialHubPage({
                           const targetExpected = revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 0;
                           const revPct = targetExpected > 0 ? (revenueMetrics.totalGrossRevenue / targetExpected) * 100 : 0;
                           return (
-                            <div className="flex items-end gap-2 mt-3.5 w-full">
+                            <div className="flex items-end gap-2 mt-5 w-full">
                               <div className="relative flex-1 pb-0.5">
                                 <div
-                                  className="absolute -top-3.5 -translate-x-1/2 flex flex-col items-center pointer-events-none transition-all duration-700 ease-out"
+                                  className="absolute -top-5 sm:-top-5.5 -translate-x-1/2 flex flex-col items-center pointer-events-none transition-all duration-700 ease-out z-10"
                                   style={{
-                                    left: `${Math.min(94, Math.max(6, revPct))}%`,
+                                    left: `${Math.min(100, Math.max(0, revPct))}%`,
                                   }}
                                 >
-                                  <span className="text-[8.5px] font-black leading-none text-gray-700 tracking-tight select-none">
+                                  <div className="bg-[#7c3aed] text-white text-[8.5px] sm:text-[9px] font-black tracking-tight px-1.5 py-0.5 rounded-full shadow-xs whitespace-nowrap flex items-center justify-center leading-none">
                                     {revPct >= 10 ? `${Math.round(revPct)}%` : `${revPct.toFixed(1)}%`}
-                                  </span>
-                                  <div className="w-[1.5px] h-1 bg-gray-400/80 rounded-full mt-0.5" />
+                                  </div>
+                                  <div className="w-0 h-0 border-x-[3px] border-x-transparent border-t-[3.5px] border-t-[#7c3aed] -mt-[0.5px]" />
                                 </div>
 
                                 <div className="h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
