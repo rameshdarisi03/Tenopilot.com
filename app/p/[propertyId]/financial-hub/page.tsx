@@ -126,10 +126,16 @@ export default function FinancialHubPage({
   >("THIS_MONTH");
   const [customStartDate, setCustomStartDate] = useState<string>(() => {
     const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split("T")[0];
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    return `${y}-${m}-01`;
   });
   const [customEndDate, setCustomEndDate] = useState<string>(() => {
-    return new Date().toISOString().split("T")[0];
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
   });
   const [showCustomDateModal, setShowCustomDateModal] = useState<boolean>(false);
 
@@ -4888,8 +4894,9 @@ export default function FinancialHubPage({
                     const now = new Date();
                     const d7 = new Date();
                     d7.setDate(now.getDate() - 7);
-                    setCustomStartDate(d7.toISOString().split("T")[0]);
-                    setCustomEndDate(now.toISOString().split("T")[0]);
+                    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                    setCustomStartDate(fmt(d7));
+                    setCustomEndDate(fmt(now));
                   }}
                   className="py-2 px-2.5 rounded-xl border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/50 text-[11px] font-bold text-gray-700 text-center transition-all cursor-pointer"
                 >
@@ -4901,8 +4908,9 @@ export default function FinancialHubPage({
                     const now = new Date();
                     const d30 = new Date();
                     d30.setDate(now.getDate() - 30);
-                    setCustomStartDate(d30.toISOString().split("T")[0]);
-                    setCustomEndDate(now.toISOString().split("T")[0]);
+                    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                    setCustomStartDate(fmt(d30));
+                    setCustomEndDate(fmt(now));
                   }}
                   className="py-2 px-2.5 rounded-xl border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/50 text-[11px] font-bold text-gray-700 text-center transition-all cursor-pointer"
                 >
@@ -4914,8 +4922,9 @@ export default function FinancialHubPage({
                     const now = new Date();
                     const d90 = new Date();
                     d90.setDate(now.getDate() - 90);
-                    setCustomStartDate(d90.toISOString().split("T")[0]);
-                    setCustomEndDate(now.toISOString().split("T")[0]);
+                    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                    setCustomStartDate(fmt(d90));
+                    setCustomEndDate(fmt(now));
                   }}
                   className="py-2 px-2.5 rounded-xl border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/50 text-[11px] font-bold text-gray-700 text-center transition-all cursor-pointer"
                 >
