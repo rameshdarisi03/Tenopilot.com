@@ -858,7 +858,11 @@ export function calculateOccupantFinancialStatement(
     const isFullyPaid = includeDepositInOutstanding
       ? netOutstandingBalance === 0
       : remainingRentDue === 0;
-    const isPartialPaid = !isFullyPaid && totalPaid > 0;
+    const isPartialPaid = !isFullyPaid && (
+      (totalRentPaid > 0 && remainingRentDue > 0) ||
+      (parkingFee > 0 && totalParkingPaid > 0 && remainingParkingDue > 0) ||
+      (includeDepositInOutstanding && remainingDepositDue > 0 && totalDepositPaid > 0)
+    );
 
     const isOverdue = !isFullyPaid && isPastGrace;
     const paymentStatusLabel: "Paid" | "Due" | "Overdue" = isFullyPaid
@@ -1048,7 +1052,11 @@ export function calculateOccupantFinancialStatement(
   const isFullyPaid = includeDepositInOutstanding
     ? netOutstandingBalance === 0
     : remainingRentDue === 0 && priorArrears === 0 && remainingParkingDue === 0;
-  const isPartialPaid = !isFullyPaid && (currentCycleRentPaid > 0 || totalDepositPaidFromReceipts > 0);
+  const isPartialPaid = !isFullyPaid && (
+    (currentCycleRentPaid > 0 && remainingRentDue > 0) ||
+    (parkingFee > 0 && totalParkingPaidFromReceipts > 0 && remainingParkingDue > 0) ||
+    (includeDepositInOutstanding && remainingDepositDue > 0 && totalDepositPaidFromReceipts > 0)
+  );
   const isOverdue = !isFullyPaid && (priorArrears > 0 || isPastGrace);
 
   const paymentStatusLabel: "Paid" | "Due" | "Overdue" = isFullyPaid
