@@ -157,13 +157,20 @@ export default function FinancialHubPage({
     const year = now.getFullYear();
     const month = now.getMonth();
 
+    const formatLocalDate = (d: Date): string => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    };
+
     switch (selectedTimelineFilter) {
       case "THIS_MONTH": {
         const firstDay = new Date(year, month, 1);
         const lastDay = new Date(year, month + 1, 0);
         return {
-          startDate: firstDay.toISOString().split("T")[0],
-          endDate: lastDay.toISOString().split("T")[0],
+          startDate: formatLocalDate(firstDay),
+          endDate: formatLocalDate(lastDay),
           label: `This Month (${firstDay.toLocaleString("en-IN", { month: "short", year: "numeric" })})`,
           isAllTime: false,
         };
@@ -172,8 +179,8 @@ export default function FinancialHubPage({
         const firstDay = new Date(year, month - 1, 1);
         const lastDay = new Date(year, month, 0);
         return {
-          startDate: firstDay.toISOString().split("T")[0],
-          endDate: lastDay.toISOString().split("T")[0],
+          startDate: formatLocalDate(firstDay),
+          endDate: formatLocalDate(lastDay),
           label: `Last Month (${firstDay.toLocaleString("en-IN", { month: "short", year: "numeric" })})`,
           isAllTime: false,
         };
@@ -184,8 +191,8 @@ export default function FinancialHubPage({
         const lastDay = new Date(year, qStartMonth + 3, 0);
         const qNum = Math.floor(month / 3) + 1;
         return {
-          startDate: firstDay.toISOString().split("T")[0],
-          endDate: lastDay.toISOString().split("T")[0],
+          startDate: formatLocalDate(firstDay),
+          endDate: formatLocalDate(lastDay),
           label: `This Quarter (Q${qNum} ${year})`,
           isAllTime: false,
         };
@@ -195,8 +202,8 @@ export default function FinancialHubPage({
         const firstDay = new Date(fyStartYear, 3, 1);
         const lastDay = new Date(fyStartYear + 1, 2, 31);
         return {
-          startDate: firstDay.toISOString().split("T")[0],
-          endDate: lastDay.toISOString().split("T")[0],
+          startDate: formatLocalDate(firstDay),
+          endDate: formatLocalDate(lastDay),
           label: `FY ${fyStartYear}-${(fyStartYear + 1).toString().slice(-2)}`,
           isAllTime: false,
         };
@@ -356,7 +363,11 @@ export default function FinancialHubPage({
   const parseDateToIso = (dateStr?: string, timestamp?: number): string => {
     if (timestamp && !isNaN(timestamp)) {
       try {
-        return new Date(timestamp).toISOString().slice(0, 10);
+        const d = new Date(timestamp);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${y}-${m}-${day}`;
       } catch (_) {}
     }
     if (!dateStr) return "";
@@ -364,9 +375,35 @@ export default function FinancialHubPage({
     if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
       return trimmed.slice(0, 10);
     }
-    const parsed = Date.parse(trimmed);
-    if (!isNaN(parsed)) {
-      return new Date(parsed).toISOString().slice(0, 10);
+    // Handle DD Mon YYYY e.g. "01 Nov 2026"
+    const dmyMatch = trimmed.match(/^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})/);
+    if (dmyMatch) {
+      const dNum = parseInt(dmyMatch[1], 10);
+      const mStr = dmyMatch[2].toLowerCase();
+      const yr = parseInt(dmyMatch[3], 10);
+      const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+      const mIdx = months.findIndex((m) => mStr.startsWith(m));
+      if (mIdx !== -1) {
+        return `${yr}-${String(mIdx + 1).padStart(2, "0")}-${String(dNum).padStart(2, "0")}`;
+      }
+    }
+    // Handle Mon YYYY e.g. "Oct 2026" -> 2026-10-01
+    const myMatch = trimmed.match(/^([A-Za-z]{3,})\s+(\d{4})/);
+    if (myMatch) {
+      const mStr = myMatch[1].toLowerCase();
+      const yr = parseInt(myMatch[2], 10);
+      const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+      const mIdx = months.findIndex((m) => mStr.startsWith(m));
+      if (mIdx !== -1) {
+        return `${yr}-${String(mIdx + 1).padStart(2, "0")}-01`;
+      }
+    }
+    const d = new Date(trimmed);
+    if (!isNaN(d.getTime())) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
     }
     return trimmed;
   };
@@ -427,22 +464,19 @@ export default function FinancialHubPage({
       totalUncollectedArrears += stmt.netOutstandingBalance;
 
       // Filter occupant's payment receipts strictly within the active date range with robust date parsing
-      const history = occ.paymentHistory || [];
+      // 🔒 STRICT SSOT: Exclude voided, cancelled, and failed receipts!
+      const rawHistory = occ.paymentHistory || [];
+      const history = rawHistory.filter(
+        (pm) => pm.status !== "VOIDED" && (pm as any).status !== "FAILED" && (pm as any).status !== "CANCELLED"
+      );
+
       const periodPayments = isAllTime
         ? history
         : history.filter((pm) => {
             const rawDate = pm.date || "";
             if (!rawDate) return false;
-            let isoDate = "";
-            if (rawDate.match(/^\d{4}-\d{2}-\d{2}/)) {
-              isoDate = rawDate.slice(0, 10);
-            } else {
-              const parsed = new Date(rawDate);
-              if (!isNaN(parsed.getTime())) {
-                isoDate = parsed.toISOString().slice(0, 10);
-              }
-            }
-            if (!isoDate) return true;
+            const isoDate = parseDateToIso(rawDate);
+            if (!isoDate) return false;
             return isoDate >= startDate && isoDate <= endDate;
           });
 
@@ -519,29 +553,6 @@ export default function FinancialHubPage({
             cashAmount += pm.amount;
           }
         });
-      } else {
-        // Fallback: If no granular receipts exist in history yet, calculate from active cycle statement
-        const isCurrentPeriod =
-          selectedTimelineFilter === "THIS_MONTH" ||
-          selectedTimelineFilter === "ALL_TIME" ||
-          selectedTimelineFilter === "THIS_QUARTER" ||
-          selectedTimelineFilter === "THIS_YEAR";
-
-        if (isCurrentPeriod && stmt.totalPaid > 0) {
-          totalGrossRevenue += stmt.totalPaid;
-          accountCollections["Main Business Account"] = (accountCollections["Main Business Account"] || 0) + stmt.totalPaid;
-          rentStream += stmt.totalRentPaid;
-          if (stmt.isDepositCleared) {
-            depositStream += stmt.securityDepositRequired;
-          }
-          if (occ.stayType === "Guest") {
-            guestStream += stmt.totalRentPaid;
-          } else {
-            utilityStream += Math.round(stmt.totalRentPaid * 0.05);
-          }
-          upiAmount += Math.round(stmt.totalPaid * 0.85);
-          cashAmount += Math.round(stmt.totalPaid * 0.15);
-        }
       }
     });
 
@@ -1411,53 +1422,48 @@ export default function FinancialHubPage({
             }
 
             const verifiedPaidItems: PaidRevenueItem[] = [];
+            const { startDate, endDate, isAllTime } = resolveActiveDateBounds();
 
             revenueMetrics.occupants.forEach((occ) => {
-              const history = occ.paymentHistory || [];
-              if (history.length > 0) {
-                history.forEach((pm, idx) => {
-                  if (pm.amount > 0) {
-                    verifiedPaidItems.push({
-                      id: `${occ.id}-pay-${idx}-${pm.receiptNo || pm.date}`,
-                      date: pm.date || occ.joiningDate || "Active Cycle",
-                      occupantName: occ.name,
-                      roomNumber: occ.roomNumber,
-                      bedCode: occ.bedCode,
-                      category: (pm.month || "").toLowerCase().includes("deposit") || (pm.receiptNo || "").toLowerCase().includes("dep")
-                        ? "Security Deposit"
-                        : occ.stayType === "Guest"
-                        ? "Guest Stay Fee"
-                        : "Monthly Rent",
-                      paymentMode: pm.mode || "UPI",
-                      paidTo: pm.paidTo || "Main Business Account",
-                      amount: pm.amount,
-                      receiptNo: pm.receiptNo || `REC-${idx + 101}`,
-                      stayType: occ.stayType,
-                    });
-                  }
-                });
-              } else {
-                const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
-                if (stmt.totalPaid > 0) {
+              const rawHistory = occ.paymentHistory || [];
+              const history = rawHistory.filter(
+                (pm) => pm.status !== "VOIDED" && (pm as any).status !== "FAILED" && (pm as any).status !== "CANCELLED"
+              );
+
+              const periodPayments = isAllTime
+                ? history
+                : history.filter((pm) => {
+                    const rawDate = pm.date || "";
+                    if (!rawDate) return false;
+                    const isoDate = parseDateToIso(rawDate);
+                    if (!isoDate) return false;
+                    return isoDate >= startDate && isoDate <= endDate;
+                  });
+
+              periodPayments.forEach((pm, idx) => {
+                if (pm.amount > 0) {
                   verifiedPaidItems.push({
-                    id: `${occ.id}-stmt-paid`,
-                    date: occ.lastPaidDate || occ.joiningDate || "Active Cycle",
+                    id: `${occ.id}-pay-${idx}-${pm.receiptNo || pm.date}`,
+                    date: pm.date || occ.joiningDate || "Active Cycle",
                     occupantName: occ.name,
                     roomNumber: occ.roomNumber,
                     bedCode: occ.bedCode,
-                    category: occ.stayType === "Guest" ? "Guest Stay Fee" : "Monthly Rent",
-                    paymentMode: "UPI (GPay)",
-                    paidTo: "Main Business Account",
-                    amount: stmt.totalPaid,
-                    receiptNo: "REC-SSOT",
+                    category: (pm.month || "").toLowerCase().includes("deposit") || (pm.receiptNo || "").toLowerCase().includes("dep")
+                      ? "Security Deposit"
+                      : occ.stayType === "Guest"
+                      ? "Guest Stay Fee"
+                      : "Monthly Rent",
+                    paymentMode: pm.mode || "UPI",
+                    paidTo: pm.paidTo || "Main Business Account",
+                    amount: pm.amount,
+                    receiptNo: pm.receiptNo || `REC-${idx + 101}`,
                     stayType: occ.stayType,
                   });
                 }
-              }
+              });
             });
 
             const complianceLogs = complianceLogStore.getLogs(propertyId);
-            const { startDate, endDate, isAllTime } = resolveActiveDateBounds();
 
             complianceLogs.forEach((log) => {
               const logDate = parseDateToIso(log.checkOutDate, log.timestamp) || "2026-10-26";
