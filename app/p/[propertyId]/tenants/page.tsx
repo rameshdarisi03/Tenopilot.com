@@ -2819,10 +2819,10 @@ export default function TenantsDirectoryPage({
                           )}
                         </td>
                         <td className="p-4 font-mono text-gray-600 text-[11px]">
-                          {occ.lastPaidDate}
+                          {resolveOccupantLastPaidInfo(occ).displayText || occ.lastPaidDate || "—"}
                         </td>
                         <td className="p-4 font-mono font-bold text-[#c2652a] text-[11px]">
-                          {occ.dueDate}
+                          {resolveOccupantPaymentDueDate(occ, currentSettings)}
                         </td>
                         <td className="p-4">
                           {(() => {
