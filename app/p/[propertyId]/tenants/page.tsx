@@ -3120,17 +3120,6 @@ export default function TenantsDirectoryPage({
                                     <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
                                       WhatsApp for {occ.name}
                                     </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setActiveWhatsAppMenuId(null);
-                                        handleSendSingleTenantCloudReminder(occ);
-                                      }}
-                                      className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-purple-50 text-purple-900 transition-colors cursor-pointer"
-                                    >
-                                      <Zap className="w-4 h-4 text-purple-600 shrink-0" />
-                                      <span>Send via Cloud API (Buttons)</span>
-                                    </button>
                                     <a
                                       href={getIndividualRentReminderUrl(occ)}
                                       target="_blank"
@@ -3139,7 +3128,7 @@ export default function TenantsDirectoryPage({
                                       className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 text-emerald-900 transition-colors cursor-pointer"
                                     >
                                       <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
-                                      <span>Send via WhatsApp Web (Free)</span>
+                                      <span>Send Rent Reminder</span>
                                     </a>
                                     <a
                                       href={buildWhatsAppUrl(occ.phone, `Hi ${occ.name}! `)}
@@ -3612,17 +3601,6 @@ Scroll vertically to browse all residents without pagination limits
                                       <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
                                         WhatsApp for {occ.name}
                                       </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setActiveWhatsAppMenuId(null);
-                                          handleSendSingleTenantCloudReminder(occ);
-                                        }}
-                                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-purple-900 hover:bg-purple-50 transition-all text-left cursor-pointer"
-                                      >
-                                        <Zap className="w-4 h-4 text-purple-600 shrink-0" />
-                                        <span>Send via Cloud API (Buttons)</span>
-                                      </button>
                                       <a
                                         href={getIndividualRentReminderUrl(occ)}
                                         target="_blank"
@@ -3631,7 +3609,7 @@ Scroll vertically to browse all residents without pagination limits
                                         className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-emerald-900 hover:bg-emerald-50 transition-all text-left cursor-pointer"
                                       >
                                         <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
-                                        <span>Send via WhatsApp Web (Free)</span>
+                                        <span>Send Rent Reminder</span>
                                       </a>
                                       <a
                                         href={buildWhatsAppUrl(occ.phone, `Hi ${occ.name}! `)}
