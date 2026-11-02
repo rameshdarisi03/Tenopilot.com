@@ -93,6 +93,8 @@ export interface SelfKycInvite {
   whatsappStatus?: "SENT" | "DELIVERED" | "FAILED" | "PENDING" | "SKIPPED";
   emailStatus?: "SENT" | "FAILED" | "PENDING";
   createdAt: string;
+  joiningDate?: string;
+  occupantId?: string;
 }
 
 // In-Memory cache maps
@@ -499,6 +501,41 @@ export const selfKycStore = {
       }
     } catch (e) {
       console.warn("Hold candidate search notice:", e);
+    }
+
+    // 8. Fallback: Check existing occupants by ID or token across active tenants
+    try {
+      const knownProperties = explicitPropertyId
+        ? [explicitPropertyId]
+        : portfolioStore.getProperties().map((p) => p.id).filter(Boolean);
+      for (const pId of knownProperties) {
+        const occs = occupantStore.getOccupants(pId);
+        const matchOcc = occs.find(
+          (o) => o.id === token || o.phone?.replace(/\D/g, "") === token.replace(/\D/g, "") || `kyc-${o.id}` === token
+        );
+        if (matchOcc) {
+          const synthInvite: SelfKycInvite = {
+            id: token,
+            propertyId: pId,
+            stayType: matchOcc.stayType || "Tenant",
+            roomNumber: matchOcc.roomNumber,
+            bedCode: matchOcc.bedCode,
+            rentAmount: matchOcc.rentAmount || 12000,
+            securityDeposit: matchOcc.securityDeposit ?? (matchOcc.rentAmount ? matchOcc.rentAmount * 2 : 24000),
+            candidateName: matchOcc.name,
+            candidatePhone: matchOcc.phone,
+            candidateEmail: matchOcc.email,
+            status: matchOcc.kycVerified ? "COMPLETED" : "ACTIVE",
+            whatsappStatus: "SENT",
+            createdAt: matchOcc.joiningDate || new Date().toISOString(),
+            joiningDate: matchOcc.joiningDate,
+            occupantId: matchOcc.id,
+          };
+          return { invite: synthInvite, propertyId: pId };
+        }
+      }
+    } catch (e) {
+      console.warn("Occupant KYC fallback search notice:", e);
     }
 
     return {};

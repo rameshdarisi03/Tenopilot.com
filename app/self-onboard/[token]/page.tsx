@@ -86,7 +86,8 @@ export default function TenantSelfOnboardingPage({
   // "INVITE_FORM"  -> Pre-filled form with held room/bed from direct owner link
   // "WALK_IN_FORM" -> Clean pre-joining onboarding form with bed selection
   // "SUCCESS"      -> Confirmation screen once submitted to reception desk
-  const [step, setStep] = useState<"LOADING" | "INVITE_FORM" | "WALK_IN_FORM" | "SUCCESS">("LOADING");
+  // "LOCKED"       -> Record verified & approved by management; locked from editing
+  const [step, setStep] = useState<"LOADING" | "INVITE_FORM" | "WALK_IN_FORM" | "SUCCESS" | "LOCKED">("LOADING");
 
   // Property Layout for bed selection (if walk-in QR or general link)
   const [structure, setStructure] = useState<FloorConfig[]>(() => propertyStore.getStructure(propertyId));
@@ -132,10 +133,12 @@ export default function TenantSelfOnboardingPage({
       try {
         let paramPropId = "";
         let paramName = "";
+        let paramJd = "";
         if (typeof window !== "undefined") {
           const sp = new URLSearchParams(window.location.search);
           paramPropId = sp.get("p") || "";
           paramName = sp.get("name") || "";
+          paramJd = sp.get("jd") || sp.get("joiningDate") || "";
         }
         const result = await selfKycStore.fetchInviteAsync(token, paramPropId);
         if (result?.invite) {
@@ -154,8 +157,9 @@ export default function TenantSelfOnboardingPage({
           setSelectedBedTariff(inv.rentAmount || 0);
 
           // Check for previously submitted data to pre-fill all fields on correction/re-upload
+          let prevSub: any = null;
           try {
-            const prevSub = await selfKycStore.fetchLatestSubmissionForInviteAsync(resolvedPropId, inv.id, inv.candidatePhone);
+            prevSub = await selfKycStore.fetchLatestSubmissionForInviteAsync(resolvedPropId, inv.id, inv.candidatePhone);
             if (prevSub) {
               if (prevSub.name && !resolvedName) setCandidateName(prevSub.name);
               if (prevSub.phone && !inv.candidatePhone) setPhone(prevSub.phone.replace(/\D/g, "").slice(-10));
@@ -183,6 +187,46 @@ export default function TenantSelfOnboardingPage({
             }
           } catch (prevErr) {
             console.warn("Failed to load prior submission for prefill:", prevErr);
+          }
+
+          // Preload existing occupant records if this is an existing tenant KYC
+          let matchedOcc: any = null;
+          try {
+            const occs = occupantStore.getOccupants(resolvedPropId);
+            matchedOcc = occs.find(
+              (o) => o.id === inv.occupantId || o.phone?.replace(/\D/g, "") === (inv.candidatePhone || "").replace(/\D/g, "")
+            );
+            if (matchedOcc) {
+              if (matchedOcc.joiningDate && !prevSub?.joiningDate) {
+                setJoiningDate(matchedOcc.joiningDate);
+              }
+              if (matchedOcc.workplace) setWorkplace((prev) => prev || matchedOcc.workplace || "");
+              if (matchedOcc.emergencyContact?.phone) setEmergencyPhone((prev) => prev || matchedOcc.emergencyContact.phone.replace(/\D/g, "").slice(-10));
+              if (matchedOcc.emergencyContact?.name) setEmergencyName((prev) => prev || matchedOcc.emergencyContact.name);
+              if (matchedOcc.vehicleNumbers && matchedOcc.vehicleNumbers.length > 0) setVehicleNumbers((prev) => (prev[0] ? prev : matchedOcc.vehicleNumbers!));
+              else if (matchedOcc.vehicleNumber) setVehicleNumbers((prev) => (prev[0] ? prev : [matchedOcc.vehicleNumber!]));
+              if (matchedOcc.aadhaarNumber) setAadhaarNumber((prev) => prev || matchedOcc.aadhaarNumber);
+              if (matchedOcc.kycDocs?.photoUrl) setSelfiePhoto((prev) => prev || matchedOcc.kycDocs!.photoUrl!);
+              if (matchedOcc.kycDocs?.aadhaarFrontUrl) setAadhaarFront((prev) => prev || matchedOcc.kycDocs!.aadhaarFrontUrl!);
+              if (matchedOcc.kycDocs?.aadhaarBackUrl) setAadhaarBack((prev) => prev || matchedOcc.kycDocs!.aadhaarBackUrl!);
+            }
+          } catch {}
+
+          if (inv.joiningDate && !prevSub?.joiningDate) {
+            setJoiningDate(inv.joiningDate);
+          } else if (paramJd && !prevSub?.joiningDate) {
+            setJoiningDate(paramJd);
+          }
+
+          // 🔒 Approval Lock Check: If approved by owner, lock the link so records cannot be altered
+          const isApprovedOrCompleted =
+            inv.status === "COMPLETED" ||
+            prevSub?.status === "APPROVED" ||
+            Boolean(matchedOcc?.kycVerified);
+
+          if (isApprovedOrCompleted) {
+            setStep("LOCKED");
+            return;
           }
 
           setStep("INVITE_FORM");
@@ -343,6 +387,7 @@ export default function TenantSelfOnboardingPage({
     propSettings?.propertyName ||
     (propertyId ? portfolioStore.getProperties().find((p) => p.id === propertyId)?.name : null) ||
     "Resident Digital Gate";
+  const managerPhone = propSettings?.managerPhone || "";
 
   // Compute available beds across floors for walk-in candidates
   const availableBeds = useMemo(() => {
@@ -2114,6 +2159,79 @@ export default function TenantSelfOnboardingPage({
             <p className="text-[11px] text-gray-400">
               You can now safely close this browser window. Welcome to {propertyName}!
             </p>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* CASE 4: LOCKED STATE (KYC Already Approved & Verified)                    */}
+        {/* ========================================================================= */}
+        {step === "LOCKED" && (
+          <div className="bg-white rounded-3xl border border-gray-200 p-8 sm:p-10 shadow-sm text-center space-y-6 animate-in zoom-in-95">
+            <div className="w-20 h-20 bg-emerald-100 text-emerald-700 rounded-3xl flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
+              <ShieldCheck className="w-11 h-11" />
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                KYC Verified & Securely Locked 🔒
+              </span>
+              <h2 className="font-serif font-bold text-2xl sm:text-3xl text-gray-900">
+                Residency Record Active!
+              </h2>
+              <p className="text-xs text-gray-600 max-w-md mx-auto">
+                Hello <span className="font-bold text-gray-900">{candidateName}</span>, your mandatory digital check-in & KYC verification for <span className="font-bold">{propertyName}</span> has already been approved by property management.
+              </p>
+            </div>
+
+            <div className="p-5 bg-gradient-to-br from-emerald-50/60 to-teal-50/60 rounded-3xl border border-emerald-100 text-left text-xs space-y-2.5">
+              <div className="flex items-center justify-between pb-2 border-b border-emerald-200/60">
+                <span className="font-bold text-gray-800">Verification Status:</span>
+                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                  APPROVED & ACTIVE 🛡️
+                </span>
+              </div>
+              <p className="text-gray-700 flex items-center justify-between">
+                <span>🏢 Room & Bed:</span>
+                <span className="font-bold text-gray-900">
+                  Room {selectedRoomNumber || invite?.roomNumber} ({formatBedLabel(selectedBedCode || invite?.bedCode)})
+                </span>
+              </p>
+              <p className="text-gray-700 flex items-center justify-between">
+                <span>📅 Check-in Date:</span>
+                <span className="font-mono font-bold text-gray-900">
+                  {(() => {
+                    if (!joiningDate) return "On Arrival";
+                    const parts = joiningDate.split("-");
+                    if (parts.length === 3) {
+                      const [year, month, day] = parts;
+                      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                      const mIdx = parseInt(month, 10) - 1;
+                      return `${day} ${monthNames[mIdx] || month} ${year}`;
+                    }
+                    return joiningDate;
+                  })()}
+                </span>
+              </p>
+            </div>
+
+            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 text-xs text-gray-600 text-left space-y-1">
+              <p className="font-bold text-gray-900 flex items-center gap-1.5">
+                <Lock className="w-4 h-4 text-emerald-600" /> Tamper-Proof Profile
+              </p>
+              <p className="text-[11px] text-gray-500">
+                To protect your digital identity and prevent unauthorized modifications, approved tenant records cannot be altered from this link. If you need any corrections, please contact the PG management desk.
+              </p>
+            </div>
+
+            {managerPhone && (
+              <a
+                href={`tel:${managerPhone}`}
+                className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs shadow-md transition-all active:scale-95"
+              >
+                <Phone className="w-4 h-4" />
+                <span>Call PG Desk ({managerPhone})</span>
+              </a>
+            )}
           </div>
         )}
 

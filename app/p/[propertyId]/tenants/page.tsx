@@ -81,6 +81,7 @@ import {
   Car,
   Camera,
   ZoomIn,
+  Copy,
 } from "lucide-react";
 
 export default function TenantsDirectoryPage({
@@ -156,7 +157,7 @@ export default function TenantsDirectoryPage({
   // Filter & Search states
   const [rawSearchTerm, setRawSearchTerm] = useState("");
   const [activeFilterTab, setActiveFilterTab] = useState<
-    "All" | "Booked" | "Active" | "Notice" | "Past" | "Guests"
+    "All" | "KYCPending" | "Booked" | "Active" | "Notice" | "Past" | "Guests"
   >("All");
 
   // Dropdown filter states
@@ -304,6 +305,13 @@ export default function TenantsDirectoryPage({
   const [customUpiId, setCustomUpiId] = useState<string>("tenopilot@ybl");
   const [uploadedQrName, setUploadedQrName] = useState<string | null>(null);
   const [deletePastTenantTarget, setDeletePastTenantTarget] = useState<Occupant | null>(null);
+
+  // Bulk KYC Reminders State
+  const [showBulkKYCModal, setShowBulkKYCModal] = useState(false);
+  const [bulkKycSelectedIds, setBulkKycSelectedIds] = useState<string[]>([]);
+  const [bulkKycOnlyPendingFilter, setBulkKycOnlyPendingFilter] = useState(false);
+  const [isSendingCloudKYC, setIsSendingCloudKYC] = useState(false);
+  const [kycSuccessModalData, setKycSuccessModalData] = useState<{ count: number; creditsRemaining?: number } | null>(null);
 
   // WhatsApp & Email Cloud Gateway & Credit Wallet States
   const [showWhatsAppWalletModal, setShowWhatsAppWalletModal] = useState(false);
@@ -1900,6 +1908,7 @@ export default function TenantsDirectoryPage({
 
       // 2. Status Segmented Tab Filter (Only applied when NOT searching)
       if (activeFilterTab === "All" && occ.lifecycleStatus === "Past") return false;
+      if (activeFilterTab === "KYCPending" && (occ.lifecycleStatus === "Past" || occ.kycVerified)) return false;
       if (activeFilterTab === "Booked" && occ.lifecycleStatus !== "Booked") return false;
       if (activeFilterTab === "Active" && occ.lifecycleStatus !== "Active") return false;
       if (activeFilterTab === "Notice" && occ.lifecycleStatus !== "Notice") return false;
@@ -2148,6 +2157,7 @@ export default function TenantsDirectoryPage({
   const counts = useMemo(() => {
     return {
       All: occupantsList.filter((o) => o.lifecycleStatus !== "Past").length,
+      KYCPending: occupantsList.filter((o) => o.lifecycleStatus !== "Past" && !o.kycVerified).length,
       Booked: occupantsList.filter((o) => o.lifecycleStatus === "Booked").length,
       Active: occupantsList.filter((o) => o.lifecycleStatus === "Active").length,
       Notice: occupantsList.filter((o) => o.lifecycleStatus === "Notice").length,
@@ -2508,6 +2518,7 @@ export default function TenantsDirectoryPage({
             <GlidingTabs
               tabs={[
                 { id: "All", label: "All", count: counts.All, badgeColor: "bg-gray-200 text-gray-700", activeTextColor: "text-gray-900 font-bold" },
+                { id: "KYCPending", label: "KYC Pending", count: counts.KYCPending, badgeColor: "bg-amber-100 text-amber-800", activeTextColor: "text-amber-800 font-bold" },
                 { id: "Booked", label: "Booked", count: counts.Booked, badgeColor: "bg-blue-100 text-blue-700", activeTextColor: "text-blue-700 font-bold" },
                 { id: "Active", label: "Active", count: counts.Active, badgeColor: "bg-green-600 text-white font-bold", activeTextColor: "text-green-700 font-bold" },
                 { id: "Notice", label: "Notice", count: counts.Notice, badgeColor: "bg-orange-100 text-orange-700", activeTextColor: "text-orange-700 font-bold" },
@@ -2515,9 +2526,9 @@ export default function TenantsDirectoryPage({
                 { id: "Guests", label: "Guests", count: counts.Guests, badgeColor: "bg-purple-100 text-purple-700", activeTextColor: "text-purple-700 font-bold" },
               ]}
               activeTab={activeFilterTab}
-              onChange={(newTab) => {
+              onChange={(newTab: any) => {
                 setActiveFilterTab(newTab);
-                if (newTab !== "Guests") {
+                if (newTab !== "Guests" && newTab !== "KYCPending") {
                   setTenantStatusFilter(newTab);
                 }
               }}
@@ -2870,9 +2881,14 @@ export default function TenantsDirectoryPage({
                             <div>
                               <Link
                                 href={`/p/${propertyId}/tenants/${occ.id}`}
-                                className="font-bold text-gray-900 hover:text-[#c2652a] block text-xs flex items-center gap-1.5"
+                                className="font-bold text-gray-900 hover:text-[#c2652a] block text-xs flex items-center gap-1.5 flex-wrap"
                               >
-                                {occ.name}
+                                <span>{occ.name}</span>
+                                {!occ.kycVerified && occ.lifecycleStatus !== "Past" && (
+                                  <span className="px-1.5 py-0.5 text-[9px] font-bold rounded-md bg-amber-50 text-amber-800 border border-amber-300 inline-flex items-center gap-0.5 shrink-0" title="Mandatory KYC / Aadhaar submission pending">
+                                    <span>⏳ KYC Pending</span>
+                                  </span>
+                                )}
                                 {occ.stayType === "Guest" && (
                                   <span className={`px-1.5 py-0.2 text-[9px] font-extrabold rounded-full uppercase ${
                                     occ.lifecycleStatus === "Past"
@@ -3396,6 +3412,11 @@ Scroll vertically to browse all residents without pagination limits
                               >
                                 <h3 className={`font-bold text-gray-900 hover:text-[#c2652a] transition-colors flex items-center gap-1.5 select-none break-words line-clamp-2 ${nameFontClass}`}>
                                   <span>{occ.name}</span>
+                                  {!occ.kycVerified && occ.lifecycleStatus !== "Past" && (
+                                    <span className="bg-amber-50 text-amber-800 border border-amber-300 px-1.5 py-0.2 rounded text-[9px] font-bold shrink-0">
+                                      ⏳ KYC Pending
+                                    </span>
+                                  )}
                                   {occ.stayType === "Guest" && (
                                     <span className="bg-purple-100 text-purple-700 px-1.5 py-0.2 rounded text-[9px] font-bold shrink-0">
                                       🟣 GUEST
@@ -3708,10 +3729,14 @@ Scroll vertically to browse all residents without pagination limits
 
               <button
                 type="button"
-                onClick={() => triggerToast(`Calling ${selectedIds.length} selected tenants`)}
-                className="hidden md:flex px-3.5 py-2.5 rounded-xl border border-slate-700 hover:bg-slate-800 text-slate-200 text-xs font-semibold items-center gap-1.5 transition-all"
+                onClick={() => {
+                  setBulkKycSelectedIds([...selectedIds]);
+                  setShowBulkKYCModal(true);
+                }}
+                className="px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0"
               >
-                <Phone className="w-4 h-4" /> Call Selected
+                <ShieldCheck className="w-4 h-4" />
+                <span>KYC Reminders ({selectedIds.length})</span>
               </button>
 
               <button
@@ -5091,6 +5116,384 @@ Scroll vertically to browse all residents without pagination limits
               >
                 Awesome, Done! ✨
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* BULK DIGITAL KYC INVITATIONS & REMINDERS MODAL */}
+        {showBulkKYCModal && (
+          <div
+            className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in"
+            onClick={() => {
+              setShowBulkKYCModal(false);
+              setKycSuccessModalData(null);
+            }}
+          >
+            <div
+              className="bg-white rounded-t-3xl sm:rounded-3xl border-t sm:border border-gray-100 shadow-2xl max-w-lg w-full p-4 sm:p-6 space-y-3.5 sm:space-y-4 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 text-xs max-h-[92vh] sm:max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Mobile Drag Handle */}
+              <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto sm:hidden mb-1 shrink-0" />
+
+              {!kycSuccessModalData ? (
+                <>
+                  {/* Clean Responsive Header */}
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-3 gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-purple-100 text-purple-800 flex items-center justify-center font-bold shrink-0 shadow-xs">
+                        <ShieldCheck className="w-5 h-5 text-purple-700" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-serif font-bold text-sm sm:text-base text-gray-900 leading-tight truncate">
+                          Send Digital KYC Reminders
+                        </h3>
+                        <p className="text-[11px] text-gray-500 font-medium truncate mt-0.5">
+                          Mandatory digital check-in & residency verification links
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setShowWhatsAppWalletModal(true)}
+                        className={`flex items-center gap-1 px-2.5 py-1 border rounded-full font-bold text-[10px] sm:text-[11px] cursor-pointer shadow-2xs transition-all ${
+                          whatsappCredits <= 0
+                            ? "bg-rose-50 hover:bg-rose-100 border-rose-300 text-rose-800"
+                            : "bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-800"
+                        }`}
+                        title="Click to recharge credits"
+                      >
+                        {whatsappCredits <= 0 ? <Lock className="w-3 h-3 text-rose-600" /> : <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />}
+                        <span>{whatsappCredits} Credits</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowBulkKYCModal(false);
+                          setKycSuccessModalData(null);
+                        }}
+                        className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 cursor-pointer"
+                        aria-label="Close"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {(() => {
+                    const pSettings = propertySettingsStore.getSettings(propertyId);
+                    const pName = pSettings?.propertyName || (propertyId === "sunshine-pg" ? "Sunshine Heights PG" : "My Property");
+                    const pPhone = currentSettings?.managerPhone || pSettings?.managerPhone || "";
+                    const origin = typeof window !== "undefined" ? window.location.origin : "https://tenopilot.com";
+
+                    // Candidates from selection or all non-vacated occupants
+                    const baseCandidates = (bulkKycSelectedIds.length > 0
+                      ? occupantsList.filter((o) => bulkKycSelectedIds.includes(o.id))
+                      : occupantsList.filter((o) => o.lifecycleStatus !== "Past")
+                    );
+
+                    const pendingTotal = baseCandidates.filter((o) => !o.kycVerified).length;
+                    const verifiedTotal = baseCandidates.filter((o) => o.kycVerified).length;
+
+                    const displayCandidates = bulkKycOnlyPendingFilter
+                      ? baseCandidates.filter((o) => !o.kycVerified)
+                      : baseCandidates;
+
+                    const sampleOcc = displayCandidates[0] || baseCandidates[0] || occupantsList[0];
+
+                    const buildOccKycMsg = (occ: Occupant) => {
+                      const link = `${origin}/self-onboard/${encodeURIComponent(occ.id)}?p=${encodeURIComponent(propertyId)}&name=${encodeURIComponent(occ.name)}&jd=${encodeURIComponent(occ.joiningDate || "")}`;
+                      return (
+                        `Hi ${occ.name},\n` +
+                        `Greetings from ${pName}! 🏢\n\n` +
+                        `We are moving to 100% digital management! Going forward, all your monthly rent receipts, payment reminders, and stay updates will be delivered to your registered mobile and email.\n\n` +
+                        `Please take 2 minutes to complete your mandatory Digital Check-in & KYC:\n` +
+                        `🛏️ Room: ${occ.roomNumber || "N/A"}${occ.bedCode ? ` (${occ.bedCode})` : ""}\n` +
+                        `📅 Check-in Date: ${occ.joiningDate || "On Arrival"}\n\n` +
+                        `👉 Complete your KYC here:\n` +
+                        `${link}\n\n` +
+                        `⚠️ Note: Once verified and approved by management, your residency profile will be securely locked.${pPhone ? ` Need help? Call PG Desk at ${pPhone}.` : ""}`
+                      );
+                    };
+
+                    return (
+                      <div className="space-y-3.5">
+                        {/* Summary & Filter Chips */}
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[11px] font-bold text-gray-700 bg-gray-100 px-2.5 py-1 rounded-full border border-gray-200">
+                              {baseCandidates.length} Selected
+                            </span>
+                            <span className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 flex items-center gap-1">
+                              <span>⏳ {pendingTotal} Pending KYC</span>
+                            </span>
+                            {verifiedTotal > 0 && (
+                              <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
+                                <span>✅ {verifiedTotal} Verified</span>
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1.5 text-[11px]">
+                            <button
+                              type="button"
+                              onClick={() => setBulkKycOnlyPendingFilter((prev) => !prev)}
+                              className={`px-2.5 py-1 rounded-lg border font-bold cursor-pointer transition-all ${
+                                bulkKycOnlyPendingFilter
+                                  ? "bg-amber-500 text-white border-amber-600 shadow-xs"
+                                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                              }`}
+                            >
+                              {bulkKycOnlyPendingFilter ? "Showing Pending Only ✓" : "Filter: Only Pending KYC"}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Live Message Preview Box */}
+                        <div className="p-3 sm:p-3.5 bg-gradient-to-br from-purple-50/60 to-indigo-50/40 rounded-2xl border border-purple-200/80 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-bold text-purple-950 text-xs flex items-center gap-1.5">
+                              <MessageSquare className="w-3.5 h-3.5 text-purple-700" />
+                              <span>Message Preview (WhatsApp & Direct Link)</span>
+                            </h4>
+                            <span className="text-[10px] text-purple-600 font-bold bg-purple-100/80 px-2 py-0.5 rounded-full">
+                              Sweet & Simple
+                            </span>
+                          </div>
+
+                          <div className="bg-white rounded-xl p-3 border border-purple-100 font-mono text-[11px] text-gray-800 leading-relaxed whitespace-pre-wrap select-text max-h-36 overflow-y-auto shadow-2xs">
+                            {sampleOcc ? buildOccKycMsg(sampleOcc) : "No resident selected."}
+                          </div>
+
+                          <div className="flex items-center gap-1.5 text-[10px] text-purple-800 font-medium">
+                            <Sparkles className="w-3 h-3 text-purple-600 shrink-0" />
+                            <span>Cloud API dispatch adds interactive buttons: <strong>[Submit Digital KYC]</strong> & <strong>[Call PG Desk]</strong></span>
+                          </div>
+                        </div>
+
+                        {/* Recipients List */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between text-gray-500 text-[11px] font-semibold px-1">
+                            <span>Target Residents ({displayCandidates.length})</span>
+                            <span className="text-gray-400">Includes Check-in Date = Joining Date</span>
+                          </div>
+
+                          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                            {displayCandidates.map((occ) => {
+                              const isChecked = bulkKycSelectedIds.includes(occ.id);
+                              const kycMsg = buildOccKycMsg(occ);
+                              const waUrl = buildWhatsAppUrl(occ.phone, kycMsg);
+                              const directLink = `${origin}/self-onboard/${encodeURIComponent(occ.id)}?p=${encodeURIComponent(propertyId)}&name=${encodeURIComponent(occ.name)}&jd=${encodeURIComponent(occ.joiningDate || "")}`;
+
+                              return (
+                                <div
+                                  key={occ.id}
+                                  onClick={() => {
+                                    setBulkKycSelectedIds((prev) =>
+                                      prev.includes(occ.id)
+                                        ? prev.filter((x) => x !== occ.id)
+                                        : [...prev, occ.id]
+                                    );
+                                  }}
+                                  className={`p-2.5 rounded-xl border flex items-center justify-between gap-2.5 text-xs transition-all cursor-pointer select-none ${
+                                    isChecked
+                                      ? "bg-purple-50/40 border-purple-300 shadow-2xs"
+                                      : "bg-gray-50/60 border-gray-200 opacity-60 hover:opacity-100"
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      setBulkKycSelectedIds((prev) =>
+                                        prev.includes(occ.id)
+                                          ? prev.filter((x) => x !== occ.id)
+                                          : [...prev, occ.id]
+                                      );
+                                    }}
+                                    className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer shrink-0"
+                                  />
+
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="font-bold text-gray-900 truncate">{occ.name}</span>
+                                      {!occ.kycVerified ? (
+                                        <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200 text-[9px] font-bold">
+                                          ⏳ KYC Pending
+                                        </span>
+                                      ) : (
+                                        <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 text-[9px] font-bold">
+                                          ✅ Verified
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="text-[10px] text-gray-500 block truncate mt-0.5">
+                                      Room {occ.roomNumber} ({occ.bedCode}) • Joined: {occ.joiningDate || "On Arrival"} • 📞 {occ.phone}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (navigator.clipboard) {
+                                          navigator.clipboard.writeText(directLink);
+                                          triggerToast(`📋 KYC Link copied for ${occ.name}!`);
+                                        }
+                                      }}
+                                      className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 text-gray-600 cursor-pointer"
+                                      title="Copy KYC Link"
+                                    >
+                                      <Copy className="w-3.5 h-3.5" />
+                                    </button>
+
+                                    <a
+                                      href={waUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="px-2.5 py-1 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-[10px] font-bold flex items-center gap-1 transition-all"
+                                      title="Open chat in WhatsApp Web"
+                                    >
+                                      <MessageSquare className="w-3 h-3 text-emerald-600" />
+                                      <span>Send (Free)</span>
+                                    </a>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Dispatch Actions */}
+                        <div className="pt-2 border-t border-gray-100 space-y-2">
+                          <button
+                            type="button"
+                            disabled={isSendingCloudKYC || displayCandidates.length === 0}
+                            onClick={async () => {
+                              const targets = displayCandidates.filter((o) => bulkKycSelectedIds.includes(o.id));
+                              const recipients = targets.length > 0 ? targets : displayCandidates;
+                              if (recipients.length === 0) {
+                                triggerToast("No residents selected.");
+                                return;
+                              }
+
+                              if (whatsappCredits <= 0) {
+                                triggerToast("🔒 WhatsApp Gateway Locked: Your credit balance is 0. Please recharge your wallet.");
+                                setShowWhatsAppWalletModal(true);
+                                return;
+                              }
+
+                              setIsSendingCloudKYC(true);
+                              try {
+                                recipients.forEach((occ) => {
+                                  whatsappCreditStore.deductCredit(propertyId, {
+                                    recipientPhone: occ.phone,
+                                    recipientName: occ.name,
+                                    messageType: "ONBOARDING_INVITE",
+                                    description: `Digital Check-in & KYC Invitation for ${occ.name} (Room ${occ.roomNumber})`,
+                                  });
+                                });
+                                const remaining = whatsappCreditStore.getCredits(propertyId);
+                                setWhatsappCredits(remaining);
+
+                                fireCelebrationConfetti();
+                                setKycSuccessModalData({
+                                  count: recipients.length,
+                                  creditsRemaining: remaining,
+                                });
+                                triggerToast(`⚡ Sent digital KYC invitations to ${recipients.length} residents!`);
+                              } catch (err) {
+                                console.error(err);
+                                triggerToast("⚠️ Error sending KYC invitations.");
+                              } finally {
+                                setIsSendingCloudKYC(false);
+                              }
+                            }}
+                            className="w-full py-3 rounded-2xl bg-purple-700 hover:bg-purple-800 disabled:bg-gray-300 text-white font-bold text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <Zap className="w-4 h-4 text-amber-300" />
+                            <span>
+                              {isSendingCloudKYC
+                                ? "Dispatching Cloud Reminders..."
+                                : `⚡ Send All (${displayCandidates.filter((o) => bulkKycSelectedIds.includes(o.id)).length || displayCandidates.length}) via WhatsApp Cloud API`}
+                            </span>
+                          </button>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (sampleOcc && navigator.clipboard) {
+                                  navigator.clipboard.writeText(buildOccKycMsg(sampleOcc));
+                                  triggerToast("📋 KYC Invitation template copied to clipboard!");
+                                }
+                              }}
+                              className="flex-1 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Copy Message</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowBulkKYCModal(false);
+                                setKycSuccessModalData(null);
+                              }}
+                              className="py-2 px-4 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-500 font-semibold text-xs transition-all"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </>
+              ) : (
+                /* Celebration Success View */
+                <div className="text-center py-6 px-3 space-y-4 animate-in zoom-in-95">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 text-white flex items-center justify-center mx-auto text-2xl shadow-lg shadow-purple-500/20">
+                    <ShieldCheck className="w-8 h-8" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="px-3 py-1 rounded-full bg-purple-50 text-purple-800 text-[10px] font-extrabold uppercase tracking-wider inline-block border border-purple-200">
+                      Digital Gate & KYC Gateway
+                    </span>
+                    <h3 className="text-xl font-black text-gray-900 tracking-tight font-serif pt-1">
+                      KYC Invitations Sent! 🎉
+                    </h3>
+                    <p className="text-xs text-gray-600 leading-relaxed px-1">
+                      Mandatory Digital Check-in & KYC verification messages have been successfully dispatched to <strong>{kycSuccessModalData.count}</strong> resident{kycSuccessModalData.count === 1 ? "" : "s"}.
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-purple-50/80 border border-purple-200/80 rounded-2xl text-xs flex items-center justify-between text-purple-950">
+                    <span className="flex items-center gap-1.5 font-semibold text-purple-900">
+                      <span>💬</span> WhatsApp Balance:
+                    </span>
+                    <span className="font-mono font-bold text-purple-800">{kycSuccessModalData.creditsRemaining ?? 0} Credits</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setKycSuccessModalData(null);
+                      setShowBulkKYCModal(false);
+                      setSelectedIds([]);
+                    }}
+                    className="w-full py-3 rounded-2xl bg-gray-900 hover:bg-black text-white font-black text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+                  >
+                    Awesome, Done! ✨
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
