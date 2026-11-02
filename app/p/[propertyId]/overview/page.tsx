@@ -690,42 +690,74 @@ export default function PropertyOverviewPage({
               </div>
             </Link>
 
-            {/* Card 3: Rent Pending (Overdue Compliance SSOT) */}
-            <Link
-              href={`/p/${propertyId}/tenants?filter=due&sendReminders=true`}
-              className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs hover:border-[#c2652a] hover:shadow-md transition-all flex flex-col justify-between group cursor-pointer active:scale-[0.98]"
-              title="Click to view all overdue residents and send reminders"
-            >
+            {/* Card 3: Rent Pending (Dual Sub-Cards: Due & Overdue) */}
+            <div className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
                   RENT PENDING
                 </span>
-                <div className="p-2.5 rounded-xl bg-orange-50 text-[#c2652a] group-hover:scale-110 group-hover:bg-[#c2652a] group-hover:text-white transition-all">
+                <div className="p-2.5 rounded-xl bg-orange-50 text-[#c2652a]">
                   <Clock className="w-4 h-4" />
                 </div>
               </div>
-              <div className="mt-3">
-                <p className="font-sans font-bold text-3xl text-gray-900 tracking-tight">
-                  {rentCompliance.totalPendingDueCount}{" "}
-                  <span className="text-lg font-semibold text-gray-500">
-                    {rentCompliance.totalPendingDueCount === 1 ? "Tenant Rent Pending" : "Tenants Rent Pending"}
-                  </span>
-                </p>
-                <div className="flex items-center justify-between mt-1">
-                  <p className="text-xs font-bold text-[#c2652a]">
-                    {rentCompliance.paidTenantsCount} / {rentCompliance.totalActiveTenants} Tenants have paid rent ({rentCompliance.paidRatePct}%)
-                    {rentCompliance.overdueTenantsCount > 0 && (
-                      <span className="text-amber-800 font-extrabold ml-1">
-                        • {rentCompliance.overdueTenantsCount} Overdue
-                      </span>
-                    )}
+
+              {/* Two Horizontal Sub-Cards: Due & Overdue */}
+              <div className="grid grid-cols-2 gap-2 mt-3 w-full">
+                {/* 1. Due Mini-Card */}
+                <Link
+                  href={`/p/${propertyId}/tenants?filter=due&sort=due-priority-desc&sendReminders=true`}
+                  className="p-3 rounded-2xl bg-amber-50/50 hover:bg-amber-100/70 border border-amber-200 hover:border-amber-400 transition-all flex flex-col justify-between group/due cursor-pointer active:scale-95 shadow-2xs"
+                  title="Click to view Due residents (High to Low Priority) and send reminders"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900">
+                      Due
+                    </span>
+                    <span className="text-[10px] font-extrabold text-amber-700 opacity-60 group-hover/due:opacity-100 group-hover/due:translate-x-0.5 transition-all">
+                      ➔
+                    </span>
+                  </div>
+                  <p className="font-sans font-bold text-2xl sm:text-3xl text-gray-900 tracking-tight mt-1.5 tabular-nums">
+                    <AnimatedNumberCounter value={rentCompliance.gracePendingCount} />
                   </p>
-                  <span className="text-[10px] font-extrabold text-[#c2652a] group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
-                    Send Reminders ➔
-                  </span>
-                </div>
+                </Link>
+
+                {/* 2. Overdue Mini-Card */}
+                <Link
+                  href={`/p/${propertyId}/tenants?filter=overdue&sort=overdue-priority-desc&sendReminders=true`}
+                  className={`p-3 rounded-2xl border transition-all flex flex-col justify-between group/overdue cursor-pointer active:scale-95 shadow-2xs ${
+                    rentCompliance.overdueTenantsCount > 0
+                      ? "bg-rose-50/70 hover:bg-rose-100/80 border-rose-200 hover:border-rose-400"
+                      : "bg-gray-50/80 hover:bg-gray-100 border-gray-200 hover:border-gray-300"
+                  }`}
+                  title="Click to view Overdue residents (High to Low Priority) and send reminders"
+                >
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={`text-[11px] font-bold uppercase tracking-wider ${
+                        rentCompliance.overdueTenantsCount > 0 ? "text-rose-800" : "text-gray-600"
+                      }`}
+                    >
+                      Overdue
+                    </span>
+                    <span
+                      className={`text-[10px] font-extrabold opacity-60 group-hover/overdue:opacity-100 group-hover/overdue:translate-x-0.5 transition-all ${
+                        rentCompliance.overdueTenantsCount > 0 ? "text-rose-700" : "text-gray-400"
+                      }`}
+                    >
+                      ➔
+                    </span>
+                  </div>
+                  <p
+                    className={`font-sans font-bold text-2xl sm:text-3xl tracking-tight mt-1.5 tabular-nums ${
+                      rentCompliance.overdueTenantsCount > 0 ? "text-rose-600" : "text-gray-900"
+                    }`}
+                  >
+                    <AnimatedNumberCounter value={rentCompliance.overdueTenantsCount} />
+                  </p>
+                </Link>
               </div>
-            </Link>
+            </div>
 
             {/* Card 4: Maintenance */}
             <div className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs hover:border-rose-500/60 transition-all flex flex-col justify-between group">

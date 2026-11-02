@@ -515,23 +515,45 @@ export default function TenantsDirectoryPage({
     const filterParam = searchParams?.get("filter")?.toLowerCase();
     const sendRemindersParam = searchParams?.get("sendReminders") === "true";
     const actionParam = searchParams?.get("action")?.toLowerCase();
+    const sortParam = searchParams?.get("sort")?.toLowerCase();
 
-    if (filterParam === "due" || filterParam === "pending" || filterParam === "overdue" || sendRemindersParam || actionParam === "reminders") {
-      setPaymentStatusFilter("Due");
-      if (filterParam === "overdue") {
-        setPaymentDueFilter("Overdue");
+    if (
+      filterParam === "due" ||
+      filterParam === "pending" ||
+      filterParam === "overdue" ||
+      sendRemindersParam ||
+      actionParam === "reminders" ||
+      sortParam === "due-priority-desc" ||
+      sortParam === "overdue-priority-desc"
+    ) {
+      const isOverdueRequest = filterParam === "overdue" || sortParam === "overdue-priority-desc";
+
+      if (isOverdueRequest) {
+        setPaymentStatusFilter("Overdue");
+        setPaymentDueFilter("All");
+        setSortColumn("overduePriority");
+        setSortDirection("desc");
+      } else {
+        setPaymentStatusFilter("Due");
+        setPaymentDueFilter("All");
+        setSortColumn("duePriority");
+        setSortDirection("desc");
       }
 
       if (occupantsList.length > 0) {
-        const dueOccupants = occupantsList.filter((o) => {
+        const targetOccupants = occupantsList.filter((o) => {
           if (o.lifecycleStatus === "Past") return false;
           const stmt = calculateOccupantFinancialStatement(o, currentSettings);
-          return !stmt.isFullyPaid;
+          if (stmt.isFullyPaid) return false;
+          if (isOverdueRequest) {
+            return stmt.isOverdue || o.paymentStatus === "Overdue" || (o.daysDiff !== undefined && o.daysDiff < 0);
+          }
+          return true;
         });
 
-        const dueIds = dueOccupants.map((o) => o.id);
-        if (dueIds.length > 0) {
-          setSelectedIds(dueIds);
+        const targetIds = targetOccupants.map((o) => o.id);
+        if (targetIds.length > 0) {
+          setSelectedIds(targetIds);
         }
 
         if (sendRemindersParam || actionParam === "reminders") {
@@ -2538,6 +2560,7 @@ export default function TenantsDirectoryPage({
                       if (typeof window !== "undefined") {
                         const url = new URL(window.location.href);
                         url.searchParams.delete("filter");
+                        url.searchParams.delete("sort");
                         url.searchParams.delete("sendReminders");
                         url.searchParams.delete("action");
                         window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
@@ -2578,6 +2601,7 @@ export default function TenantsDirectoryPage({
                       if (typeof window !== "undefined") {
                         const url = new URL(window.location.href);
                         url.searchParams.delete("filter");
+                        url.searchParams.delete("sort");
                         url.searchParams.delete("sendReminders");
                         url.searchParams.delete("action");
                         window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
