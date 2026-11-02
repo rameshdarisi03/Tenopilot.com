@@ -61,6 +61,7 @@ import { staffStore, UserRole } from "@/lib/staffStore";
 import { ThemedAccountSelect } from "@/components/dashboard/ThemedAccountSelect";
 import { useRouter } from "next/navigation";
 import { buildWhatsAppUrl } from "@/utils/security";
+import { subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
 
 const COLOR_SWATCHES = [
   { name: "Terracotta", hex: "#964407" },
@@ -85,6 +86,9 @@ export default function FinancialHubPage({
   const [activeTab, setActiveTab] = useState("Expenses");
   const [showRecordDrawer, setShowRecordDrawer] = useState(false);
   const [showToast, setShowToast] = useState(true);
+  const [isOccupantsLoading, setIsOccupantsLoading] = useState(() => {
+    return occupantStore.getOccupants(propertyId).length === 0;
+  });
 
   // Responsive Mobile Menu Drawer State
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -465,9 +469,11 @@ export default function FinancialHubPage({
 
       const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
       
-      // Calculate billed rent for the cycle/period
-      totalBilledRent += stmt.proRataRent + stmt.priorArrears;
-      totalUncollectedArrears += stmt.netOutstandingBalance;
+      // Calculate billed rent for the cycle/period (Billable occupants only: Active + Notice)
+      if (isOccupied) {
+        totalBilledRent += stmt.proRataRent + stmt.priorArrears;
+        totalUncollectedArrears += stmt.netOutstandingBalance;
+      }
 
       // Filter occupant's payment receipts strictly within the active date range with robust date parsing
       // 🔒 STRICT SSOT: Exclude voided, cancelled, and failed receipts!
@@ -481,7 +487,7 @@ export default function FinancialHubPage({
         : history.filter((pm) => {
             const rawDate = pm.date || "";
             if (!rawDate) return false;
-            const isoDate = parseDateToIso(rawDate);
+            const isoDate = parseDateToIso(rawDate, (pm as any).timestamp);
             if (!isoDate) return false;
             return isoDate >= startDate && isoDate <= endDate;
           });
@@ -615,6 +621,7 @@ export default function FinancialHubPage({
     return {
       totalGrossRevenue,
       totalBilledRent,
+      totalExpectedRent,
       totalUncollectedArrears,
       collectionEfficiency,
       arpb,
@@ -665,6 +672,8 @@ export default function FinancialHubPage({
     // Init Cloud Firebase Firestore & SSOT Stores for Property
     expenseStore.initPropertyFirebase(propertyId);
     recurringBillStore.initPropertyFirebase(propertyId);
+    propertyStore.initFirebaseListener(propertyId);
+    complianceLogStore.initFirebaseListener(propertyId);
 
     const updateExpenseState = () => {
       const { startDate, endDate } = resolveActiveDateBounds();
@@ -693,6 +702,14 @@ export default function FinancialHubPage({
     const unsubProperty = propertyStore.subscribe(updateRevenuesState);
     const unsubCompliance = complianceLogStore.subscribe(updateRevenuesState);
 
+    const unsubscribeOccupantsFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
+      if (fsOccupants && fsOccupants.length > 0) {
+        occupantStore.setOccupantsFromFirestore(fsOccupants, propertyId);
+      }
+      setIsOccupantsLoading(false);
+      updateRevenuesState();
+    });
+
     return () => {
       unsubPartners();
       unsubExpenses();
@@ -700,6 +717,7 @@ export default function FinancialHubPage({
       unsubOccupants();
       unsubProperty();
       unsubCompliance();
+      unsubscribeOccupantsFirestore();
     };
   }, [propertyId, selectedTimelineFilter, customStartDate, customEndDate]);
 
@@ -1441,7 +1459,7 @@ export default function FinancialHubPage({
                 : history.filter((pm) => {
                     const rawDate = pm.date || "";
                     if (!rawDate) return false;
-                    const isoDate = parseDateToIso(rawDate);
+                    const isoDate = parseDateToIso(rawDate, (pm as any).timestamp);
                     if (!isoDate) return false;
                     return isoDate >= startDate && isoDate <= endDate;
                   });
@@ -1555,22 +1573,42 @@ export default function FinancialHubPage({
               <div className="space-y-6 md:space-y-8 animate-in fade-in">
                 {/* 1. Top 4 Revenue KPI Metrics Bento Grid (2x2 on Mobile, 4x1 on Desktop) */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
-                  {/* KPI 1: Gross Monthly Revenue */}
+                  {/* KPI 1: Revenue Collected */}
                   <div className="bg-white border border-gray-200 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group hover:border-[#c2652a] transition-all">
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500 truncate">
-                        GROSS REVENUE ({activeDateBounds.label.toUpperCase()})
+                      <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-emerald-600 truncate">
+                        REVENUE COLLECTED ({activeDateBounds.label.toUpperCase()})
                       </span>
                       <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-emerald-50 text-emerald-700 shrink-0">
                         <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       </div>
                     </div>
                     <h2 className="font-sans font-bold text-xl sm:text-2xl lg:text-3xl text-gray-900 tracking-tight truncate">
-                      ₹{revenueMetrics.totalGrossRevenue.toLocaleString("en-IN")}
+                      {isOccupantsLoading && revenueMetrics.totalGrossRevenue === 0 ? (
+                        <span className="inline-block w-28 h-8 bg-gray-200 animate-pulse rounded-lg" />
+                      ) : (
+                        `₹${revenueMetrics.totalGrossRevenue.toLocaleString("en-IN")}`
+                      )}
                     </h2>
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700">
-                      <span className="bg-emerald-100 px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold truncate">
-                        LIVE REAL-TIME SSOT 🟢
+                    <div className="flex items-center gap-2 mt-2 w-full">
+                      <div className="flex-1 h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 transition-all duration-500 ease-out"
+                          style={{
+                            width: `${Math.min(
+                              100,
+                              Math.max(
+                                0,
+                                (revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 1) > 0
+                                  ? (revenueMetrics.totalGrossRevenue / (revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 1)) * 100
+                                  : 0
+                              )
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                      <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums">
+                        (₹{(revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 0).toLocaleString("en-IN")})
                       </span>
                     </div>
                   </div>
@@ -1586,7 +1624,11 @@ export default function FinancialHubPage({
                       </div>
                     </div>
                     <h2 className="font-sans font-bold text-xl sm:text-2xl lg:text-3xl text-gray-900 tracking-tight truncate">
-                      {revenueMetrics.collectionEfficiency}%
+                      {isOccupantsLoading && revenueMetrics.totalGrossRevenue === 0 ? (
+                        <span className="inline-block w-20 h-8 bg-gray-200 animate-pulse rounded-lg" />
+                      ) : (
+                        `${revenueMetrics.collectionEfficiency}%`
+                      )}
                     </h2>
                     <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium truncate">
                       ₹{(revenueMetrics.rentStream / 100000).toFixed(2)}L of ₹{((revenueMetrics.rentStream + revenueMetrics.totalUncollectedArrears) / 100000).toFixed(2)}L
@@ -1604,7 +1646,11 @@ export default function FinancialHubPage({
                       </div>
                     </div>
                     <h2 className="font-sans font-bold text-xl sm:text-2xl lg:text-3xl text-gray-900 tracking-tight truncate">
-                      ₹{revenueMetrics.arpb.toLocaleString("en-IN")}
+                      {isOccupantsLoading && revenueMetrics.totalGrossRevenue === 0 ? (
+                        <span className="inline-block w-24 h-8 bg-gray-200 animate-pulse rounded-lg" />
+                      ) : (
+                        `₹${revenueMetrics.arpb.toLocaleString("en-IN")}`
+                      )}
                     </h2>
                     <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium truncate">
                       Per active occupant
@@ -1622,7 +1668,11 @@ export default function FinancialHubPage({
                       </div>
                     </div>
                     <h2 className="font-sans font-bold text-xl sm:text-2xl lg:text-3xl text-amber-900 tracking-tight truncate">
-                      ₹{revenueMetrics.totalUncollectedArrears.toLocaleString("en-IN")}
+                      {isOccupantsLoading && revenueMetrics.totalGrossRevenue === 0 ? (
+                        <span className="inline-block w-28 h-8 bg-gray-200 animate-pulse rounded-lg" />
+                      ) : (
+                        `₹${revenueMetrics.totalUncollectedArrears.toLocaleString("en-IN")}`
+                      )}
                     </h2>
                     <span className="inline-block bg-amber-100 text-amber-900 text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full truncate">
                       {revenueMetrics.occupants.filter((o) => calculateOccupantFinancialStatement(o, propertySettings).netOutstandingBalance > 0).length} Unpaid Occupants
@@ -3718,19 +3768,41 @@ export default function FinancialHubPage({
                       {/* Stat Card 1 */}
                       <div className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                            Gross Revenue Collected
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">
+                            Revenue Collected
                           </span>
                           <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
                             <Wallet className="w-4 h-4" />
                           </div>
                         </div>
                         <p className="font-sans font-bold text-2xl text-gray-900 tracking-tight tabular-nums">
-                          ₹{revenueMetrics.totalGrossRevenue.toLocaleString("en-IN")}
+                          {isOccupantsLoading && revenueMetrics.totalGrossRevenue === 0 ? (
+                            <span className="inline-block w-28 h-8 bg-gray-200 animate-pulse rounded-lg" />
+                          ) : (
+                            `₹${revenueMetrics.totalGrossRevenue.toLocaleString("en-IN")}`
+                          )}
                         </p>
-                        <p className="text-[11px] text-gray-500 font-medium mt-1.5 flex items-center gap-1">
-                          Live Real-Time SSOT
-                        </p>
+                        <div className="flex items-center gap-2 mt-2 w-full">
+                          <div className="flex-1 h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 transition-all duration-500 ease-out"
+                              style={{
+                                width: `${Math.min(
+                                  100,
+                                  Math.max(
+                                    0,
+                                    (revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 1) > 0
+                                      ? (revenueMetrics.totalGrossRevenue / (revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 1)) * 100
+                                      : 0
+                                  )
+                                )}%`,
+                              }}
+                            />
+                          </div>
+                          <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums">
+                            (₹{(revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 0).toLocaleString("en-IN")})
+                          </span>
+                        </div>
                       </div>
 
                       {/* Stat Card 2 */}

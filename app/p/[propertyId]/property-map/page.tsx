@@ -1225,9 +1225,19 @@ function PropertyMapContent({
                 <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
                   {isPrivacyMode ? "₹••••••" : <AnimatedNumberCounter value={rentMetrics.sumCollected} prefix="₹" />}
                 </p>
-                <p className="text-[10px] sm:text-xs text-gray-500 font-medium truncate mt-0.5">
-                  <AnimatedNumberCounter value={rentMetrics.collectionPct} suffix="%" decimals={1} /> of Expected
-                </p>
+                <div className="flex items-center gap-2 mt-2 w-full">
+                  <div className="flex-1 h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 transition-all duration-500 ease-out"
+                      style={{
+                        width: `${Math.min(100, Math.max(0, rentMetrics.totalExpected > 0 ? (rentMetrics.sumCollected / rentMetrics.totalExpected) * 100 : 0))}%`,
+                      }}
+                    />
+                  </div>
+                  <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums">
+                    ({isPrivacyMode ? "₹••••••" : <AnimatedNumberCounter value={rentMetrics.totalExpected} prefix="₹" />})
+                  </span>
+                </div>
               </div>
             </MagneticGlowCard>
 
