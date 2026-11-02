@@ -672,7 +672,7 @@ export default function TenantsDirectoryPage({
     return hasCashCard ? configured : [...configured, PAY_BY_CASH_PROFILE];
   };
 
-  // Helper to construct exact formatted individual rent reminder WhatsApp URL (same template as Send (Free))
+  // Helper to construct exact formatted individual rent reminder WhatsApp URL (100% matched to automated Meta template)
   const getIndividualRentReminderUrl = (occ: Occupant): string => {
     const reminderCards = getReminderPaymentCards();
     const activeCard = reminderCards[activeQrIndex] || reminderCards[0];
@@ -684,28 +684,26 @@ export default function TenantsDirectoryPage({
     const dueDateStr = resolveOccupantPaymentDueDate(occ, currentSettings);
     const breakupText = occStmt.parkingBreakupText ? ` (Breakup: ${occStmt.parkingBreakupText})` : "";
 
-    const payHeader = isCashReq ? "Payment Mode" : "Pay to UPI";
     const payDest = isCashReq
       ? (activeCard?.bankLabel ? `Cash at Desk (${activeCard.bankLabel})` : "Cash at Front Desk / Reception")
       : (activeCard?.upiId || "PG Reception / Manager UPI");
 
+    const callUsText = currentSettings.managerPhone
+      ? `\n📞 Reception Desk: ${currentSettings.managerPhone}\n`
+      : "";
+
     let message = "";
     if (isCashReq) {
-      const callUsText = currentSettings.managerPhone
-        ? `📞 *Reception Desk:* ${currentSettings.managerPhone}\n\n`
-        : "";
-
       message =
-        `*${pName}*\n\n` +
+        `Property: ${pName}\n\n` +
         `Hello ${occ.name},\n\n` +
-        `This is a friendly reminder regarding your monthly accommodation rent for *${occ.roomNumber || "N/A"}${occ.bedCode ? ` - ${occ.bedCode}` : ""}*:\n\n` +
-        `💰 *Amount Due:* ₹${Number(effectiveAmount || 0).toLocaleString("en-IN")}${breakupText}\n` +
-        `📅 *Due Date:* ${dueDateStr}\n` +
-        `💵 *Payment Mode:* ${payDest}\n\n` +
+        `Rent reminder for Room ${occ.roomNumber || "N/A"}${occ.bedCode ? ` (${occ.bedCode})` : ""}:\n` +
+        `💰 Amount Due: INR ${Number(effectiveAmount || 0).toLocaleString("en-IN")}${breakupText}\n` +
+        `📅 Due Date: ${dueDateStr}\n` +
+        `💵 Payment Mode: ${payDest}\n\n` +
+        `🏢 Please visit the PG reception / front desk to hand over the cash and collect your official receipt.\n` +
         callUsText +
-        `🏢 *Please visit the PG reception / front desk to hand over the cash and collect your official receipt.*\n\n` +
-        `Thank you for being a valued resident!\n\n` +
-        `- ${pName}`;
+        `\n- ${pName} Desk`;
     } else {
       let paymentActionLinks = "";
       if (activeCard?.upiId) {
@@ -724,29 +722,109 @@ export default function TenantsDirectoryPage({
         });
 
         paymentActionLinks =
-          `👉 *Pay through UPI:*\nhttps://www.tenopilot.com/pay/${token}?view=pay\n\n` +
-          `📸 *Upload payment screenshot:*\nhttps://www.tenopilot.com/pay/${token}?view=proof\n\n`;
+          `👉 Pay via UPI:\nhttps://www.tenopilot.com/pay/${token}?view=pay\n\n` +
+          `📸 Upload Screenshot:\nhttps://www.tenopilot.com/pay/${token}?view=proof\n`;
       }
 
-      const callUsText = currentSettings.managerPhone
-        ? `📞 *Call Us:* ${currentSettings.managerPhone}\n\n`
-        : "";
-
       message =
-        `*${pName}*\n\n` +
+        `Property: ${pName}\n\n` +
         `Hello ${occ.name},\n\n` +
-        `This is a friendly reminder regarding your monthly accommodation rent for *${occ.roomNumber || "N/A"}${occ.bedCode ? ` - ${occ.bedCode}` : ""}*:\n\n` +
-        `💰 *Amount Due:* ₹${Number(effectiveAmount || 0).toLocaleString("en-IN")}${breakupText}\n` +
-        `📅 *Due Date:* ${dueDateStr}\n` +
-        `💳 *${payHeader}:* ${payDest}\n\n` +
+        `Rent reminder for Room ${occ.roomNumber || "N/A"}${occ.bedCode ? ` (${occ.bedCode})` : ""}:\n` +
+        `💰 Amount Due: INR ${Number(effectiveAmount || 0).toLocaleString("en-IN")}${breakupText}\n` +
+        `📅 Due Date: ${dueDateStr}\n` +
+        `💳 Pay to: ${payDest}\n\n` +
+        `Choose an action below to pay directly or submit your transaction screenshot:\n\n` +
         paymentActionLinks +
         callUsText +
-        `Kindly clear your dues and share transaction proof for your digital receipt.\n\n` +
-        `Thank you for being a valued resident!\n\n` +
-        `- ${pName}`;
+        `\n- ${pName} Desk`;
     }
 
     return buildWhatsAppUrl(occ.phone, message);
+  };
+
+  // 1-Tap Single Tenant Automated Cloud WhatsApp Reminder Dispatch
+  const handleSendSingleTenantCloudReminder = async (occ: Occupant) => {
+    if (whatsappCredits <= 0) {
+      triggerToast("🔒 WhatsApp Gateway Locked: Your credit balance is 0. Please recharge your wallet.");
+      setShowWhatsAppWalletModal(true);
+      return;
+    }
+
+    const occStmt = calculateOccupantFinancialStatement(occ, currentSettings);
+    const effectiveAmount = occStmt.netOutstandingBalance > 0 ? occStmt.netOutstandingBalance : occ.rentAmount;
+    const rentPart = occStmt.remainingRentDue > 0 ? occStmt.remainingRentDue : occ.rentAmount;
+    const parkingPart = occStmt.remainingParkingDue;
+    const breakupNote = parkingPart > 0 ? `${rentPart} rent + ${parkingPart} parking fee` : undefined;
+
+    const reminderCards = getReminderPaymentCards();
+    const activeCard = reminderCards[activeQrIndex] || reminderCards[0];
+    const isCash = activeCard?.upiId === "CASH_PAYMENT" || activeCard?.accountType === "CASH_DESK";
+    const payUrl = isCash
+      ? undefined
+      : `https://www.tenopilot.com/pay/${generatePayToken({
+          propertyId,
+          propertyName: currentSettings.propertyName || "TenoPilot PG",
+          tenantId: occ.id,
+          tenantName: occ.name,
+          roomNumber: occ.roomNumber,
+          amount: effectiveAmount,
+          dueDate: occ.dueDate,
+          upiId: activeCard?.upiId,
+          partnerName: activeCard?.bankLabel || activeCard?.name,
+          partnerPhone: activeCard?.phone || currentSettings.managerPhone || "",
+          propertyPhone: currentSettings.managerPhone || "",
+        })}`;
+
+    try {
+      const res = await fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          propertyId,
+          userId: profile?.uid,
+          userEmail: profile?.email,
+          messages: [
+            {
+              toPhone: occ.phone,
+              recipientName: occ.name,
+              propertyId,
+              propertyName: currentSettings.propertyName || "TenoPilot PG",
+              type: "RENT_REMINDER",
+              params: {
+                roomNumber: occ.roomNumber,
+                bedCode: occ.bedCode,
+                amount: effectiveAmount,
+                breakupNote,
+                dueDate: occ.dueDate,
+                upiId: activeCard?.upiId,
+                bankLabel: activeCard?.bankLabel,
+                accountType: activeCard?.accountType,
+                payUrl,
+              },
+            },
+          ],
+        }),
+      });
+
+      if (res.ok) {
+        whatsappCreditStore.deductCredit(propertyId, {
+          recipientPhone: occ.phone,
+          recipientName: occ.name,
+          messageType: "RENT_REMINDER",
+          description: `Individual Rent Reminder to ${occ.name} (Room ${occ.roomNumber})`,
+        });
+        setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
+        triggerToast(`⚡ Sent automated WhatsApp rent reminder with buttons to ${occ.name}!`);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        if (errData?.requiresPro) {
+          setShowProReminderPaywall(true);
+        }
+        triggerToast(errData?.error || "⚠️ Failed to dispatch automated reminder.");
+      }
+    } catch {
+      triggerToast("⚠️ Network error dispatching automated reminder.");
+    }
   };
 
   // Candidate occupants for Rent Reminders Modal (All active residents with pending due rent)
@@ -3042,6 +3120,17 @@ export default function TenantsDirectoryPage({
                                     <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
                                       WhatsApp for {occ.name}
                                     </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveWhatsAppMenuId(null);
+                                        handleSendSingleTenantCloudReminder(occ);
+                                      }}
+                                      className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-purple-50 text-purple-900 transition-colors cursor-pointer"
+                                    >
+                                      <Zap className="w-4 h-4 text-purple-600 shrink-0" />
+                                      <span>Send via Cloud API (Buttons)</span>
+                                    </button>
                                     <a
                                       href={getIndividualRentReminderUrl(occ)}
                                       target="_blank"
@@ -3049,17 +3138,17 @@ export default function TenantsDirectoryPage({
                                       onClick={() => setActiveWhatsAppMenuId(null)}
                                       className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 text-emerald-900 transition-colors cursor-pointer"
                                     >
-                                      <CreditCard className="w-4 h-4 text-emerald-600 shrink-0" />
-                                      <span>Send Rent Reminder</span>
+                                      <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                                      <span>Send via WhatsApp Web (Free)</span>
                                     </a>
                                     <a
                                       href={buildWhatsAppUrl(occ.phone, `Hi ${occ.name}! `)}
                                       target="_blank"
                                       rel="noreferrer"
                                       onClick={() => setActiveWhatsAppMenuId(null)}
-                                      className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 text-gray-700 transition-colors cursor-pointer"
+                                      className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-gray-50 text-gray-700 transition-colors cursor-pointer"
                                     >
-                                      <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                                      <MessageSquare className="w-4 h-4 text-gray-400 shrink-0" />
                                       <span>Send Custom Message</span>
                                     </a>
                                   </div>
@@ -3523,6 +3612,17 @@ Scroll vertically to browse all residents without pagination limits
                                       <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
                                         WhatsApp for {occ.name}
                                       </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActiveWhatsAppMenuId(null);
+                                          handleSendSingleTenantCloudReminder(occ);
+                                        }}
+                                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-purple-900 hover:bg-purple-50 transition-all text-left cursor-pointer"
+                                      >
+                                        <Zap className="w-4 h-4 text-purple-600 shrink-0" />
+                                        <span>Send via Cloud API (Buttons)</span>
+                                      </button>
                                       <a
                                         href={getIndividualRentReminderUrl(occ)}
                                         target="_blank"
@@ -3530,17 +3630,17 @@ Scroll vertically to browse all residents without pagination limits
                                         onClick={() => setActiveWhatsAppMenuId(null)}
                                         className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-emerald-900 hover:bg-emerald-50 transition-all text-left cursor-pointer"
                                       >
-                                        <CreditCard className="w-4 h-4 text-emerald-600 shrink-0" />
-                                        <span>Send Rent Reminder</span>
+                                        <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                                        <span>Send via WhatsApp Web (Free)</span>
                                       </a>
                                       <a
                                         href={buildWhatsAppUrl(occ.phone, `Hi ${occ.name}! `)}
                                         target="_blank"
                                         rel="noreferrer"
                                         onClick={() => setActiveWhatsAppMenuId(null)}
-                                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-700 hover:bg-emerald-50 transition-all text-left cursor-pointer"
+                                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-700 hover:bg-gray-50 transition-all text-left cursor-pointer"
                                       >
-                                        <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                                        <MessageSquare className="w-4 h-4 text-gray-400 shrink-0" />
                                         <span>Send Custom Message</span>
                                       </a>
                                     </div>
@@ -4699,23 +4799,22 @@ Scroll vertically to browse all residents without pagination limits
                         const dueDateStr = resolveOccupantPaymentDueDate(occ, currentSettings);
                         const breakupText = occStmt.parkingBreakupText ? ` (Breakup: ${occStmt.parkingBreakupText})` : "";
 
+                        const callUsText = currentSettings.managerPhone
+                          ? `\n📞 Reception Desk: ${currentSettings.managerPhone}\n`
+                          : "";
+
                         let message = "";
                         if (isCashReq) {
-                          const callUsText = currentSettings.managerPhone
-                            ? `📞 *Reception Desk:* ${currentSettings.managerPhone}\n\n`
-                            : "";
-
                           message =
-                            `*${pName}*\n\n` +
+                            `Property: ${pName}\n\n` +
                             `Hello ${occ.name},\n\n` +
-                            `This is a friendly reminder regarding your monthly accommodation rent for *${occ.roomNumber || "N/A"}${occ.bedCode ? ` - ${occ.bedCode}` : ""}*:\n\n` +
-                            `💰 *Amount Due:* ₹${Number(effectiveAmount || 0).toLocaleString("en-IN")}${breakupText}\n` +
-                            `📅 *Due Date:* ${dueDateStr}\n` +
-                            `💵 *Payment Mode:* ${payDest}\n\n` +
+                            `Rent reminder for Room ${occ.roomNumber || "N/A"}${occ.bedCode ? ` (${occ.bedCode})` : ""}:\n` +
+                            `💰 Amount Due: INR ${Number(effectiveAmount || 0).toLocaleString("en-IN")}${breakupText}\n` +
+                            `📅 Due Date: ${dueDateStr}\n` +
+                            `💵 Payment Mode: ${payDest}\n\n` +
+                            `🏢 Please visit the PG reception / front desk to hand over the cash and collect your official receipt.\n` +
                             callUsText +
-                            `🏢 *Please visit the PG reception / front desk to hand over the cash and collect your official receipt.*\n\n` +
-                            `Thank you for being a valued resident!\n\n` +
-                            `- ${pName}`;
+                            `\n- ${pName} Desk`;
                         } else {
                           let paymentActionLinks = "";
                           if (activeCard?.upiId) {
@@ -4734,26 +4833,21 @@ Scroll vertically to browse all residents without pagination limits
                             });
 
                             paymentActionLinks =
-                              `👉 *Pay through UPI:*\nhttps://www.tenopilot.com/pay/${token}?view=pay\n\n` +
-                              `📸 *Upload payment screenshot:*\nhttps://www.tenopilot.com/pay/${token}?view=proof\n\n`;
+                              `👉 Pay via UPI:\nhttps://www.tenopilot.com/pay/${token}?view=pay\n\n` +
+                              `📸 Upload Screenshot:\nhttps://www.tenopilot.com/pay/${token}?view=proof\n`;
                           }
 
-                          const callUsText = currentSettings.managerPhone
-                            ? `📞 *Call Us:* ${currentSettings.managerPhone}\n\n`
-                            : "";
-
                           message =
-                            `*${pName}*\n\n` +
+                            `Property: ${pName}\n\n` +
                             `Hello ${occ.name},\n\n` +
-                            `This is a friendly reminder regarding your monthly accommodation rent for *${occ.roomNumber || "N/A"}${occ.bedCode ? ` - ${occ.bedCode}` : ""}*:\n\n` +
-                            `💰 *Amount Due:* ₹${Number(effectiveAmount || 0).toLocaleString("en-IN")}${breakupText}\n` +
-                            `📅 *Due Date:* ${dueDateStr}\n` +
-                            `💳 *${payHeader}:* ${payDest}\n\n` +
+                            `Rent reminder for Room ${occ.roomNumber || "N/A"}${occ.bedCode ? ` (${occ.bedCode})` : ""}:\n` +
+                            `💰 Amount Due: INR ${Number(effectiveAmount || 0).toLocaleString("en-IN")}${breakupText}\n` +
+                            `📅 Due Date: ${dueDateStr}\n` +
+                            `💳 Pay to: ${payDest}\n\n` +
+                            `Choose an action below to pay directly or submit your transaction screenshot:\n\n` +
                             paymentActionLinks +
                             callUsText +
-                            `Kindly clear your dues and share transaction proof for your digital receipt.\n\n` +
-                            `Thank you for being a valued resident!\n\n` +
-                            `- ${pName}`;
+                            `\n- ${pName} Desk`;
                         }
                         const waUrl = buildWhatsAppUrl(occ.phone, message);
 
@@ -5252,28 +5346,6 @@ Scroll vertically to browse all residents without pagination limits
                           </div>
                         </div>
 
-                        {/* Live Message Preview Box */}
-                        <div className="p-3 sm:p-3.5 bg-gradient-to-br from-purple-50/60 to-indigo-50/40 rounded-2xl border border-purple-200/80 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <h4 className="font-bold text-purple-950 text-xs flex items-center gap-1.5">
-                              <MessageSquare className="w-3.5 h-3.5 text-purple-700" />
-                              <span>Message Preview (WhatsApp & Direct Link)</span>
-                            </h4>
-                            <span className="text-[10px] text-purple-600 font-bold bg-purple-100/80 px-2 py-0.5 rounded-full">
-                              Sweet & Simple
-                            </span>
-                          </div>
-
-                          <div className="bg-white rounded-xl p-3 border border-purple-100 font-mono text-[11px] text-gray-800 leading-relaxed whitespace-pre-wrap select-text max-h-36 overflow-y-auto shadow-2xs">
-                            {sampleOcc ? buildOccKycMsg(sampleOcc) : "No resident selected."}
-                          </div>
-
-                          <div className="flex items-center gap-1.5 text-[10px] text-purple-800 font-medium">
-                            <Sparkles className="w-3 h-3 text-purple-600 shrink-0" />
-                            <span>Cloud API dispatch adds interactive buttons: <strong>[Submit Digital KYC]</strong> & <strong>[Call PG Desk]</strong></span>
-                          </div>
-                        </div>
-
                         {/* Recipients List */}
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between text-gray-500 text-[11px] font-semibold px-1">
@@ -5281,7 +5353,7 @@ Scroll vertically to browse all residents without pagination limits
                             <span className="text-gray-400">Includes Check-in Date = Joining Date</span>
                           </div>
 
-                          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                          <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
                             {displayCandidates.map((occ) => {
                               const isChecked = bulkKycSelectedIds.includes(occ.id);
                               const kycMsg = buildOccKycMsg(occ);
