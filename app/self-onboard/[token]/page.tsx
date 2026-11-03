@@ -870,15 +870,6 @@ export default function TenantSelfOnboardingPage({
                 <span className="text-[10px] font-extrabold uppercase tracking-widest bg-white/20 backdrop-blur-xs px-2.5 py-1 rounded-full text-white">
                   {invite.stayType === "Tenant" ? "🏠 Monthly Tenant Check-In" : "⚡ Daily Guest Check-In"}
                 </span>
-                {invite.isExistingResident ? (
-                  <span className="text-[10px] font-bold bg-white/20 backdrop-blur-xs text-white px-2.5 py-1 rounded-full flex items-center gap-1 border border-white/25 shadow-2xs">
-                    <Lock className="w-3 h-3" /> In-House Resident Verification
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-bold bg-amber-400 text-amber-950 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <Lock className="w-3 h-3" /> Bed Held for You
-                  </span>
-                )}
               </div>
               <h1 className="font-serif font-bold text-2xl sm:text-3xl">
                 {candidateName.trim()
@@ -915,15 +906,6 @@ export default function TenantSelfOnboardingPage({
                   <Home className="w-4 h-4 text-[#c2652a]" />
                   <span>{invite.isExistingResident ? "Assigned Stay & Accommodation" : "Reserved Accommodation & Stay Type"}</span>
                 </div>
-                {invite.isExistingResident ? (
-                  <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1 shadow-2xs">
-                    <Lock className="w-3 h-3 text-emerald-600" /> LOCKED &amp; ALLOCATED
-                  </span>
-                ) : (
-                  <span className="text-[11px] font-bold text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200 flex items-center gap-1">
-                    <Lock className="w-3 h-3" /> RESERVED &amp; ON HOLD
-                  </span>
-                )}
               </div>
 
               {/* Locked Stay Type Banner */}
