@@ -1657,13 +1657,8 @@ function PropertyMapContent({
                                       ? `Overdue (${primaryOcc?.name || "Move-Out"})`
                                       : `Vacating (${primaryOcc?.name || "Notice"})`;
                                   } else if (primaryOcc) {
-                                    if ((bed as any).isRentOverdue) {
-                                      badgeStyle = "bg-red-50/70 text-red-950 border-2 border-red-400 hover:bg-red-100 shadow-sm ring-1 ring-red-400/30";
-                                    } else if ((bed as any).isRentDue) {
-                                      badgeStyle = "bg-amber-50/70 text-amber-950 border border-amber-300 hover:bg-amber-100 shadow-2xs";
-                                    } else {
-                                      badgeStyle = "bg-[#f7f2ee] text-amber-900 border-amber-200 hover:bg-amber-100";
-                                    }
+                                    // Occupied bed preserves uniform background styling
+                                    badgeStyle = "bg-[#f7f2ee] text-amber-900 border-amber-200 hover:bg-amber-100";
                                     statusLabel = primaryOcc.name;
                                   } else {
                                     badgeStyle =
@@ -1825,13 +1820,13 @@ function PropertyMapContent({
                                       {primaryOcc && !isBookedBed && (
                                         <div className="w-full flex items-center justify-center mt-0.5">
                                           {(bed as any).isRentOverdue ? (
-                                            <span className="text-[7.5px] font-extrabold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-300 flex items-center gap-1 shadow-2xs animate-pulse">
-                                              <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping" />
+                                            <span className="text-[7.5px] font-extrabold px-1.5 py-0.5 rounded-full bg-red-600 text-white flex items-center gap-1 shadow-xs animate-pulse">
+                                              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
                                               <span>OVERDUE {isPrivacyMode ? "₹••••" : `₹${(bed as any).outstandingBalance?.toLocaleString("en-IN")}`}</span>
                                             </span>
                                           ) : (bed as any).isRentDue ? (
-                                            <span className="text-[7.5px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1 shadow-2xs">
-                                              <Clock className="w-2.5 h-2.5 text-amber-700 shrink-0" />
+                                            <span className="text-[7.5px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500 text-white flex items-center gap-1 shadow-xs">
+                                              <Clock className="w-2.5 h-2.5 text-white shrink-0" />
                                               <span>DUE {isPrivacyMode ? "₹••••" : `₹${(bed as any).outstandingBalance?.toLocaleString("en-IN")}`}</span>
                                             </span>
                                           ) : (

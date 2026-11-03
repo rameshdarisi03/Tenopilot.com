@@ -37,7 +37,7 @@ export interface SelfKycSubmission {
   id: string;
   propertyId: string;
   inviteId?: string;
-  submissionType: "INVITE" | "WALK_IN_QR";
+  submissionType: "INVITE" | "WALK_IN_QR" | "EXISTING_RESIDENT";
   stayType: "Tenant" | "Guest";
   roomNumber: string;
   bedCode: string;
@@ -95,6 +95,7 @@ export interface SelfKycInvite {
   createdAt: string;
   joiningDate?: string;
   occupantId?: string;
+  isExistingResident?: boolean;
 }
 
 // In-Memory cache maps
@@ -375,6 +376,32 @@ export const selfKycStore = {
       } catch (e) {
         console.warn("Explicit property invite fetch notice:", e);
       }
+
+      // Check if token is an existing occupant
+      try {
+        const occRef = doc(db, "properties", explicitPropertyId, "occupants", token);
+        const occSnap = await getDoc(occRef);
+        if (occSnap.exists()) {
+          const occ = occSnap.data() as any;
+          const inv: SelfKycInvite = {
+            id: token,
+            propertyId: explicitPropertyId,
+            occupantId: token,
+            stayType: (occ.stayType as any) || "Tenant",
+            roomNumber: occ.roomNumber || "",
+            bedCode: occ.bedCode || "",
+            rentAmount: occ.rentAmount || occ.tariff || 0,
+            securityDeposit: occ.securityDeposit || 0,
+            candidateName: (occ.name || "").trim(),
+            candidatePhone: occ.phone || "",
+            candidateEmail: occ.email || "",
+            joiningDate: occ.joiningDate || "",
+            status: occ.kycVerified ? "COMPLETED" : "ACTIVE",
+            createdAt: occ.joiningDate || new Date().toISOString(),
+          };
+          return { invite: inv, propertyId: explicitPropertyId };
+        }
+      } catch (e) {}
     }
 
     // 2. Check local cache first
@@ -909,7 +936,7 @@ export const selfKycStore = {
             if (!isMatch) return bd;
             return {
               ...bd,
-              status: targetBedStatus,
+              status: existingOcc ? bd.status : targetBedStatus,
               occupant: {
                 ...newResident,
                 avatar: newResident.avatar?.startsWith("data:")
@@ -917,8 +944,8 @@ export const selfKycStore = {
                   : newResident.avatar,
                 kycDocs: undefined,
               },
-              holdCandidate: null as any,
-              vacatingDate: null as any,
+              holdCandidate: existingOcc ? bd.holdCandidate : (null as any),
+              vacatingDate: existingOcc ? bd.vacatingDate : (null as any),
             };
           }),
         };

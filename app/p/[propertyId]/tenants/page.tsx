@@ -16,7 +16,7 @@ import { subscribeOccupantsFromFirestore, saveOccupantToFirestore, updateOccupan
 import { sanitizeSearchInput, normalizePhoneNumber, formatWhatsAppPhone, formatDisplayPhone, buildWhatsAppUrl, sanitizeVehicleNumber } from "@/utils/security";
 import { calculateOccupantFinancialStatement, calculateProRataRent, resolveOccupantLastPaidInfo, resolveOccupantPaymentDueDate, parseOccupantDate, matchesTenoPilotSearch, getNowIST, getDynamicProgressGradient } from "@/utils/domainSSOT";
 import { db } from "@/lib/firebase";
-import { collection, query, where, onSnapshot, doc, setDoc, getDoc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
 import { PaymentProofReviewModal, PaymentProofRecord } from "@/components/dashboard/PaymentProofReviewModal";
 import { generatePayToken } from "@/lib/paymentToken";
 import { activityAuditStore } from "@/utils/activityAuditStore";
@@ -5351,6 +5351,14 @@ Scroll vertically to browse all residents without pagination limits
                                           navigator.clipboard.writeText(directLink);
                                           triggerToast(`📋 KYC Link copied for ${occ.name}!`);
                                         }
+                                        if (typeof window !== "undefined") {
+                                          try {
+                                            localStorage.setItem(`tenopilot_kyc_reminder_sent_${propertyId}_${occ.id}`, new Date().toISOString());
+                                          } catch {}
+                                        }
+                                        updateDoc(doc(db, "properties", propertyId, "occupants", occ.id), {
+                                          kycReminderSentAt: new Date().toISOString(),
+                                        }).catch(() => {});
                                       }}
                                       className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 text-gray-600 cursor-pointer"
                                       title="Copy KYC Link"
@@ -5362,7 +5370,17 @@ Scroll vertically to browse all residents without pagination limits
                                       href={waUrl}
                                       target="_blank"
                                       rel="noreferrer"
-                                      onClick={(e) => e.stopPropagation()}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (typeof window !== "undefined") {
+                                          try {
+                                            localStorage.setItem(`tenopilot_kyc_reminder_sent_${propertyId}_${occ.id}`, new Date().toISOString());
+                                          } catch {}
+                                        }
+                                        updateDoc(doc(db, "properties", propertyId, "occupants", occ.id), {
+                                          kycReminderSentAt: new Date().toISOString(),
+                                        }).catch(() => {});
+                                      }}
                                       className="px-2.5 py-1 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-[10px] font-bold flex items-center gap-1 transition-all"
                                       title="Open chat in WhatsApp Web"
                                     >
@@ -5434,6 +5452,17 @@ Scroll vertically to browse all residents without pagination limits
                                 const resData = await res.json().catch(() => ({}));
 
                                 if (res.ok) {
+                                  recipients.forEach((occ) => {
+                                    if (typeof window !== "undefined") {
+                                      try {
+                                        localStorage.setItem(`tenopilot_kyc_reminder_sent_${propertyId}_${occ.id}`, new Date().toISOString());
+                                      } catch {}
+                                    }
+                                    updateDoc(doc(db, "properties", propertyId, "occupants", occ.id), {
+                                      kycReminderSentAt: new Date().toISOString(),
+                                    }).catch(() => {});
+                                  });
+
                                   await whatsappCreditStore.fetchWalletFromFirestore(propertyId);
                                   const remaining = typeof resData.creditsRemaining === "number"
                                     ? resData.creditsRemaining

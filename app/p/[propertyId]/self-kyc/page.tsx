@@ -72,9 +72,11 @@ function SelfKycDeskContent({
 
   const { profile, user } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<"INVITES" | "REVIEW" | "APPROVED">(
-    isInviteAction ? "INVITES" : (urlTab === "REVIEW" || reviewSubmissionId || urlRoom ? "REVIEW" : "INVITES")
+  const [activeTab, setActiveTab] = useState<"INVITES" | "RESIDENTS" | "REVIEW" | "APPROVED">(
+    isInviteAction ? "INVITES" : (urlTab === "RESIDENTS" ? "RESIDENTS" : (urlTab === "REVIEW" || reviewSubmissionId || urlRoom ? "REVIEW" : "INVITES"))
   );
+  const [residentSearchTerm, setResidentSearchTerm] = useState("");
+  const [residentFilterChip, setResidentFilterChip] = useState<"ALL" | "CORRECTION" | "PENDING" | "AWAITING" | "APPROVED">("ALL");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [submissions, setSubmissions] = useState<SelfKycSubmission[]>([]);
   const [invites, setInvites] = useState<SelfKycInvite[]>([]);
@@ -397,6 +399,7 @@ function SelfKycDeskContent({
 
     return invites.filter((inv) => {
       if (inv.status === "REVOKED" || inv.status === "COMPLETED") return false;
+      if (inv.isExistingResident || inv.occupantId) return false;
 
       // Filter out if THIS specific invite currently has a pending submission in Review KYC
       if (pendingInviteIds.has(inv.id)) return false;
@@ -409,6 +412,122 @@ function SelfKycDeskContent({
       return true;
     });
   }, [invites, pendingSubmissions, approvedSubmissions]);
+
+  // Existing Residents KYC Desk (Triggered-only: bulk reminders sent, single invite sent, or correction requested)
+  const existingResidentsKycList = useMemo(() => {
+    return occupantsList
+      .filter((occ) => {
+        if (occ.lifecycleStatus === "Past") return false;
+        const cleanOccPhone = (occ.phone || "").replace(/\D/g, "").slice(-10);
+
+        // 1. Check if invite exists for this resident
+        const hasInvite = invites.some(
+          (inv) =>
+            inv.occupantId === occ.id ||
+            inv.id === occ.id ||
+            (inv.candidatePhone &&
+              cleanOccPhone &&
+              inv.candidatePhone.replace(/\D/g, "").slice(-10) === cleanOccPhone)
+        );
+        if (hasInvite) return true;
+
+        // 2. Check if submission exists
+        const hasSubmission = submissions.some(
+          (sub) =>
+            sub.occupantId === occ.id ||
+            sub.id === occ.id ||
+            (sub.phone &&
+              cleanOccPhone &&
+              sub.phone.replace(/\D/g, "").slice(-10) === cleanOccPhone)
+        );
+        if (hasSubmission) return true;
+
+        // 3. Check Firestore occupant field
+        if ((occ as any).kycReminderSentAt) return true;
+
+        // 4. Check local storage triggers
+        if (typeof window !== "undefined") {
+          try {
+            if (localStorage.getItem(`tenopilot_kyc_reminder_sent_${propertyId}_${occ.id}`)) return true;
+            if (localStorage.getItem(`tenopilot_kyc_correction_${propertyId}_${occ.id}`)) return true;
+          } catch {}
+        }
+
+        return false;
+      })
+      .map((occ) => {
+        const cleanOccPhone = (occ.phone || "").replace(/\D/g, "").slice(-10);
+        const sub = submissions.find(
+          (s) =>
+            s.occupantId === occ.id ||
+            s.id === occ.id ||
+            (s.phone &&
+              cleanOccPhone &&
+              s.phone.replace(/\D/g, "").slice(-10) === cleanOccPhone)
+        );
+        const inv = invites.find(
+          (i) =>
+            i.occupantId === occ.id ||
+            i.id === occ.id ||
+            (i.candidatePhone &&
+              cleanOccPhone &&
+              i.candidatePhone.replace(/\D/g, "").slice(-10) === cleanOccPhone)
+        );
+        const lastRejection = submissions.find(
+          (s) =>
+            s.status === "REJECTED" &&
+            (s.occupantId === occ.id ||
+              s.id === occ.id ||
+              (s.phone &&
+                cleanOccPhone &&
+                s.phone.replace(/\D/g, "").slice(-10) === cleanOccPhone))
+        );
+
+        let status: "NEEDS_CORRECTION" | "PENDING_REVIEW" | "APPROVED" | "AWAITING_SUBMISSION" = "AWAITING_SUBMISSION";
+        if (occ.kycVerified || sub?.status === "APPROVED") {
+          status = "APPROVED";
+        } else if (sub?.status === "PENDING") {
+          status = "PENDING_REVIEW";
+        } else if (lastRejection || sub?.status === "REJECTED") {
+          status = "NEEDS_CORRECTION";
+        }
+
+        return {
+          occupant: occ,
+          submission: sub,
+          invite: inv,
+          lastRejection,
+          status,
+        };
+      });
+  }, [occupantsList, invites, submissions, propertyId]);
+
+  const filteredExistingResidents = useMemo(() => {
+    let list = existingResidentsKycList;
+
+    if (residentFilterChip === "CORRECTION") {
+      list = list.filter((r) => r.status === "NEEDS_CORRECTION");
+    } else if (residentFilterChip === "PENDING") {
+      list = list.filter((r) => r.status === "PENDING_REVIEW");
+    } else if (residentFilterChip === "AWAITING") {
+      list = list.filter((r) => r.status === "AWAITING_SUBMISSION");
+    } else if (residentFilterChip === "APPROVED") {
+      list = list.filter((r) => r.status === "APPROVED");
+    }
+
+    if (residentSearchTerm.trim()) {
+      const q = residentSearchTerm.toLowerCase().trim();
+      list = list.filter(
+        (r) =>
+          r.occupant.name.toLowerCase().includes(q) ||
+          r.occupant.roomNumber.toLowerCase().includes(q) ||
+          r.occupant.bedCode.toLowerCase().includes(q) ||
+          r.occupant.phone.includes(q)
+      );
+    }
+
+    return list;
+  }, [existingResidentsKycList, residentFilterChip, residentSearchTerm]);
 
   // Helper to prevent redundant "Bed Bed" prefix
   const formatBedLabel = (bedCode?: string): string => {
@@ -801,7 +920,7 @@ function SelfKycDeskContent({
     triggerToast(`✅ Self-KYC invite sent to ${newInvite.candidateName} via ${dispatchMethod}! Room ${inviteRoomNumber} (${formatBedLabel(inviteBedCode)}) is now ON HOLD 🔒`);
   };
 
-  // 1-Tap Share Invite Directly via WhatsApp Web / App
+  // 1-Tap Share Invite Directly via WhatsApp Web / App (Pre-Checkin Invite)
   const handleShareInviteViaWhatsApp = (inv: SelfKycInvite) => {
     const origin = getCanonicalPortalOrigin();
     const nameParam = inv.candidateName ? `&name=${encodeURIComponent(inv.candidateName)}` : "";
@@ -810,14 +929,60 @@ function SelfKycDeskContent({
     const targetPhone = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : "";
     const settings = propertySettingsStore.getSettings(propertyId);
     const propName = settings?.propertyName || "Ramesh Residencies";
+    const roomStay = `${inv.roomNumber} (${formatBedLabel(inv.bedCode)})`;
+
     const msg =
-      `Hello ${inv.candidateName}! 👋\n\n` +
-      `Welcome to *${propName}*. Your bed has been placed on hold:\n` +
-      `🏠 *Room ${inv.roomNumber} (${formatBedLabel(inv.bedCode)})*\n` +
-      `💰 *Tariff*: ₹${inv.rentAmount.toLocaleString("en-IN")} / month\n\n` +
-      `👉 Please complete your 2-minute digital Self-KYC check-in here:\n` +
-      `${url}\n\n` +
-      `Takes under 2 minutes. Once submitted, management will approve your check-in!`;
+      `*${propName}*\n` +
+      `Welcome to ${propName}! 🎉\n\n` +
+      `Dear *${inv.candidateName}*,\n\n` +
+      `We are delighted to welcome you to our community! To ensure a seamless check-in experience, your accommodation has been reserved:\n` +
+      `🛏️ *Stay*: Room ${roomStay}\n` +
+      `💰 *Tariff*: ₹${(inv.rentAmount ?? 0).toLocaleString("en-IN")}/month\n\n` +
+      `Please complete your digital resident registration & KYC verification:\n` +
+      `🔗 *Registration Link*: ${url}\n\n` +
+      `Please have your Aadhaar and live photo handy. It takes only 2 minutes.\n\n` +
+      `Warm regards,\n` +
+      `*${propName} Administration*`;
+
+    const waUrl = targetPhone
+      ? `https://wa.me/91${targetPhone}?text=${encodeURIComponent(msg)}`
+      : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    window.open(waUrl, "_blank");
+  };
+
+  // 1-Tap Share Personalized KYC Link for In-House Residents
+  const handleShareResidentKycViaWhatsApp = (occ: Occupant, sub?: SelfKycSubmission) => {
+    const origin = getCanonicalPortalOrigin();
+    const cleanDigits = (occ.phone || "").replace(/\D/g, "");
+    const targetPhone = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : "";
+    const settings = propertySettingsStore.getSettings(propertyId);
+    const propName = settings?.propertyName || "Ramesh Residencies";
+    const deskPhone = settings?.managerPhone || "";
+    const link = `${origin}/self-onboard/${encodeURIComponent(occ.id)}?p=${encodeURIComponent(propertyId)}&name=${encodeURIComponent(occ.name)}&jd=${encodeURIComponent(occ.joiningDate || "")}`;
+    const roomStay = `${occ.roomNumber || "N/A"}${occ.bedCode ? ` (${formatBedLabel(occ.bedCode)})` : ""}`;
+
+    const isCorrection = sub?.status === "REJECTED" && sub?.rejectionReason;
+
+    const msg = isCorrection
+      ? `*${propName}*\n` +
+        `Hello ${occ.name}! 👋\n\n` +
+        `Your submitted KYC verification requires a quick update:\n` +
+        `⚠️ *Correction Note*: "${sub.rejectionReason}"\n\n` +
+        `Please re-upload your document or clear photo using this secure link:\n` +
+        `🔗 *KYC Link*: ${link}\n\n` +
+        `Takes under a minute. Thank you!\n` +
+        `*${propName} Administration*`
+      : `*${propName}*\n` +
+        `Greetings ${occ.name}! 🏢\n\n` +
+        `We are moving to 100% digital management! All monthly rent receipts, stay records, and payment confirmations are now tied to your digital verification.\n\n` +
+        `Please take 2 minutes to complete your mandatory Digital KYC:\n` +
+        `🛏️ *Stay*: Room ${roomStay}\n` +
+        `📅 *Check-In Date*: ${occ.joiningDate || "On Arrival"}\n\n` +
+        `👉 *Complete your KYC here*:\n` +
+        `${link}\n\n` +
+        `Please have your Aadhaar and live selfie handy. Once submitted, management will approve and lock your profile.${deskPhone ? ` Need help? Call PG Desk at ${deskPhone}.` : ""}\n\n` +
+        `Warm regards,\n` +
+        `*${propName} Management Desk*`;
 
     const waUrl = targetPhone
       ? `https://wa.me/91${targetPhone}?text=${encodeURIComponent(msg)}`
@@ -1084,9 +1249,22 @@ function SelfKycDeskContent({
         }
       }
 
+      const isExistingResident =
+        subToReject.submissionType === "EXISTING_RESIDENT" ||
+        Boolean(subToReject.occupantId) ||
+        occupantsList.some((o) => o.id === subToReject.id || o.id === subToReject.occupantId);
+
+      const targetOccId = subToReject.occupantId || subToReject.id;
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(`tenopilot_kyc_reminder_sent_${propertyId}_${targetOccId}`, new Date().toISOString());
+          localStorage.setItem(`tenopilot_kyc_correction_${propertyId}_${targetOccId}`, currentReason);
+        } catch {}
+      }
+
       const targetPhonesList = Array.from(phonesToNotify).join(", ");
       triggerToast(
-        `Correction requested for ${subToReject.name}. Application moved back to Sent Invites Log. Candidate notified on WhatsApp (${targetPhonesList || "Candidate Phone"})!`,
+        `Correction requested for ${subToReject.name}. ${isExistingResident ? "Application moved to Existing Resident KYC Desk." : "Application moved back to Sent Invites Log."} Candidate notified on WhatsApp!`,
         "success"
       );
       handledDeepLinkRef.current = true;
@@ -1094,7 +1272,7 @@ function SelfKycDeskContent({
       setActiveReviewSubmission(null);
       setShowRejectionInput(false);
       setRejectionReason("");
-      setActiveTab("INVITES");
+      setActiveTab(isExistingResident ? "RESIDENTS" : "INVITES");
     } catch (e) {
       console.error(e);
       triggerToast("Error rejecting submission.", "error");
@@ -1194,18 +1372,18 @@ function SelfKycDeskContent({
             </div>
           </div>
 
-          {/* Tab Navigation (Transition Pipeline: Sent Invites -> Review KYC -> Approved) */}
-          <div className="flex items-center gap-2 border-b border-gray-200">
-            {/* 1. Sent Invites */}
+          {/* Tab Navigation (Transition Pipeline: Sent Invites -> Existing Resident KYC -> Review KYC -> Approved) */}
+          <div className="flex items-center gap-2 border-b border-gray-200 overflow-x-auto">
+            {/* 1. Sent Invites (Pre-Checkin) */}
             <button
               onClick={() => setActiveTab("INVITES")}
-              className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
+              className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === "INVITES"
                   ? "border-[#c2652a] text-[#c2652a]"
                   : "border-transparent text-gray-500 hover:text-gray-900"
               }`}
             >
-              <span>Sent Invites</span>
+              <span>Sent Invites (Pre-Checkin)</span>
               {activeInvites.length > 0 && (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 font-bold">
                   {activeInvites.length}
@@ -1213,10 +1391,27 @@ function SelfKycDeskContent({
               )}
             </button>
 
-            {/* 2. Review KYC (Formerly Pending Verifications) */}
+            {/* 2. Existing Resident KYC */}
+            <button
+              onClick={() => setActiveTab("RESIDENTS")}
+              className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === "RESIDENTS"
+                  ? "border-[#c2652a] text-[#c2652a]"
+                  : "border-transparent text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              <span>Existing Resident KYC</span>
+              {existingResidentsKycList.filter((r) => r.status !== "APPROVED").length > 0 && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 font-bold">
+                  {existingResidentsKycList.filter((r) => r.status !== "APPROVED").length}
+                </span>
+              )}
+            </button>
+
+            {/* 3. Review KYC */}
             <button
               onClick={() => setActiveTab("REVIEW")}
-              className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
+              className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === "REVIEW"
                   ? "border-[#c2652a] text-[#c2652a]"
                   : "border-transparent text-gray-500 hover:text-gray-900"
@@ -1230,16 +1425,16 @@ function SelfKycDeskContent({
               )}
             </button>
 
-            {/* 3. Approved */}
+            {/* 4. Approved */}
             <button
               onClick={() => setActiveTab("APPROVED")}
-              className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
+              className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === "APPROVED"
                   ? "border-[#c2652a] text-[#c2652a]"
                   : "border-transparent text-gray-500 hover:text-gray-900"
               }`}
             >
-              <span>Approved ({approvedSubmissions.length})</span>
+              <span>Approved ({approvedSubmissions.length + existingResidentsKycList.filter((r) => r.status === "APPROVED").length})</span>
             </button>
           </div>
 
@@ -1507,7 +1702,286 @@ function SelfKycDeskContent({
             </div>
           )}
 
-          {/* STAGE 2: REVIEW KYC (Candidate Submitted, Awaiting Manager Approval) */}
+          {/* STAGE 2: EXISTING RESIDENT KYC DESK (Triggered-Only) */}
+          {activeTab === "RESIDENTS" && (
+            <div className="space-y-4">
+              {/* Controls Card */}
+              <div className="bg-white p-4 sm:p-5 rounded-3xl border border-gray-200 shadow-xs space-y-3.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-serif font-bold text-base text-gray-900 flex items-center gap-2">
+                      <span>🏠 In-House Resident KYC Requests</span>
+                      <span className="text-xs font-sans font-bold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-200">
+                        {existingResidentsKycList.length} Triggered
+                      </span>
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Tracks residents who received KYC reminders or correction requests. Existing beds and financial ledgers stay locked.
+                    </p>
+                  </div>
+
+                  {/* Search Bar */}
+                  <div className="relative w-full sm:w-72">
+                    <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search resident, room, phone..."
+                      value={residentSearchTerm}
+                      onChange={(e) => setResidentSearchTerm(e.target.value)}
+                      className="w-full pl-9 pr-8 py-2 rounded-xl border border-gray-200 text-xs focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a] outline-none"
+                    />
+                    {residentSearchTerm && (
+                      <button
+                        onClick={() => setResidentSearchTerm("")}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Filter Chips */}
+                <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-gray-100 text-xs">
+                  <button
+                    onClick={() => setResidentFilterChip("ALL")}
+                    className={`px-3 py-1 rounded-xl font-bold transition-all cursor-pointer ${
+                      residentFilterChip === "ALL"
+                        ? "bg-gray-900 text-white shadow-2xs"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    All ({existingResidentsKycList.length})
+                  </button>
+                  <button
+                    onClick={() => setResidentFilterChip("CORRECTION")}
+                    className={`px-3 py-1 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      residentFilterChip === "CORRECTION"
+                        ? "bg-amber-600 text-white shadow-2xs"
+                        : "bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200"
+                    }`}
+                  >
+                    <span>⚠️ Needs Correction</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/10 font-mono">
+                      {existingResidentsKycList.filter((r) => r.status === "NEEDS_CORRECTION").length}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setResidentFilterChip("PENDING")}
+                    className={`px-3 py-1 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      residentFilterChip === "PENDING"
+                        ? "bg-rose-600 text-white shadow-2xs"
+                        : "bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200"
+                    }`}
+                  >
+                    <span>⏳ Submitted (Awaiting Review)</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/10 font-mono">
+                      {existingResidentsKycList.filter((r) => r.status === "PENDING_REVIEW").length}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setResidentFilterChip("AWAITING")}
+                    className={`px-3 py-1 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      residentFilterChip === "AWAITING"
+                        ? "bg-blue-600 text-white shadow-2xs"
+                        : "bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200"
+                    }`}
+                  >
+                    <span>✉️ Awaiting Submission</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/10 font-mono">
+                      {existingResidentsKycList.filter((r) => r.status === "AWAITING_SUBMISSION").length}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setResidentFilterChip("APPROVED")}
+                    className={`px-3 py-1 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      residentFilterChip === "APPROVED"
+                        ? "bg-emerald-600 text-white shadow-2xs"
+                        : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200"
+                    }`}
+                  >
+                    <span>✅ Verified ({existingResidentsKycList.filter((r) => r.status === "APPROVED").length})</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Table / List */}
+              {filteredExistingResidents.length === 0 ? (
+                <div className="p-12 text-center bg-white rounded-3xl border border-gray-200 shadow-2xs space-y-3">
+                  <div className="w-14 h-14 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center mx-auto text-2xl font-bold">
+                    🏠
+                  </div>
+                  <h3 className="font-serif font-bold text-lg text-gray-900">
+                    {existingResidentsKycList.length === 0
+                      ? "No active in-house resident KYC requests."
+                      : "No residents match this filter."}
+                  </h3>
+                  <p className="text-xs text-gray-500 max-w-md mx-auto">
+                    {existingResidentsKycList.length === 0
+                      ? "Only residents for whom a KYC reminder or correction request was actually triggered will appear here."
+                      : "Try switching filter chips or clearing the search box."}
+                  </p>
+                  {existingResidentsKycList.length === 0 && (
+                    <div className="pt-2">
+                      <Link
+                        href={`/p/${propertyId}/tenants?tab=KYCPending`}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Send Bulk KYC Reminders from Tenant Desk</span>
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-white rounded-3xl border border-gray-200 shadow-xs overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[#fff8f6] border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[10px] font-bold">
+                        <tr>
+                          <th className="py-3 px-4">Resident</th>
+                          <th className="py-3 px-4">Contact</th>
+                          <th className="py-3 px-4">Current Stay</th>
+                          <th className="py-3 px-4">Tariff</th>
+                          <th className="py-3 px-4">KYC Status</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {filteredExistingResidents.map((item) => {
+                          const occ = item.occupant;
+                          const personalizedUrl = `/self-onboard/${encodeURIComponent(occ.id)}?p=${encodeURIComponent(propertyId)}&name=${encodeURIComponent(occ.name)}&jd=${encodeURIComponent(occ.joiningDate || "")}`;
+
+                          return (
+                            <tr key={occ.id} className="hover:bg-gray-50/80 transition-colors">
+                              <td className="py-3.5 px-4 font-bold text-gray-900">
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                    occ.stayType === "Guest"
+                                      ? "bg-purple-100 text-purple-900"
+                                      : "bg-blue-100 text-blue-900"
+                                  }`}>
+                                    {occ.stayType || "Tenant"}
+                                  </span>
+                                  <span>{occ.name}</span>
+                                </div>
+                              </td>
+
+                              <td className="py-3.5 px-4 font-mono font-semibold text-gray-700">
+                                <div>{occ.phone}</div>
+                                {occ.email && <div className="text-[10px] font-sans text-gray-400">{occ.email}</div>}
+                              </td>
+
+                              <td className="py-3.5 px-4 font-bold text-gray-900">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border font-mono text-[11px] bg-amber-50 text-amber-900 border-amber-200">
+                                  <Lock className="w-3 h-3 text-amber-700" />
+                                  <span>Room {occ.roomNumber} ({formatBedLabel(occ.bedCode)})</span>
+                                </span>
+                              </td>
+
+                              <td className="py-3.5 px-4 font-mono font-bold text-[#c2652a]">
+                                ₹{(occ.rentAmount ?? 0).toLocaleString("en-IN")}/mo
+                              </td>
+
+                              <td className="py-3.5 px-4">
+                                {item.status === "NEEDS_CORRECTION" ? (
+                                  <div className="flex flex-col gap-1 items-start">
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                      <span>⚠️</span>
+                                      <span>Correction Requested</span>
+                                    </span>
+                                    {item.lastRejection?.rejectionReason && (
+                                      <span className="text-[10px] text-amber-800 italic max-w-xs truncate" title={item.lastRejection.rejectionReason}>
+                                        "{item.lastRejection.rejectionReason}"
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : item.status === "PENDING_REVIEW" ? (
+                                  <div className="flex flex-col gap-1 items-start">
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-300 animate-pulse">
+                                      <Clock className="w-3 h-3 text-rose-600" />
+                                      <span>Submitted • Review Pending</span>
+                                    </span>
+                                  </div>
+                                ) : item.status === "APPROVED" ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                    <Check className="w-3 h-3 text-emerald-600" />
+                                    <span>Verified &amp; Approved</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                                    <Check className="w-3 h-3 text-blue-600" />
+                                    <span>Reminder Sent</span>
+                                  </span>
+                                )}
+                              </td>
+
+                              <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
+                                <a
+                                  href={personalizedUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-2.5 py-1.5 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
+                                  title="Open personalized resident KYC check-in link"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                  <span>Open</span>
+                                </a>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleShareResidentKycViaWhatsApp(occ, item.submission)}
+                                  className="px-2.5 py-1.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                                  title="Send WhatsApp KYC reminder with Meta template"
+                                >
+                                  <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>WhatsApp</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (typeof window !== "undefined" && navigator.clipboard) {
+                                      const fullUrl = `${window.location.origin}${personalizedUrl}`;
+                                      navigator.clipboard.writeText(fullUrl);
+                                      triggerToast(`📋 Personalized KYC link copied for ${occ.name}!`);
+                                    }
+                                  }}
+                                  className="px-2.5 py-1.5 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
+                                  title="Copy personalized link"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                  <span>Link</span>
+                                </button>
+
+                                {item.submission && item.submission.status === "PENDING" && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveReviewSubmission(item.submission!);
+                                      setShowRejectionInput(false);
+                                      setRejectionReason("");
+                                    }}
+                                    className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1 shadow-xs"
+                                    title="Open Review & Verification Modal"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    <span>Review</span>
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* STAGE 3: REVIEW KYC (Candidate Submitted, Awaiting Manager Approval) */}
           {activeTab === "REVIEW" && (
             <div className="space-y-4">
               {pendingSubmissions.length === 0 ? (
@@ -1563,6 +2037,16 @@ function SelfKycDeskContent({
                               }`}>
                                 {sub.stayType === "Guest" ? "🟣 Guest Stay" : "🔵 Monthly Tenant"}
                               </span>
+                              {Boolean(
+                                sub.submissionType === "EXISTING_RESIDENT" ||
+                                sub.occupantId ||
+                                occupantsList.some((o) => o.id === sub.id || o.id === sub.occupantId)
+                              ) && (
+                                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1 shadow-2xs">
+                                  <span>🏠</span>
+                                  <span>Existing Resident</span>
+                                </span>
+                              )}
                               {isTargetCandidate && (
                                 <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#c2652a] text-white shadow-2xs">
                                   Selected Bed
@@ -1591,7 +2075,11 @@ function SelfKycDeskContent({
                               {formatDisplayPhone(sub.phone, sub.countryCode)}
                             </p>
                             <span className="text-[10px] text-gray-400 block mt-0.5">
-                              {sub.submissionType === "WALK_IN_QR" ? "Lobby QR Scan" : "Invite Link"}
+                              {sub.submissionType === "EXISTING_RESIDENT"
+                                ? "In-House Resident KYC"
+                                : sub.submissionType === "WALK_IN_QR"
+                                ? "Lobby QR Scan"
+                                : "Invite Link"}
                             </span>
                           </div>
                         </div>
@@ -2115,37 +2603,57 @@ function SelfKycDeskContent({
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 select-none">
           <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-3xl w-full max-h-[95vh] flex flex-col overflow-hidden animate-in zoom-in-95">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-100 shrink-0 bg-white">
-              <div className="flex items-center gap-3">
-                <img
-                  src={activeReviewSubmission.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(activeReviewSubmission.name)}`}
-                  alt={activeReviewSubmission.name}
-                  className="w-10 h-10 rounded-full object-cover border border-gray-300"
-                />
-                <div>
-                  <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900 flex items-center gap-2">
-                    <span>{activeReviewSubmission.name}</span>
-                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-900">
-                      {activeReviewSubmission.stayType}
-                    </span>
-                  </h3>
-                  <p className="text-xs text-gray-500">
-                    Target: Room {activeReviewSubmission.roomNumber} ({formatBedLabel(activeReviewSubmission.bedCode)}) • Submitted on {new Date(activeReviewSubmission.submittedAt).toLocaleDateString("en-IN")}
-                  </p>
+            {(() => {
+              const isModalExistingResident =
+                activeReviewSubmission.submissionType === "EXISTING_RESIDENT" ||
+                Boolean(activeReviewSubmission.occupantId) ||
+                occupantsList.some(
+                  (o) =>
+                    o.id === activeReviewSubmission.id ||
+                    o.id === activeReviewSubmission.occupantId ||
+                    (activeReviewSubmission.phone && o.phone && o.phone.replace(/\D/g, "").slice(-10) === activeReviewSubmission.phone.replace(/\D/g, "").slice(-10))
+                );
+
+              return (
+                <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-100 shrink-0 bg-white">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={activeReviewSubmission.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(activeReviewSubmission.name)}`}
+                      alt={activeReviewSubmission.name}
+                      className="w-10 h-10 rounded-full object-cover border border-gray-300"
+                    />
+                    <div>
+                      <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900 flex items-center gap-2">
+                        <span>{activeReviewSubmission.name}</span>
+                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-900">
+                          {activeReviewSubmission.stayType}
+                        </span>
+                        {isModalExistingResident && (
+                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1 shadow-2xs">
+                            <span>🏠</span>
+                            <span>Existing Resident</span>
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-xs text-gray-500">
+                        {isModalExistingResident ? "Current Stay" : "Target"}: Room {activeReviewSubmission.roomNumber} ({formatBedLabel(activeReviewSubmission.bedCode)}) • Submitted on {new Date(activeReviewSubmission.submittedAt).toLocaleDateString("en-IN")}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handledDeepLinkRef.current = true;
+                      clearReviewUrlParams();
+                      setActiveReviewSubmission(null);
+                    }}
+                    className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  handledDeepLinkRef.current = true;
-                  clearReviewUrlParams();
-                  setActiveReviewSubmission(null);
-                }}
-                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+              );
+            })()}
 
             {/* Modal Body: 2 Columns */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
@@ -2398,6 +2906,19 @@ function SelfKycDeskContent({
               })()}
             </div>
 
+            {Boolean(
+              activeReviewSubmission.submissionType === "EXISTING_RESIDENT" ||
+              activeReviewSubmission.occupantId ||
+              occupantsList.some(o => o.id === activeReviewSubmission.id || o.id === activeReviewSubmission.occupantId)
+            ) && (
+              <div className="mx-4 sm:mx-6 mb-2 p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2.5">
+                <span className="text-base shrink-0">ℹ️</span>
+                <span className="leading-snug">
+                  <strong>In-House Resident Verification:</strong> This resident already occupies Room {activeReviewSubmission.roomNumber} ({formatBedLabel(activeReviewSubmission.bedCode)}). Approving will verify KYC records without modifying bed allocation or ledger history.
+                </span>
+              </div>
+            )}
+
             {/* Modal Footer Actions: Simple names right-aligned */}
             <div className="p-4 sm:p-5 border-t border-gray-100 bg-white flex items-center justify-end gap-2.5">
               <button
@@ -2435,7 +2956,15 @@ function SelfKycDeskContent({
                     <span>Approving...</span>
                   </>
                 ) : (
-                  <span>Approve</span>
+                  <span>
+                    {Boolean(
+                      activeReviewSubmission.submissionType === "EXISTING_RESIDENT" ||
+                      activeReviewSubmission.occupantId ||
+                      occupantsList.some(o => o.id === activeReviewSubmission.id || o.id === activeReviewSubmission.occupantId)
+                    )
+                      ? "Approve Resident KYC"
+                      : "Approve Check-in"}
+                  </span>
                 )}
               </button>
             </div>

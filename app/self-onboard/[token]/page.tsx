@@ -2,7 +2,7 @@
 
 import { use, useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
   ShieldCheck,
@@ -141,10 +141,70 @@ export default function TenantSelfOnboardingPage({
           paramJd = sp.get("jd") || sp.get("joiningDate") || "";
         }
         const result = await selfKycStore.fetchInviteAsync(token, paramPropId);
-        if (result?.invite) {
-          const inv = result.invite;
+        let inv = result?.invite;
+        let resolvedPropId = result?.propertyId || inv?.propertyId || paramPropId || propertyId;
+
+        // Fallback: If no invite in self_kyc_invites, check if token matches an existing occupant
+        if (!inv) {
+          const cleanToken = decodeURIComponent(token).trim();
+          let matchedOcc: any = null;
+
+          // 1. Check local occupantStore for resolved property
+          if (resolvedPropId) {
+            const occs = occupantStore.getOccupants(resolvedPropId) || [];
+            matchedOcc = occs.find((o) => o.id === cleanToken || o.phone?.replace(/\D/g, "") === cleanToken.replace(/\D/g, ""));
+          }
+
+          // 2. Direct Firestore query in properties/{propertyId}/occupants/{cleanToken}
+          if (!matchedOcc && resolvedPropId) {
+            try {
+              const occRef = doc(db, "properties", resolvedPropId, "occupants", cleanToken);
+              const occSnap = await getDoc(occRef);
+              if (occSnap.exists()) {
+                matchedOcc = { id: occSnap.id, ...occSnap.data() };
+              }
+            } catch {}
+          }
+
+          // 3. Fallback scan across all occupantStore caches if propertyId wasn't known
+          if (!matchedOcc) {
+            try {
+              const allProps = (portfolioStore?.getProperties ? portfolioStore.getProperties() : []) as any[];
+              for (const p of allProps) {
+                const occs = occupantStore.getOccupants(p.id) || [];
+                const found = occs.find((o) => o.id === cleanToken || o.phone?.replace(/\D/g, "") === cleanToken.replace(/\D/g, ""));
+                if (found) {
+                  matchedOcc = found;
+                  resolvedPropId = p.id;
+                  break;
+                }
+              }
+            } catch {}
+          }
+
+          if (matchedOcc) {
+            inv = {
+              id: matchedOcc.id,
+              propertyId: resolvedPropId,
+              occupantId: matchedOcc.id,
+              stayType: (matchedOcc.stayType as any) || "Tenant",
+              roomNumber: matchedOcc.roomNumber || "",
+              bedCode: matchedOcc.bedCode || "",
+              rentAmount: matchedOcc.rentAmount || matchedOcc.tariff || 0,
+              securityDeposit: matchedOcc.securityDeposit || 0,
+              candidateName: (matchedOcc.name || paramName || "").trim(),
+              candidatePhone: matchedOcc.phone || "",
+              candidateEmail: matchedOcc.email || "",
+              joiningDate: matchedOcc.joiningDate || paramJd || "",
+              status: matchedOcc.kycVerified ? "COMPLETED" : "ACTIVE",
+              createdAt: matchedOcc.joiningDate || new Date().toISOString(),
+              isExistingResident: true,
+            };
+          }
+        }
+
+        if (inv) {
           setInvite(inv);
-          const resolvedPropId = result.propertyId || inv.propertyId || paramPropId || propertyId;
           setInvitePropertyId(resolvedPropId);
           // Strictly take candidate's legal name from invite record or URL query parameter
           const resolvedName = (inv.candidateName || paramName || "").trim();
@@ -577,7 +637,8 @@ export default function TenantSelfOnboardingPage({
         id: submissionId,
         propertyId: invitePropertyId || invite.propertyId || propertyId,
         inviteId: invite.id,
-        submissionType: "INVITE",
+        occupantId: invite.occupantId,
+        submissionType: (invite as any).isExistingResident || invite.occupantId ? "EXISTING_RESIDENT" : "INVITE",
         stayType: invite.stayType,
         roomNumber: invite.roomNumber,
         bedCode: invite.bedCode,
@@ -858,7 +919,7 @@ export default function TenantSelfOnboardingPage({
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 {/* 1. Assigned Room & Bed */}
                 <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 flex flex-col justify-between min-h-[72px]">
                   <span className="text-[10px] font-bold uppercase text-gray-400 block tracking-tight">Assigned Room & Bed</span>
@@ -891,15 +952,7 @@ export default function TenantSelfOnboardingPage({
                   </div>
                 </div>
 
-                {/* 3. Security Deposit */}
-                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 flex flex-col justify-between min-h-[72px]">
-                  <span className="text-[10px] font-bold uppercase text-gray-400 block tracking-tight">Security Deposit</span>
-                  <span className="font-mono font-bold text-sm sm:text-base text-purple-700 block mt-1">
-                    ₹{((invite.securityDeposit ?? (invite.rentAmount ?? 0) * 2)).toLocaleString("en-IN")}
-                  </span>
-                </div>
-
-                {/* 4. Joining / Check-In Date */}
+                {/* 3. Joining / Check-In Date */}
                 <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 flex flex-col justify-between min-h-[72px]">
                   <span className="text-[10px] font-bold uppercase text-gray-400 block tracking-tight">Check-In Date</span>
                   <span className="font-mono font-bold text-xs sm:text-sm text-gray-900 block mt-1">
@@ -1426,7 +1479,7 @@ export default function TenantSelfOnboardingPage({
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={submitting || isEmergencySameAsMobile || isEmailAlreadyRegistered}
+              disabled={submitting || isEmergencySameAsMobile || isEmailAlreadyRegistered || !selfiePhoto || !aadhaarFront || !aadhaarBack || !residentAgreedToTerms}
               className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-base transition-all shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2.5 cursor-pointer active:scale-98"
             >
               {submitting ? (
@@ -1441,6 +1494,11 @@ export default function TenantSelfOnboardingPage({
                 </>
               )}
             </button>
+            {(!selfiePhoto || !aadhaarFront || !aadhaarBack) && (
+              <p className="text-center text-[11px] text-amber-700 font-semibold -mt-2">
+                ⚠️ Upload your live selfie and Aadhaar front &amp; back photos to enable submission.
+              </p>
+            )}
           </form>
         )}
 

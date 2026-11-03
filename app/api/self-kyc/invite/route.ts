@@ -27,6 +27,37 @@ export async function GET(req: NextRequest) {
       } catch (e) {
         console.warn("API check with explicit propertyId notice:", e);
       }
+
+      // Check if token is an existing occupant in properties/{propertyId}/occupants/{token}
+      try {
+        const occSnap = await getDoc(doc(db, "properties", paramPropId, "occupants", token));
+        if (occSnap.exists()) {
+          const occ = occSnap.data() as any;
+          return NextResponse.json({
+            success: true,
+            invite: {
+              id: token,
+              propertyId: paramPropId,
+              occupantId: token,
+              stayType: occ.stayType || "Tenant",
+              roomNumber: occ.roomNumber || "",
+              bedCode: occ.bedCode || "",
+              rentAmount: occ.rentAmount || occ.tariff || 0,
+              securityDeposit: occ.securityDeposit || 0,
+              candidateName: (occ.name || "").trim(),
+              candidatePhone: occ.phone || "",
+              candidateEmail: occ.email || "",
+              joiningDate: occ.joiningDate || "",
+              status: occ.kycVerified ? "COMPLETED" : "ACTIVE",
+              createdAt: occ.joiningDate || new Date().toISOString(),
+              isExistingResident: true,
+            },
+            propertyId: paramPropId,
+          });
+        }
+      } catch (e) {
+        console.warn("API check occupant with explicit propertyId notice:", e);
+      }
     }
 
     // 2. Scan active properties in properties/{propertyId}/self_kyc_invites/{token}
