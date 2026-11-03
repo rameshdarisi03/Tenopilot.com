@@ -778,58 +778,95 @@ export const selfKycStore = {
     const lifecycleStatus = isFutureJoining ? ("Booked" as const) : ("Active" as const);
     const paymentStatus = "Due" as const;
 
-    // Create unique occupant ID
-    const newOccupantId = `occ-${Date.now()}`;
+    // Check if an existing occupant exists in the property (e.g. Existing Resident KYC)
+    const currentOccupants = occupantStore.getOccupants(submission.propertyId) || [];
     const cleanPrimaryPhone = normalizePhoneNumber(submission.phone);
     const cleanCountryCode = (submission.countryCode || "+91").trim();
     const normalizedCc = cleanCountryCode.startsWith("+") ? cleanCountryCode : `+${cleanCountryCode}`;
 
-    const newResident: Occupant = {
-      id: newOccupantId,
-      name: submission.name.trim(),
-      avatar: submission.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(submission.name)}`,
-      phone: `${normalizedCc} ${cleanPrimaryPhone}`,
-      countryCode: normalizedCc,
-      email: submission.email?.trim() || `${cleanPrimaryPhone}@resident.tenopilot.com`,
-      stayType: submission.stayType,
-      roomNumber: submission.roomNumber,
-      bedCode: submission.bedCode,
-      joiningDate: submission.joiningDate,
-      lastPaidDate: "Unpaid / New Check-In",
-      dueDate: submission.joiningDate,
-      dueDay: 5,
-      daysRemainingText: isFutureJoining ? "Future Check-In" : "DUE TODAY",
-      daysDiff: 0,
-      rentAmount: submission.rentAmount,
-      securityDeposit: submission.securityDeposit ?? (submission.rentAmount * 2),
-      paymentStatus,
-      lifecycleStatus,
-      depositStatus: "PENDING",
-      aadhaarNumber: submission.aadhaarNumber || "",
-      emergencyContact: {
-        name: submission.emergencyContact?.name || "Parent / Guardian",
-        phone: normalizePhoneNumber(submission.emergencyContact?.phone || "") || submission.emergencyContact?.phone || "",
-        relation: submission.emergencyContact?.relation || "Family",
-      },
-      kycVerified: true,
-      hasPdfAgreement: false,
-      workplace: submission.workplace || undefined,
-      occupation: submission.occupation || undefined,
-      purposeOfVisit: submission.purposeOfVisit || undefined,
-      address: submission.address || undefined,
-      vehicleNumbers: submission.vehicleNumbers && submission.vehicleNumbers.length > 0 ? submission.vehicleNumbers : undefined,
-      vehicleNumber: submission.vehicleNumbers?.[0] || undefined,
-      kycDocs: {
-        idMode: submission.aadhaarPdfUrl ? "PDF" : "IMAGES",
-        photoUrl: submission.photoUrl,
-        aadhaarFrontUrl: submission.aadhaarFrontUrl,
-        aadhaarBackUrl: submission.aadhaarBackUrl,
-        aadhaarPdfUrl: submission.aadhaarPdfUrl,
-      },
-    };
+    const existingOcc = currentOccupants.find(
+      (o) =>
+        (submission.inviteId && o.id === submission.inviteId) ||
+        (cleanPrimaryPhone && normalizePhoneNumber(o.phone) === cleanPrimaryPhone) ||
+        (submission.roomNumber && o.roomNumber === submission.roomNumber && submission.bedCode && o.bedCode === submission.bedCode && o.lifecycleStatus !== "Past")
+    );
+
+    let newResident: Occupant;
+
+    if (existingOcc) {
+      // 🛡️ UPDATE EXISTING RESIDENT (PRESERVE ID, FINANCIAL HISTORY, PAYMENT STATUS)
+      newResident = {
+        ...existingOcc,
+        name: submission.name.trim() || existingOcc.name,
+        avatar: submission.photoUrl || existingOcc.avatar,
+        email: submission.email?.trim() || existingOcc.email,
+        aadhaarNumber: submission.aadhaarNumber || existingOcc.aadhaarNumber,
+        emergencyContact: {
+          name: submission.emergencyContact?.name || existingOcc.emergencyContact?.name || "Emergency Contact",
+          phone: normalizePhoneNumber(submission.emergencyContact?.phone || "") || existingOcc.emergencyContact?.phone || "",
+          relation: submission.emergencyContact?.relation || existingOcc.emergencyContact?.relation || "Family",
+        },
+        workplace: submission.workplace || existingOcc.workplace,
+        vehicleNumbers: submission.vehicleNumbers && submission.vehicleNumbers.length > 0 ? submission.vehicleNumbers : existingOcc.vehicleNumbers,
+        vehicleNumber: submission.vehicleNumbers?.[0] || existingOcc.vehicleNumber,
+        kycVerified: true,
+        kycDocs: {
+          idMode: submission.aadhaarPdfUrl ? "PDF" : "IMAGES",
+          photoUrl: submission.photoUrl || existingOcc.kycDocs?.photoUrl,
+          aadhaarFrontUrl: submission.aadhaarFrontUrl || existingOcc.kycDocs?.aadhaarFrontUrl,
+          aadhaarBackUrl: submission.aadhaarBackUrl || existingOcc.kycDocs?.aadhaarBackUrl,
+          aadhaarPdfUrl: submission.aadhaarPdfUrl || existingOcc.kycDocs?.aadhaarPdfUrl,
+        },
+      };
+    } else {
+      // Create unique occupant ID
+      const newOccupantId = `occ-${Date.now()}`;
+      newResident = {
+        id: newOccupantId,
+        name: submission.name.trim(),
+        avatar: submission.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(submission.name)}`,
+        phone: `${normalizedCc} ${cleanPrimaryPhone}`,
+        countryCode: normalizedCc,
+        email: submission.email?.trim() || `${cleanPrimaryPhone}@resident.tenopilot.com`,
+        stayType: submission.stayType,
+        roomNumber: submission.roomNumber,
+        bedCode: submission.bedCode,
+        joiningDate: submission.joiningDate,
+        lastPaidDate: "Unpaid / New Check-In",
+        dueDate: submission.joiningDate,
+        dueDay: 5,
+        daysRemainingText: isFutureJoining ? "Future Check-In" : "DUE TODAY",
+        daysDiff: 0,
+        rentAmount: submission.rentAmount,
+        securityDeposit: submission.securityDeposit ?? (submission.rentAmount * 2),
+        paymentStatus,
+        lifecycleStatus,
+        depositStatus: "PENDING",
+        aadhaarNumber: submission.aadhaarNumber || "",
+        emergencyContact: {
+          name: submission.emergencyContact?.name || "Parent / Guardian",
+          phone: normalizePhoneNumber(submission.emergencyContact?.phone || "") || submission.emergencyContact?.phone || "",
+          relation: submission.emergencyContact?.relation || "Family",
+        },
+        kycVerified: true,
+        hasPdfAgreement: false,
+        workplace: submission.workplace || undefined,
+        occupation: submission.occupation || undefined,
+        purposeOfVisit: submission.purposeOfVisit || undefined,
+        address: submission.address || undefined,
+        vehicleNumbers: submission.vehicleNumbers && submission.vehicleNumbers.length > 0 ? submission.vehicleNumbers : undefined,
+        vehicleNumber: submission.vehicleNumbers?.[0] || undefined,
+        kycDocs: {
+          idMode: submission.aadhaarPdfUrl ? "PDF" : "IMAGES",
+          photoUrl: submission.photoUrl,
+          aadhaarFrontUrl: submission.aadhaarFrontUrl,
+          aadhaarBackUrl: submission.aadhaarBackUrl,
+          aadhaarPdfUrl: submission.aadhaarPdfUrl,
+        },
+      };
+    }
 
     // Save to occupantStore & Firestore
-    const currentOccupants = occupantStore.getOccupants(submission.propertyId) || [];
     occupantStore.updateOccupants([newResident, ...currentOccupants.filter((o) => o.id !== newResident.id)], submission.propertyId);
     saveOccupantToFirestore(submission.propertyId, newResident).catch(console.error);
 
@@ -906,7 +943,7 @@ export const selfKycStore = {
     submission.status = "APPROVED";
     submission.reviewedAt = new Date().toISOString();
     submission.reviewedBy = reviewerName;
-    submission.occupantId = newOccupantId;
+    submission.occupantId = newResident.id;
 
     const list = SUBMISSIONS_CACHE.get(submission.propertyId) || [];
     SUBMISSIONS_CACHE.set(
@@ -938,7 +975,7 @@ export const selfKycStore = {
         status: "APPROVED",
         reviewedAt: submission.reviewedAt,
         reviewedBy: reviewerName,
-        occupantId: newOccupantId,
+        occupantId: newResident.id,
       });
     } catch (e) {
       console.warn(e);

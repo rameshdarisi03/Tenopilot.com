@@ -502,14 +502,23 @@ export const occupantStore = {
       return updated;
     });
 
+    // 🛡️ Proactive In-Memory Deduplication: Prevent duplicate IDs from rendering
+    const seenIds = new Set<string>();
+    const deduplicatedList: Occupant[] = [];
+    for (const occ of sanitizedFirestoreList) {
+      if (seenIds.has(occ.id)) continue;
+      seenIds.add(occ.id);
+      deduplicatedList.push(occ);
+    }
+
     if (propertyId) {
-      PROPERTY_OCCUPANTS_MAP.set(propertyId, sanitizedFirestoreList);
+      PROPERTY_OCCUPANTS_MAP.set(propertyId, deduplicatedList);
     }
 
     if (typeof window !== "undefined" && propertyId) {
       try {
         const savedKey = `tenopilot_occupants_${propertyId}`;
-        localStorage.setItem(savedKey, JSON.stringify(sanitizedFirestoreList));
+        localStorage.setItem(savedKey, JSON.stringify(deduplicatedList));
       } catch (e) {
         console.warn("Failed to update cache with Cloud Firestore SSOT:", e);
       }
