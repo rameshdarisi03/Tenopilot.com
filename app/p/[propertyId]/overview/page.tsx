@@ -55,6 +55,7 @@ import { buildWhatsAppUrl } from "@/utils/security";
 import { useAuth } from "@/providers/AuthProvider";
 import { useCollectionsViewMode } from "@/hooks/useCollectionsViewMode";
 import { CollectionsCardSwitcher } from "@/components/dashboard/CollectionsCardSwitcher";
+import { CollectionsHelpPopover } from "@/components/dashboard/CollectionsHelpPopover";
 import {
   calculateOccupantFinancialStatement,
   calculatePropertyRentComplianceSummary,
@@ -635,11 +636,17 @@ export default function PropertyOverviewPage({
               title="Click to view live revenues & cashflow in Financial Hub"
             >
               <div className="flex items-center justify-between">
-                <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                  collectionsMode === "GROSS" ? "text-purple-700" : "text-emerald-600"
-                }`}>
-                  {collectionsMode === "GROSS" ? "GROSS COLLECTIONS" : "RENT COLLECTIONS"}
-                </span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <CollectionsHelpPopover
+                    mode={collectionsMode}
+                    breakdown={collectionsData.grossCollections?.breakdown}
+                  />
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                    collectionsMode === "GROSS" ? "text-purple-700" : "text-emerald-600"
+                  }`}>
+                    {collectionsMode === "GROSS" ? "GROSS COLLECTIONS" : "RENT COLLECTIONS"}
+                  </span>
+                </div>
                 <CollectionsCardSwitcher
                   mode={collectionsMode}
                   onToggle={toggleCollectionsMode}

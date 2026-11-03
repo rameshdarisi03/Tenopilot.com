@@ -54,6 +54,7 @@ import { recurringBillStore, RecurringBillRecord } from "@/constants/recurringBi
 import { CATEGORIZED_ICON_LIBRARY, RenderDynamicCategoryIcon, ReceiptRupeeIcon } from "@/constants/businessIconLibrary";
 import { useCollectionsViewMode } from "@/hooks/useCollectionsViewMode";
 import { CollectionsCardSwitcher } from "@/components/dashboard/CollectionsCardSwitcher";
+import { CollectionsHelpPopover } from "@/components/dashboard/CollectionsHelpPopover";
 import { occupantStore } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
@@ -1611,11 +1612,17 @@ export default function FinancialHubPage({
                     collectionsMode === "GROSS" ? "border-gray-200 hover:border-purple-400" : "border-gray-200 hover:border-emerald-500"
                   }`}>
                     <div className="flex items-center justify-between gap-2">
-                      <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider truncate ${
-                        collectionsMode === "GROSS" ? "text-purple-700" : "text-emerald-600"
-                      }`}>
-                        {collectionsMode === "GROSS" ? "GROSS COLLECTIONS" : "RENT COLLECTIONS"} — {activeDateBounds.label.replace(/^\(+|\)+$/g, "").toUpperCase()}
-                      </span>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <CollectionsHelpPopover
+                          mode={collectionsMode}
+                          breakdown={collectionsData.grossCollections?.breakdown}
+                        />
+                        <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider truncate ${
+                          collectionsMode === "GROSS" ? "text-purple-700" : "text-emerald-600"
+                        }`}>
+                          {collectionsMode === "GROSS" ? "GROSS COLLECTIONS" : "RENT COLLECTIONS"} — {activeDateBounds.label.replace(/^\(+|\)+$/g, "").toUpperCase()}
+                        </span>
+                      </div>
                       <CollectionsCardSwitcher
                         mode={collectionsMode}
                         onToggle={toggleCollectionsMode}

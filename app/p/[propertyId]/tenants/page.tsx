@@ -30,6 +30,7 @@ import {
 import { usePlatformConfig } from "@/lib/usePlatformConfig";
 import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
 import { CollectionsCardSwitcher } from "@/components/dashboard/CollectionsCardSwitcher";
+import { CollectionsHelpPopover } from "@/components/dashboard/CollectionsHelpPopover";
 import { useCollectionsViewMode } from "@/hooks/useCollectionsViewMode";
 import { AnimatedNumberCounter } from "@/components/motion/AnimatedNumberCounter";
 import { GlidingTabs, TabOption } from "@/components/motion/GlidingTabs";
@@ -2460,11 +2461,17 @@ export default function TenantsDirectoryPage({
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
-                      <p className={`text-[10px] sm:text-[11px] uppercase font-bold tracking-wider truncate ${
-                        collectionsMode === "GROSS" ? "text-purple-700" : "text-emerald-600"
-                      }`}>
-                        {collectionsMode === "GROSS" ? "Gross Collections" : "Rent Collections"}
-                      </p>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <CollectionsHelpPopover
+                          mode={collectionsMode}
+                          breakdown={rentMetrics.collectionsData?.grossCollections.breakdown}
+                        />
+                        <p className={`text-[10px] sm:text-[11px] uppercase font-bold tracking-wider truncate ${
+                          collectionsMode === "GROSS" ? "text-purple-700" : "text-emerald-600"
+                        }`}>
+                          {collectionsMode === "GROSS" ? "Gross Collections" : "Rent Collections"}
+                        </p>
+                      </div>
                       <CollectionsCardSwitcher
                         mode={collectionsMode}
                         onToggle={toggleCollectionsMode}
