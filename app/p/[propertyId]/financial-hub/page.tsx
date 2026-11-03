@@ -61,6 +61,7 @@ import { propertySettingsStore } from "@/constants/propertySettings";
 import {
   calculateOccupantFinancialStatement,
   calculateMonthlyOperatingRevenueMetrics,
+  calculatePropertyRentComplianceSummary,
   getDynamicProgressGradient,
 } from "@/utils/domainSSOT";
 import { complianceLogStore } from "@/constants/complianceLogStore";
@@ -690,6 +691,11 @@ export default function FinancialHubPage({
   const activeCollections = collectionsMode === "GROSS"
     ? collectionsData.grossCollections
     : collectionsData.rentCollections;
+
+  const rentCompliance = useMemo(() => {
+    const allOccs = occupantStore.getOccupants(propertyId) || [];
+    return calculatePropertyRentComplianceSummary(allOccs, propertySettings);
+  }, [propertyId, propertySettings, revenueMetrics]);
 
   useEffect(() => {
     partnerStore.initFirebaseListener(propertyId);
@@ -1669,29 +1675,34 @@ export default function FinancialHubPage({
                     </div>
                   </div>
 
-                  {/* KPI 2: Rent Collection Efficiency Rate */}
-                  <div className="bg-white border border-gray-200 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group hover:border-[#c2652a] transition-all">
+                  {/* KPI 2: Occupant Clearance Rate */}
+                  <div className="bg-white border border-gray-200 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group hover:border-emerald-500 transition-all">
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500 truncate">
-                        COLLECTION EFFICIENCY
+                        OCCUPANT CLEARANCE RATE
                       </span>
-                      <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-blue-50 text-blue-700 shrink-0">
+                      <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-emerald-50 text-emerald-700 shrink-0">
                         <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       </div>
                     </div>
-                    <h2 className="font-sans font-bold text-xl sm:text-2xl lg:text-3xl text-gray-900 tracking-tight truncate">
-                      {isOccupantsLoading && revenueMetrics.totalGrossRevenue === 0 ? (
-                        <span className="inline-block w-20 h-8 bg-gray-200 animate-pulse rounded-lg" />
-                      ) : (
-                        `${revenueMetrics.collectionEfficiency}%`
-                      )}
-                    </h2>
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <h2 className="font-sans font-bold text-xl sm:text-2xl lg:text-3xl text-gray-900 tracking-tight">
+                        {isOccupantsLoading && rentCompliance.totalActiveTenants === 0 ? (
+                          <span className="inline-block w-20 h-8 bg-gray-200 animate-pulse rounded-lg" />
+                        ) : (
+                          `${rentCompliance.paidTenantsCount} of ${rentCompliance.totalActiveTenants} Paid`
+                        )}
+                      </h2>
+                      <span className="text-[10px] sm:text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/70 px-2 py-0.5 rounded-full whitespace-nowrap">
+                        {rentCompliance.paidRatePct}% settled
+                      </span>
+                    </div>
                     <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium truncate">
-                      ₹{(revenueMetrics.rentStream / 100000).toFixed(2)}L of ₹{((revenueMetrics.rentStream + revenueMetrics.totalUncollectedArrears) / 100000).toFixed(2)}L
+                      {Math.max(0, rentCompliance.totalActiveTenants - rentCompliance.paidTenantsCount)} pending for {new Date().toLocaleString("en-IN", { month: "short" })} cycle
                     </p>
                   </div>
 
-                  {/* KPI 3: Average Revenue Per Bed (ARPB) */}
+                  {/* KPI 3: Average Yield (ARPB) */}
                   <div className="bg-white border border-gray-200 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group hover:border-[#c2652a] transition-all">
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500 truncate">
@@ -1702,10 +1713,13 @@ export default function FinancialHubPage({
                       </div>
                     </div>
                     <h2 className="font-sans font-bold text-xl sm:text-2xl lg:text-3xl text-gray-900 tracking-tight truncate">
-                      {isOccupantsLoading && revenueMetrics.totalGrossRevenue === 0 ? (
+                      {isOccupantsLoading && rentCompliance.totalActiveTenants === 0 ? (
                         <span className="inline-block w-24 h-8 bg-gray-200 animate-pulse rounded-lg" />
                       ) : (
-                        `₹${revenueMetrics.arpb.toLocaleString("en-IN")}`
+                        `₹${(rentCompliance.totalActiveTenants > 0
+                          ? Math.round(collectionsData.rentCollections.totalExpected / rentCompliance.totalActiveTenants)
+                          : 0
+                        ).toLocaleString("en-IN")}`
                       )}
                     </h2>
                     <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium truncate">
@@ -1713,26 +1727,48 @@ export default function FinancialHubPage({
                     </p>
                   </div>
 
-                  {/* KPI 4: Pending Uncollected Rent Arrears */}
+                  {/* KPI 4: Pending Uncollected Rent Collections */}
                   <div className="bg-white border border-gray-200 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group hover:border-amber-400 transition-all">
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500 truncate">
-                        UNCOLLECTED ARREARS
+                        {collectionsMode === "GROSS" ? "TOTAL PENDING (GROSS)" : "TOTAL PENDING RENT"}
                       </span>
                       <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-amber-50 text-amber-700 shrink-0">
                         <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       </div>
                     </div>
                     <h2 className="font-sans font-bold text-xl sm:text-2xl lg:text-3xl text-amber-900 tracking-tight truncate">
-                      {isOccupantsLoading && revenueMetrics.totalGrossRevenue === 0 ? (
+                      {isOccupantsLoading && activeCollections.totalExpected === 0 ? (
                         <span className="inline-block w-28 h-8 bg-gray-200 animate-pulse rounded-lg" />
                       ) : (
-                        `₹${revenueMetrics.totalUncollectedArrears.toLocaleString("en-IN")}`
+                        `₹${Math.max(0, activeCollections.totalExpected - activeCollections.sumCollected).toLocaleString("en-IN")}`
                       )}
                     </h2>
-                    <span className="inline-block bg-amber-100 text-amber-900 text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full truncate">
-                      {revenueMetrics.occupants.filter((o) => calculateOccupantFinancialStatement(o, propertySettings).netOutstandingBalance > 0).length} Unpaid Occupants
-                    </span>
+                    {(() => {
+                      const dueNowCount = rentCompliance.gracePendingCount;
+                      const overdueCount = rentCompliance.overdueTenantsCount;
+                      const upcomingCount = Math.max(
+                        0,
+                        rentCompliance.totalActiveTenants - rentCompliance.paidTenantsCount - dueNowCount - overdueCount
+                      );
+                      return (
+                        <div className="flex items-center gap-1.5 overflow-hidden">
+                          <span className="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200/70 text-amber-900 text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full truncate">
+                            <span className="text-amber-800 font-extrabold">{dueNowCount} Due Now</span>
+                            {upcomingCount > 0 && (
+                              <>
+                                <span className="text-amber-300">•</span>
+                                <span>{upcomingCount} Upcoming</span>
+                              </>
+                            )}
+                            <span className="text-amber-300">•</span>
+                            <span className={overdueCount > 0 ? "text-red-600 font-extrabold" : "text-emerald-700 font-semibold"}>
+                              {overdueCount} Overdue
+                            </span>
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
 
