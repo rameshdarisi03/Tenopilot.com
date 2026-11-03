@@ -637,10 +637,7 @@ export default function PropertyOverviewPage({
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <CollectionsHelpPopover
-                    mode={collectionsMode}
-                    breakdown={collectionsData.grossCollections?.breakdown}
-                  />
+                  <CollectionsHelpPopover mode={collectionsMode} />
                   <span className={`text-[10px] font-bold uppercase tracking-wider ${
                     collectionsMode === "GROSS" ? "text-purple-700" : "text-emerald-600"
                   }`}>

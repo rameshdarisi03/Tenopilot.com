@@ -1613,10 +1613,7 @@ export default function FinancialHubPage({
                   }`}>
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <CollectionsHelpPopover
-                          mode={collectionsMode}
-                          breakdown={collectionsData.grossCollections?.breakdown}
-                        />
+                        <CollectionsHelpPopover mode={collectionsMode} />
                         <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider truncate ${
                           collectionsMode === "GROSS" ? "text-purple-700" : "text-emerald-600"
                         }`}>
@@ -1741,11 +1738,11 @@ export default function FinancialHubPage({
 
                 {/* 2. Industry Standard Revenue Breakdown Pie Chart & Payment Channels (Side-by-side on Tablet & Desktop) */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
-                  {/* Left: Revenue Stream Breakdown Donut Chart */}
+                  {/* Left: Gross Collection Breakdown Donut Chart */}
                   <div className="bg-white border border-gray-200 p-5 sm:p-6 md:p-8 rounded-3xl shadow-xs space-y-6 flex flex-col justify-between">
                     <div className="border-b border-gray-100 pb-3">
                       <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900">
-                        Revenue Stream Breakdown
+                        Gross Collection Breakdown
                       </h3>
                       <p className="text-[10px] sm:text-xs text-gray-500 font-medium">
                         Categorized income distribution across estate services

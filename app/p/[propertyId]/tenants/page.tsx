@@ -2462,10 +2462,7 @@ export default function TenantsDirectoryPage({
                   >
                     <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <CollectionsHelpPopover
-                          mode={collectionsMode}
-                          breakdown={rentMetrics.collectionsData?.grossCollections.breakdown}
-                        />
+                        <CollectionsHelpPopover mode={collectionsMode} />
                         <p className={`text-[10px] sm:text-[11px] uppercase font-bold tracking-wider truncate ${
                           collectionsMode === "GROSS" ? "text-purple-700" : "text-emerald-600"
                         }`}>
