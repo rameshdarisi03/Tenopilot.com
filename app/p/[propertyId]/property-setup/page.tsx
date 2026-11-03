@@ -14,6 +14,7 @@ import {
   RoomConfig,
   BedSlotConfig,
   compareRoomNumbers,
+  extractCanonicalFloorLevel,
 } from "@/constants/propertyLayoutStore";
 import {
   getBedOccupantsTimeline,
@@ -631,6 +632,29 @@ export default function PropertySetupPage({
       )
     );
   }, [newRoomNumber, activeEditRoom, propertyStructure]);
+
+  // Suggest correct floor if room number indicates another floor (e.g. entering "312" while on Floor 01)
+  const suggestedFloorForAdd = useMemo(() => {
+    const clean = newRoomNumber.trim();
+    if (!activeAddRoomFloorId || !clean) return null;
+    const match = clean.match(/^[1-9]\d{2}/);
+    if (!match) return null;
+    const inferredFloorLevel = parseInt(clean.charAt(0), 10);
+    const targetFloor = propertyStructure.find(
+      (fl) =>
+        (fl.id && fl.id === activeAddRoomFloorId) ||
+        (fl.floorName && fl.floorName.toLowerCase() === activeAddRoomFloorId.toLowerCase())
+    );
+    if (!targetFloor) return null;
+    const currentFloorLevel = extractCanonicalFloorLevel(targetFloor.floorName);
+    if (currentFloorLevel === inferredFloorLevel) return null;
+
+    // Find if a floor with the inferred level exists in propertyStructure
+    const destinationFloor = propertyStructure.find(
+      (fl) => extractCanonicalFloorLevel(fl.floorName) === inferredFloorLevel
+    );
+    return destinationFloor || null;
+  }, [newRoomNumber, activeAddRoomFloorId, propertyStructure]);
 
   // Handle Add Room Submit (Supports 1 to 26 Beds — Bed A to Bed Z)
   const handleAddRoomSubmit = (e: React.FormEvent) => {
@@ -1318,6 +1342,21 @@ export default function PropertySetupPage({
                       <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
                       <span>Room "{newRoomNumber.trim()}" already exists in this property! Please enter a unique room number.</span>
                     </p>
+                  )}
+                  {suggestedFloorForAdd && (
+                    <div className="mt-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex items-center justify-between gap-2 animate-in fade-in">
+                      <div className="flex items-center gap-1.5 text-[11px] font-medium">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>Room "{newRoomNumber.trim()}" looks like a {suggestedFloorForAdd.floorName} room.</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveAddRoomFloorId(suggestedFloorForAdd.id)}
+                        className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold rounded-lg shrink-0 transition-colors shadow-xs"
+                      >
+                        Move to {suggestedFloorForAdd.floorName}
+                      </button>
+                    </div>
                   )}
                 </div>
 

@@ -453,7 +453,7 @@ export const propertyStore = {
     this.getStructure(propertyId).forEach((fl) => {
       fl.rooms.forEach((rm) => roomSet.add(rm.roomNumber));
     });
-    return Array.from(roomSet).sort();
+    return Array.from(roomSet).sort(compareRoomNumbers);
   },
 
   // Helper to extract all floor names

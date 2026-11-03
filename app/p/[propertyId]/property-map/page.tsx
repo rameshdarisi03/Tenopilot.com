@@ -16,6 +16,7 @@ import {
   FloorConfig,
   RoomConfig,
   BedSlotConfig,
+  compareRoomNumbers,
 } from "@/constants/propertyLayoutStore";
 import {
   getBedOccupantsTimeline,
@@ -300,7 +301,7 @@ function PropertyMapContent({
       return propertyStore.getRoomNumbers(propertyId);
     }
     const fl = propertyGrid.find((f) => f.floorName === selectedFloor);
-    return fl ? fl.rooms.map((r) => r.roomNumber) : [];
+    return fl ? fl.rooms.map((r) => r.roomNumber).sort(compareRoomNumbers) : [];
   }, [propertyGrid, propertyId, selectedFloor]);
 
   // Smart 2-way sync between Floor and Room dropdowns
@@ -1043,9 +1044,9 @@ function PropertyMapContent({
         // Sort matching rooms within the floor based on sortColumn and sortDirection
         matchingRooms.sort((a, b) => {
           if (sortColumn === "room") {
-            const aNum = parseInt(a.roomNumber.replace(/\D/g, ""), 10) || 0;
-            const bNum = parseInt(b.roomNumber.replace(/\D/g, ""), 10) || 0;
-            return sortDirection === "asc" ? aNum - bNum : bNum - aNum;
+            return sortDirection === "asc"
+              ? compareRoomNumbers(a.roomNumber, b.roomNumber)
+              : compareRoomNumbers(b.roomNumber, a.roomNumber);
           }
           if (sortColumn === "duePriority") {
             const aDue = a.roomTotalDue || 0;
@@ -1053,9 +1054,7 @@ function PropertyMapContent({
             if (aDue !== bDue) {
               return sortDirection === "desc" ? bDue - aDue : aDue - bDue;
             }
-            const aNum = parseInt(a.roomNumber.replace(/\D/g, ""), 10) || 0;
-            const bNum = parseInt(b.roomNumber.replace(/\D/g, ""), 10) || 0;
-            return aNum - bNum;
+            return compareRoomNumbers(a.roomNumber, b.roomNumber);
           }
           if (sortColumn === "overduePriority") {
             const aOverdue = a.hasOverdueBed ? 1 : 0;
