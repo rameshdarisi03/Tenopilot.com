@@ -35,6 +35,7 @@ import { evaluateSubscription } from "@/lib/subscriptionEngine";
 import { generateReceiptNumber } from "@/lib/invoiceNumberEngine";
 import { buildWhatsAppUrl, sanitizeVehicleNumber, normalizePhoneNumber, formatDisplayPhone } from "@/utils/security";
 import { generatePayToken } from "@/lib/paymentToken";
+import { buildCanonicalRentReminderText } from "@/lib/whatsappService";
 import { RentReceiptModal } from "@/components/RentReceiptModal";
 import { VoidReceiptModal } from "@/components/dashboard/VoidReceiptModal";
 import {
@@ -464,7 +465,7 @@ export default function IndividualTenantProfilePage({
     return hasCashCard ? configured : [...configured, PAY_BY_CASH_PROFILE];
   };
 
-  // Helper to construct exact formatted individual rent reminder WhatsApp URL (same template as Send (Free))
+  // Helper to construct exact formatted individual rent reminder WhatsApp URL (100% matched to automated Meta template)
   const getIndividualRentReminderUrl = (occ: Occupant): string => {
     const reminderCards = getReminderPaymentCards();
     const activeCard = reminderCards[0];
@@ -474,69 +475,47 @@ export default function IndividualTenantProfilePage({
     const occStmt = calculateOccupantFinancialStatement(occ, propertySettings);
     const effectiveAmount = occStmt.netOutstandingBalance > 0 ? occStmt.netOutstandingBalance : occ.rentAmount;
     const dueDateStr = resolveOccupantPaymentDueDate(occ, propertySettings);
-    const breakupText = occStmt.parkingBreakupText ? ` (Breakup: ${occStmt.parkingBreakupText})` : "";
 
-    const payHeader = isCashReq ? "Payment Mode" : "Pay to UPI";
     const payDest = isCashReq
       ? (activeCard?.bankLabel ? `Cash at Desk (${activeCard.bankLabel})` : "Cash at Front Desk / Reception")
       : (activeCard?.upiId || "PG Reception / Manager UPI");
 
-    let message = "";
-    if (isCashReq) {
-      const callUsText = propertySettings.managerPhone
-        ? `📞 *Reception Desk:* ${propertySettings.managerPhone}\n\n`
-        : "";
+    let payUrl: string | undefined;
+    let proofUrl: string | undefined;
 
-      message =
-        `*${pName}*\n\n` +
-        `Hello ${occ.name},\n\n` +
-        `This is a friendly reminder regarding your monthly accommodation rent for *${occ.roomNumber || "N/A"}${occ.bedCode ? ` - ${occ.bedCode}` : ""}*:\n\n` +
-        `💰 *Amount Due:* ₹${Number(effectiveAmount || 0).toLocaleString("en-IN")}${breakupText}\n` +
-        `📅 *Due Date:* ${dueDateStr}\n` +
-        `💵 *Payment Mode:* ${payDest}\n\n` +
-        callUsText +
-        `🏢 *Please visit the PG reception / front desk to hand over the cash and collect your official receipt.*\n\n` +
-        `Thank you for being a valued resident!\n\n` +
-        `- ${pName}`;
-    } else {
-      let paymentActionLinks = "";
-      if (activeCard?.upiId) {
-        const token = generatePayToken({
-          propertyId,
-          propertyName: pName,
-          tenantId: occ.id,
-          tenantName: occ.name,
-          roomNumber: occ.roomNumber,
-          amount: effectiveAmount,
-          dueDate: dueDateStr,
-          upiId: activeCard.upiId,
-          partnerName: activeCard.bankLabel || activeCard.name,
-          partnerPhone: activeCard.phone || propertySettings.managerPhone || "",
-          propertyPhone: propertySettings.managerPhone || "",
-        });
+    if (!isCashReq && activeCard?.upiId) {
+      const token = generatePayToken({
+        propertyId,
+        propertyName: pName,
+        tenantId: occ.id,
+        tenantName: occ.name,
+        roomNumber: occ.roomNumber,
+        amount: effectiveAmount,
+        dueDate: dueDateStr,
+        upiId: activeCard.upiId,
+        partnerName: activeCard.bankLabel || activeCard.name,
+        partnerPhone: activeCard.phone || propertySettings.managerPhone || "",
+        propertyPhone: propertySettings.managerPhone || "",
+      });
 
-        paymentActionLinks =
-          `👉 *Pay through UPI:*\nhttps://www.tenopilot.com/pay/${token}?view=pay\n\n` +
-          `📸 *Upload payment screenshot:*\nhttps://www.tenopilot.com/pay/${token}?view=proof\n\n`;
-      }
-
-      const callUsText = propertySettings.managerPhone
-        ? `📞 *Call Us:* ${propertySettings.managerPhone}\n\n`
-        : "";
-
-      message =
-        `*${pName}*\n\n` +
-        `Hello ${occ.name},\n\n` +
-        `This is a friendly reminder regarding your monthly accommodation rent for *${occ.roomNumber || "N/A"}${occ.bedCode ? ` - ${occ.bedCode}` : ""}*:\n\n` +
-        `💰 *Amount Due:* ₹${Number(effectiveAmount || 0).toLocaleString("en-IN")}${breakupText}\n` +
-        `📅 *Due Date:* ${dueDateStr}\n` +
-        `💳 *${payHeader}:* ${payDest}\n\n` +
-        paymentActionLinks +
-        callUsText +
-        `Kindly clear your dues and share transaction proof for your digital receipt.\n\n` +
-        `Thank you for being a valued resident!\n\n` +
-        `- ${pName}`;
+      payUrl = `https://www.tenopilot.com/pay/${token}?view=pay`;
+      proofUrl = `https://www.tenopilot.com/pay/${token}?view=proof`;
     }
+
+    const message = buildCanonicalRentReminderText({
+      propertyName: pName,
+      recipientName: occ.name,
+      roomNumber: occ.roomNumber || "",
+      bedCode: occ.bedCode,
+      amountDue: effectiveAmount,
+      dueDate: dueDateStr,
+      payDest,
+      isCash: isCashReq,
+      payUrl,
+      proofUrl,
+      managerPhone: propertySettings.managerPhone,
+      breakupNote: occStmt.parkingBreakupText,
+    });
 
     return buildWhatsAppUrl(occ.phone, message);
   };

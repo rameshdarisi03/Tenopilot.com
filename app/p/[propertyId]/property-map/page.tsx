@@ -28,6 +28,7 @@ import {
   normalizeRoomNumber,
   matchesTenoPilotSearch,
   calculateOccupantFinancialStatement,
+  resolveOccupantPaymentDueDate,
   getNowIST,
   getDynamicProgressGradient,
 } from "@/utils/domainSSOT";
@@ -79,6 +80,8 @@ import { emailCreditStore } from "@/constants/emailCreditStore";
 import { propertySettingsStore, PaymentQRProfile, PAY_BY_CASH_PROFILE } from "@/constants/propertySettings";
 import { staffStore, UserRole } from "@/lib/staffStore";
 import { buildWhatsAppUrl } from "@/utils/security";
+import { generatePayToken } from "@/lib/paymentToken";
+import { buildCanonicalRentReminderText } from "@/lib/whatsappService";
 
 function PropertyMapContent({
   propertyId,
@@ -483,6 +486,57 @@ function PropertyMapContent({
     );
 
     return hasCashCard ? configured : [...configured, PAY_BY_CASH_PROFILE];
+  };
+
+  // Helper to build canonical rent reminder URL for active bed occupant in Property Map
+  const getBedRentReminderUrl = (occ: Occupant, roomNum: string, bedCd: string, amount: number): string => {
+    const reminderCards = getReminderPaymentCards();
+    const activeCard = reminderCards[activeQrIndex] || reminderCards[0];
+    const isCashReq = activeCard?.upiId === "CASH_PAYMENT" || activeCard?.accountType === "CASH_DESK";
+    const pName = propertySettings.propertyName || "TenoPilot PG";
+    const dueDateStr = resolveOccupantPaymentDueDate(occ, propertySettings);
+
+    const payDest = isCashReq
+      ? (activeCard?.bankLabel ? `Cash at Desk (${activeCard.bankLabel})` : "Cash at Front Desk / Reception")
+      : (activeCard?.upiId || propertySettings.upiPaymentId || "PG Reception / Manager UPI");
+
+    let payUrl: string | undefined;
+    let proofUrl: string | undefined;
+
+    if (!isCashReq && (activeCard?.upiId || propertySettings.upiPaymentId)) {
+      const token = generatePayToken({
+        propertyId,
+        propertyName: pName,
+        tenantId: occ.id,
+        tenantName: occ.name,
+        roomNumber: roomNum,
+        amount: amount,
+        dueDate: dueDateStr,
+        upiId: activeCard?.upiId || propertySettings.upiPaymentId || "",
+        partnerName: activeCard?.bankLabel || activeCard?.name,
+        partnerPhone: activeCard?.phone || propertySettings.managerPhone || "",
+        propertyPhone: propertySettings.managerPhone || "",
+      });
+
+      payUrl = `https://www.tenopilot.com/pay/${token}?view=pay`;
+      proofUrl = `https://www.tenopilot.com/pay/${token}?view=proof`;
+    }
+
+    const message = buildCanonicalRentReminderText({
+      propertyName: pName,
+      recipientName: occ.name,
+      roomNumber: roomNum,
+      bedCode: bedCd,
+      amountDue: amount,
+      dueDate: dueDateStr,
+      payDest,
+      isCash: isCashReq,
+      payUrl,
+      proofUrl,
+      managerPhone: propertySettings.managerPhone,
+    });
+
+    return buildWhatsAppUrl(occ.phone, message);
   };
 
   const handleSendBulkReminders = async () => {
@@ -2445,9 +2499,11 @@ function PropertyMapContent({
                           </Link>
 
                           <a
-                            href={buildWhatsAppUrl(
-                              displayOcc.phone,
-                              `Hi ${displayOcc.name}, this is a gentle payment reminder from ${propertySettings.propertyName || "TenoPilot PG"}. Your rent of ₹${netOutstanding.toLocaleString("en-IN")} for Room ${activeBedSlot.roomNumber} (${activeBedSlot.bed.bedCode}) is due. Please clear your dues at your earliest convenience. Thank you!`
+                            href={getBedRentReminderUrl(
+                              displayOcc,
+                              activeBedSlot.roomNumber,
+                              activeBedSlot.bed.bedCode,
+                              netOutstanding
                             )}
                             target="_blank"
                             rel="noopener noreferrer"

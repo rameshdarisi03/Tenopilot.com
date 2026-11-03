@@ -19,6 +19,7 @@ import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot, doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
 import { PaymentProofReviewModal, PaymentProofRecord } from "@/components/dashboard/PaymentProofReviewModal";
 import { generatePayToken } from "@/lib/paymentToken";
+import { buildCanonicalRentReminderText } from "@/lib/whatsappService";
 import { activityAuditStore } from "@/utils/activityAuditStore";
 import { useAuth } from "@/providers/AuthProvider";
 import {
@@ -691,62 +692,47 @@ export default function TenantsDirectoryPage({
     const occStmt = calculateOccupantFinancialStatement(occ, currentSettings);
     const effectiveAmount = occStmt.netOutstandingBalance > 0 ? occStmt.netOutstandingBalance : occ.rentAmount;
     const dueDateStr = resolveOccupantPaymentDueDate(occ, currentSettings);
-    const breakupText = occStmt.parkingBreakupText ? ` (Breakup: ${occStmt.parkingBreakupText})` : "";
 
     const payDest = isCashReq
       ? (activeCard?.bankLabel ? `Cash at Desk (${activeCard.bankLabel})` : "Cash at Front Desk / Reception")
       : (activeCard?.upiId || "PG Reception / Manager UPI");
 
-    const callUsText = currentSettings.managerPhone
-      ? `\n📞 Reception Desk: ${currentSettings.managerPhone}\n`
-      : "";
+    let payUrl: string | undefined;
+    let proofUrl: string | undefined;
 
-    let message = "";
-    if (isCashReq) {
-      message =
-        `Property: ${pName}\n\n` +
-        `Hello ${occ.name},\n\n` +
-        `Rent reminder for Room ${occ.roomNumber || "N/A"}${occ.bedCode ? ` (${occ.bedCode})` : ""}:\n` +
-        `💰 Amount Due: INR ${Number(effectiveAmount || 0).toLocaleString("en-IN")}${breakupText}\n` +
-        `📅 Due Date: ${dueDateStr}\n` +
-        `💵 Payment Mode: ${payDest}\n\n` +
-        `🏢 Please visit the PG reception / front desk to hand over the cash and collect your official receipt.\n` +
-        callUsText +
-        `\n- ${pName} Desk`;
-    } else {
-      let paymentActionLinks = "";
-      if (activeCard?.upiId) {
-        const token = generatePayToken({
-          propertyId,
-          propertyName: pName,
-          tenantId: occ.id,
-          tenantName: occ.name,
-          roomNumber: occ.roomNumber,
-          amount: effectiveAmount,
-          dueDate: dueDateStr,
-          upiId: activeCard.upiId,
-          partnerName: activeCard.bankLabel || activeCard.name,
-          partnerPhone: activeCard.phone || currentSettings.managerPhone || "",
-          propertyPhone: currentSettings.managerPhone || "",
-        });
+    if (!isCashReq && activeCard?.upiId) {
+      const token = generatePayToken({
+        propertyId,
+        propertyName: pName,
+        tenantId: occ.id,
+        tenantName: occ.name,
+        roomNumber: occ.roomNumber,
+        amount: effectiveAmount,
+        dueDate: dueDateStr,
+        upiId: activeCard.upiId,
+        partnerName: activeCard.bankLabel || activeCard.name,
+        partnerPhone: activeCard.phone || currentSettings.managerPhone || "",
+        propertyPhone: currentSettings.managerPhone || "",
+      });
 
-        paymentActionLinks =
-          `👉 Pay via UPI:\nhttps://www.tenopilot.com/pay/${token}?view=pay\n\n` +
-          `📸 Upload Screenshot:\nhttps://www.tenopilot.com/pay/${token}?view=proof\n`;
-      }
-
-      message =
-        `Property: ${pName}\n\n` +
-        `Hello ${occ.name},\n\n` +
-        `Rent reminder for Room ${occ.roomNumber || "N/A"}${occ.bedCode ? ` (${occ.bedCode})` : ""}:\n` +
-        `💰 Amount Due: INR ${Number(effectiveAmount || 0).toLocaleString("en-IN")}${breakupText}\n` +
-        `📅 Due Date: ${dueDateStr}\n` +
-        `💳 Pay to: ${payDest}\n\n` +
-        `Choose an action below to pay directly or submit your transaction screenshot:\n\n` +
-        paymentActionLinks +
-        callUsText +
-        `\n- ${pName} Desk`;
+      payUrl = `https://www.tenopilot.com/pay/${token}?view=pay`;
+      proofUrl = `https://www.tenopilot.com/pay/${token}?view=proof`;
     }
+
+    const message = buildCanonicalRentReminderText({
+      propertyName: pName,
+      recipientName: occ.name,
+      roomNumber: occ.roomNumber || "",
+      bedCode: occ.bedCode,
+      amountDue: effectiveAmount,
+      dueDate: dueDateStr,
+      payDest,
+      isCash: isCashReq,
+      payUrl,
+      proofUrl,
+      managerPhone: currentSettings.managerPhone,
+      breakupNote: occStmt.parkingBreakupText,
+    });
 
     return buildWhatsAppUrl(occ.phone, message);
   };
@@ -4737,52 +4723,42 @@ Scroll vertically to browse all residents without pagination limits
                           ? `\n📞 Reception Desk: ${currentSettings.managerPhone}\n`
                           : "";
 
-                        let message = "";
-                        if (isCashReq) {
-                          message =
-                            `Property: ${pName}\n\n` +
-                            `Hello ${occ.name},\n\n` +
-                            `Rent reminder for Room ${occ.roomNumber || "N/A"}${occ.bedCode ? ` (${occ.bedCode})` : ""}:\n` +
-                            `💰 Amount Due: INR ${Number(effectiveAmount || 0).toLocaleString("en-IN")}${breakupText}\n` +
-                            `📅 Due Date: ${dueDateStr}\n` +
-                            `💵 Payment Mode: ${payDest}\n\n` +
-                            `🏢 Please visit the PG reception / front desk to hand over the cash and collect your official receipt.\n` +
-                            callUsText +
-                            `\n- ${pName} Desk`;
-                        } else {
-                          let paymentActionLinks = "";
-                          if (activeCard?.upiId) {
-                            const token = generatePayToken({
-                              propertyId,
-                              propertyName: pName,
-                              tenantId: occ.id,
-                              tenantName: occ.name,
-                              roomNumber: occ.roomNumber,
-                              amount: effectiveAmount,
-                              dueDate: dueDateStr,
-                              upiId: activeCard.upiId,
-                              partnerName: activeCard.bankLabel || activeCard.name,
-                              partnerPhone: activeCard.phone || currentSettings.managerPhone || "",
-                              propertyPhone: currentSettings.managerPhone || "",
-                            });
+                        let payUrl: string | undefined;
+                        let proofUrl: string | undefined;
 
-                            paymentActionLinks =
-                              `👉 Pay via UPI:\nhttps://www.tenopilot.com/pay/${token}?view=pay\n\n` +
-                              `📸 Upload Screenshot:\nhttps://www.tenopilot.com/pay/${token}?view=proof\n`;
-                          }
+                        if (!isCashReq && activeCard?.upiId) {
+                          const token = generatePayToken({
+                            propertyId,
+                            propertyName: pName,
+                            tenantId: occ.id,
+                            tenantName: occ.name,
+                            roomNumber: occ.roomNumber,
+                            amount: effectiveAmount,
+                            dueDate: dueDateStr,
+                            upiId: activeCard.upiId,
+                            partnerName: activeCard.bankLabel || activeCard.name,
+                            partnerPhone: activeCard.phone || currentSettings.managerPhone || "",
+                            propertyPhone: currentSettings.managerPhone || "",
+                          });
 
-                          message =
-                            `Property: ${pName}\n\n` +
-                            `Hello ${occ.name},\n\n` +
-                            `Rent reminder for Room ${occ.roomNumber || "N/A"}${occ.bedCode ? ` (${occ.bedCode})` : ""}:\n` +
-                            `💰 Amount Due: INR ${Number(effectiveAmount || 0).toLocaleString("en-IN")}${breakupText}\n` +
-                            `📅 Due Date: ${dueDateStr}\n` +
-                            `💳 Pay to: ${payDest}\n\n` +
-                            `Choose an action below to pay directly or submit your transaction screenshot:\n\n` +
-                            paymentActionLinks +
-                            callUsText +
-                            `\n- ${pName} Desk`;
+                          payUrl = `https://www.tenopilot.com/pay/${token}?view=pay`;
+                          proofUrl = `https://www.tenopilot.com/pay/${token}?view=proof`;
                         }
+
+                        const message = buildCanonicalRentReminderText({
+                          propertyName: pName,
+                          recipientName: occ.name,
+                          roomNumber: occ.roomNumber || "",
+                          bedCode: occ.bedCode,
+                          amountDue: effectiveAmount,
+                          dueDate: dueDateStr,
+                          payDest,
+                          isCash: isCashReq,
+                          payUrl,
+                          proofUrl,
+                          managerPhone: currentSettings.managerPhone,
+                          breakupNote: occStmt.parkingBreakupText,
+                        });
                         const waUrl = buildWhatsAppUrl(occ.phone, message);
 
                         return (

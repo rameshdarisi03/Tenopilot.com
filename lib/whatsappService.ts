@@ -102,6 +102,66 @@ export function cleanIndianMobileNumber(phone: string): string {
   return digits.slice(-10);
 }
 
+export interface CanonicalRentReminderOptions {
+  propertyName: string;
+  recipientName: string;
+  roomNumber: string;
+  bedCode?: string;
+  amountDue: number;
+  dueDate: string;
+  payDest: string;
+  isCash: boolean;
+  payUrl?: string;
+  proofUrl?: string;
+  managerPhone?: string;
+  breakupNote?: string;
+}
+
+export function buildCanonicalRentReminderText(options: CanonicalRentReminderOptions): string {
+  const pName = options.propertyName || "TenoPilot PG";
+  const roomStay = `Room ${options.roomNumber || "N/A"}${options.bedCode ? ` (${options.bedCode})` : ""}`;
+  const amountStr = Number(options.amountDue || 0).toLocaleString("en-IN");
+  const breakupText = options.breakupNote ? ` (Breakup: ${options.breakupNote})` : "";
+  const callUsText = options.managerPhone ? `\n📞 Reception Desk: ${options.managerPhone}\n` : "";
+
+  if (options.isCash) {
+    return (
+      `Property: ${pName}\n\n` +
+      `Hello ${options.recipientName},\n\n` +
+      `Rent reminder for ${roomStay}:\n` +
+      `💰 Amount Due: INR ${amountStr}${breakupText}\n` +
+      `📅 Due Date: ${options.dueDate}\n` +
+      `💵 Payment Mode: ${options.payDest}\n\n` +
+      `🏢 Please visit the PG reception / front desk to hand over the cash and collect your official receipt.\n` +
+      callUsText +
+      `\n- ${pName} Desk`
+    );
+  }
+
+  let paymentLinksText = "";
+  if (options.payUrl && options.proofUrl) {
+    paymentLinksText =
+      `👉 Pay via UPI:\n${options.payUrl}\n\n` +
+      `📸 Upload Screenshot:\n${options.proofUrl}\n`;
+  } else if (options.payUrl) {
+    paymentLinksText =
+      `👉 Pay via UPI:\n${options.payUrl}\n`;
+  }
+
+  return (
+    `Property: ${pName}\n\n` +
+    `Hello ${options.recipientName},\n\n` +
+    `Rent reminder for ${roomStay}:\n` +
+    `💰 Amount Due: INR ${amountStr}${breakupText}\n` +
+    `📅 Due Date: ${options.dueDate}\n` +
+    `💳 Pay to: ${options.payDest}\n\n` +
+    `Choose an action below to pay directly or submit your transaction screenshot:\n\n` +
+    paymentLinksText +
+    callUsText +
+    `\n- ${pName} Desk`
+  );
+}
+
 export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string {
   const pName = payload.propertyName || "TenoPilot PG & Living";
   const p = payload.params || {};
@@ -111,23 +171,29 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
       const isCash = p.upiId === "CASH_PAYMENT" || p.upiId === "CASH" || p.upiId?.toLowerCase().includes("cash") || p.accountType === "CASH_DESK";
       const isBank = p.accountType === "BANK_TRANSFER" || (!isCash && !p.upiId?.includes("@") && Boolean(p.bankLabel));
 
-      const payHeader = isCash ? "Pay via Cash" : isBank ? "Pay to Bank" : "Pay to UPI";
       const payDest = isCash
         ? (p.bankLabel ? `Cash at Desk (${p.bankLabel})` : "Cash at Front Desk / Reception")
         : (p.upiId || "PG Reception / Manager UPI");
 
-      return (
-        `**${pName}**\n\n` +
-        `Hello ${payload.recipientName},\n\n` +
-        `This is a friendly reminder regarding your monthly accommodation rent for ${p.roomNumber || "N/A"}${p.bedCode ? ` - ${p.bedCode}` : ""}:\n\n` +
-        `💰 Amount Due: INR ${Number(p.amount || 0).toLocaleString("en-IN")}${p.breakupNote ? `\n(${p.breakupNote})` : ""}\n` +
-        `📅 Due Date: ${p.dueDate || "5th of this month"}\n` +
-        `💳 ${payHeader}: ${payDest}\n\n` +
-        (!isCash && p.payUrl ? `👉 *Tap to Pay (PhonePe / GPay / Paytm / UPI)*:\n${p.payUrl}\n\n` : "") +
-        `Kindly clear your dues and share transaction proof for your digital receipt.\n\n` +
-        `Thank you for being a valued resident!\n\n` +
-        `- ${pName}`
-      );
+      const basePayUrl = p.payUrl;
+      const proofUrl = basePayUrl
+        ? (basePayUrl.includes("?") ? `${basePayUrl}&view=proof` : `${basePayUrl}?view=proof`)
+        : undefined;
+
+      return buildCanonicalRentReminderText({
+        propertyName: pName,
+        recipientName: payload.recipientName,
+        roomNumber: p.roomNumber || "",
+        bedCode: p.bedCode,
+        amountDue: Number(p.amount || 0),
+        dueDate: p.dueDate || "5th of this month",
+        payDest,
+        isCash,
+        payUrl: basePayUrl,
+        proofUrl,
+        managerPhone: p.managerPhone || p.propertyPhone,
+        breakupNote: p.breakupNote,
+      });
     }
 
     case "PAYMENT_RECEIPT": {
