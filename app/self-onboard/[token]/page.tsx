@@ -328,12 +328,17 @@ export default function TenantSelfOnboardingPage({
     const buildSets = (occupantsList: any[]) => {
       const pSet = new Set<string>();
       const eSet = new Set<string>();
+      const currentOccId = invite?.occupantId || invite?.id || token;
+      const currentCandidatePhone = (invite?.candidatePhone || phone).replace(/\D/g, "").slice(-10);
+
       occupantsList.forEach((occ) => {
         if (occ.lifecycleStatus !== "Past") {
-          if (occ.phone) {
-            const digits = String(occ.phone).replace(/\D/g, "").slice(-10);
-            if (digits.length === 10) pSet.add(digits);
-          }
+          // Never conflict against the resident's own existing profile when completing their in-house KYC
+          if (currentOccId && (occ.id === currentOccId || occ.id === token)) return;
+          const digits = occ.phone ? String(occ.phone).replace(/\D/g, "").slice(-10) : "";
+          if (currentCandidatePhone && digits && digits === currentCandidatePhone) return;
+
+          if (digits.length === 10) pSet.add(digits);
           if (occ.email) {
             const cleanEm = String(occ.email).trim().toLowerCase();
             if (cleanEm.length > 3 && cleanEm.includes("@")) eSet.add(cleanEm);
@@ -369,7 +374,7 @@ export default function TenantSelfOnboardingPage({
       }
     }
     loadOccupants();
-  }, [invitePropertyId, propertyId]);
+  }, [invitePropertyId, propertyId, invite, token, phone]);
 
   // Validation: Mobile and Emergency must not be identical
   const cleanCandidateMobile = useMemo(() => {
@@ -392,16 +397,22 @@ export default function TenantSelfOnboardingPage({
 
   // Validation: On public walk-in form, primary mobile must not already belong to an active resident
   const isPhoneAlreadyRegistered = useMemo(() => {
+    // If filling an invite/existing resident check-in, phone is already locked to candidate
+    if (invite) return false;
     const digits = phone.replace(/\D/g, "").slice(-10);
     return digits.length === 10 && existingResidentPhones.has(digits);
-  }, [phone, existingResidentPhones]);
+  }, [phone, existingResidentPhones, invite]);
 
-  // Validation: Email must not already belong to an active resident
+  // Validation: Email must not already belong to another active resident
   const isEmailAlreadyRegistered = useMemo(() => {
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes("@")) return false;
+    // If the candidate's existing record or invite already has this email, it's valid
+    if (invite?.candidateEmail && invite.candidateEmail.trim().toLowerCase() === cleanEmail) {
+      return false;
+    }
     return existingResidentEmails.has(cleanEmail);
-  }, [email, existingResidentEmails]);
+  }, [email, existingResidentEmails, invite?.candidateEmail]);
 
   // Auto-restore previous documents if candidate has submitted previously in this property on walk-in form
   useEffect(() => {
@@ -859,9 +870,15 @@ export default function TenantSelfOnboardingPage({
                 <span className="text-[10px] font-extrabold uppercase tracking-widest bg-white/20 backdrop-blur-xs px-2.5 py-1 rounded-full text-white">
                   {invite.stayType === "Tenant" ? "🏠 Monthly Tenant Check-In" : "⚡ Daily Guest Check-In"}
                 </span>
-                <span className="text-[10px] font-bold bg-amber-400 text-amber-950 px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <Lock className="w-3 h-3" /> Bed Held for You
-                </span>
+                {invite.isExistingResident ? (
+                  <span className="text-[10px] font-bold bg-white/20 backdrop-blur-xs text-white px-2.5 py-1 rounded-full flex items-center gap-1 border border-white/25 shadow-2xs">
+                    <Lock className="w-3 h-3" /> In-House Resident Verification
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold bg-amber-400 text-amber-950 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <Lock className="w-3 h-3" /> Bed Held for You
+                  </span>
+                )}
               </div>
               <h1 className="font-serif font-bold text-2xl sm:text-3xl">
                 {candidateName.trim()
@@ -869,7 +886,9 @@ export default function TenantSelfOnboardingPage({
                   : `Welcome to ${propertyName}!`}
               </h1>
               <p className="text-xs text-white/90">
-                You're completing official digital check-in for <span className="font-bold underline">{propertyName}</span>. Please verify your details and upload your verification proofs below.
+                {invite.isExistingResident
+                  ? <>You're completing mandatory digital KYC verification for your stay at <span className="font-bold underline">{propertyName}</span>. Please verify your details and upload your verification proofs below.</>
+                  : <>You're completing official digital check-in for <span className="font-bold underline">{propertyName}</span>. Please verify your details and upload your verification proofs below.</>}
               </p>
             </div>
 
@@ -894,11 +913,17 @@ export default function TenantSelfOnboardingPage({
               <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                 <div className="flex items-center gap-2 text-xs font-bold text-gray-700">
                   <Home className="w-4 h-4 text-[#c2652a]" />
-                  <span>Reserved Accommodation & Stay Type</span>
+                  <span>{invite.isExistingResident ? "Assigned Stay & Accommodation" : "Reserved Accommodation & Stay Type"}</span>
                 </div>
-                <span className="text-[11px] font-bold text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200 flex items-center gap-1">
-                  <Lock className="w-3 h-3" /> RESERVED & ON HOLD
-                </span>
+                {invite.isExistingResident ? (
+                  <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1 shadow-2xs">
+                    <Lock className="w-3 h-3 text-emerald-600" /> LOCKED &amp; ALLOCATED
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-bold text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200 flex items-center gap-1">
+                    <Lock className="w-3 h-3" /> RESERVED &amp; ON HOLD
+                  </span>
+                )}
               </div>
 
               {/* Locked Stay Type Banner */}
@@ -1180,9 +1205,26 @@ export default function TenantSelfOnboardingPage({
                       </div>
                     ))}
                   </div>
-                  <span className="text-[10px] text-gray-400 block">
-                    Optional. Add bike, scooter, or car numbers for gate security and parking allocation.
-                  </span>
+                  {propSettings?.parkingCharges && propSettings.parkingCharges > 0 ? (
+                    <div className="mt-2.5 p-3 rounded-2xl bg-orange-50/80 border border-orange-200 text-orange-950 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-base shrink-0">🅿️</span>
+                        <div>
+                          <span className="font-bold text-[11px] block">Parking Slot Transparency</span>
+                          <span className="text-[10px] text-orange-900/90">
+                            A monthly parking fee of <strong className="font-mono text-orange-950 font-bold">₹{propSettings.parkingCharges.toLocaleString("en-IN")}/month</strong> will be applicable for allocated vehicle parking slots.
+                          </span>
+                        </div>
+                      </div>
+                      <span className="font-mono font-bold text-xs bg-white px-2.5 py-1 rounded-xl border border-orange-200 text-[#c2652a] shrink-0 shadow-2xs">
+                        ₹{propSettings.parkingCharges.toLocaleString("en-IN")}/mo
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-gray-400 block">
+                      Optional. Add bike, scooter, or car numbers for gate security and parking allocation.
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -1833,9 +1875,26 @@ export default function TenantSelfOnboardingPage({
                       </div>
                     ))}
                   </div>
-                  <span className="text-[10px] text-gray-400 block">
-                    Optional. Add bike, scooter, or car registration numbers for gate security pass.
-                  </span>
+                  {propSettings?.parkingCharges && propSettings.parkingCharges > 0 ? (
+                    <div className="mt-2.5 p-3 rounded-2xl bg-orange-50/80 border border-orange-200 text-orange-950 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-base shrink-0">🅿️</span>
+                        <div>
+                          <span className="font-bold text-[11px] block">Parking Slot Transparency</span>
+                          <span className="text-[10px] text-orange-900/90">
+                            A monthly parking fee of <strong className="font-mono text-orange-950 font-bold">₹{propSettings.parkingCharges.toLocaleString("en-IN")}/month</strong> will be applicable for allocated vehicle parking slots.
+                          </span>
+                        </div>
+                      </div>
+                      <span className="font-mono font-bold text-xs bg-white px-2.5 py-1 rounded-xl border border-orange-200 text-[#c2652a] shrink-0 shadow-2xs">
+                        ₹{propSettings.parkingCharges.toLocaleString("en-IN")}/mo
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-gray-400 block">
+                      Optional. Add bike, scooter, or car registration numbers for gate security pass.
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
