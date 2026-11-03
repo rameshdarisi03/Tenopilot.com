@@ -8,7 +8,7 @@ import { propertyStore } from "@/constants/propertyLayoutStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { autoProvisionBuildingFromRoster } from "./autoBuildingProvisioner";
 import { FastTrackParsedRow, validateParsedRow, isVacantRow } from "./fastTrackHeuristicParser";
-import { saveOccupantToFirestore } from "./firestoreService";
+import { saveOccupantToFirestore, fetchOccupantsFromFirestore } from "./firestoreService";
 import { getEffectiveTenantLimit, evaluateSubscription } from "./subscriptionEngine";
 import { generateReceiptNumber } from "./invoiceNumberEngine";
 import { getCanonicalBedIndex, normalizeRoomNumber, resolveOccupantPaymentDueDate, resolveOccupantBillingCycleContext, parseOccupantDate } from "@/utils/domainSSOT";
@@ -75,8 +75,17 @@ export async function executeFastTrackBatchIngest(
     }
   }
 
-  // 🔒 Master Controls Capacity Enforcement
-  const existingOccupants = occupantStore.getOccupants(propertyId) || [];
+  // 🔒 Master Controls Capacity Enforcement & Cloud SSOT Pre-check
+  let existingOccupants = occupantStore.getOccupants(propertyId) || [];
+  try {
+    const cloudOccupants = await fetchOccupantsFromFirestore(propertyId);
+    if (cloudOccupants && cloudOccupants.length > 0) {
+      existingOccupants = cloudOccupants;
+      occupantStore.setOccupantsFromFirestore(cloudOccupants, propertyId);
+    }
+  } catch (e) {
+    console.warn("Could not fetch cloud occupants during batch ingest pre-check:", e);
+  }
   const existingActiveCount = existingOccupants.filter((o) => o.lifecycleStatus !== "Past").length;
   const effectiveLimit = getEffectiveTenantLimit(options.userProfile);
 
