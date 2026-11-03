@@ -85,7 +85,7 @@ export default function FinancialHubPage({
 }) {
   const resolvedParams = use(params);
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
-  const { mode: collectionsMode, setMode: setCollectionsMode } = useCollectionsViewMode();
+  const { mode: collectionsMode, setMode: setCollectionsMode, toggleMode: toggleCollectionsMode } = useCollectionsViewMode();
   const [activeRole, setActiveRole] = useState<UserRole>(() => staffStore.getActiveRole());
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== "undefined") {
@@ -1604,53 +1604,53 @@ export default function FinancialHubPage({
                       </span>
                       <CollectionsCardSwitcher
                         mode={collectionsMode}
-                        onSelect={setCollectionsMode}
-                        rentAmount={revenueMetrics.rentStream}
-                        grossAmount={revenueMetrics.totalGrossRevenue}
+                        onToggle={toggleCollectionsMode}
                       />
                     </div>
-                    <h2 className="font-sans font-bold text-xl sm:text-2xl lg:text-3xl text-gray-900 tracking-tight truncate">
-                      {isOccupantsLoading && (collectionsMode === "GROSS" ? revenueMetrics.totalGrossRevenue === 0 : revenueMetrics.rentStream === 0) ? (
-                        <span className="inline-block w-28 h-8 bg-gray-200 animate-pulse rounded-lg" />
-                      ) : (
-                        `₹${(collectionsMode === "GROSS" ? revenueMetrics.totalGrossRevenue : revenueMetrics.rentStream).toLocaleString("en-IN")}`
-                      )}
-                    </h2>
-                    {(() => {
-                      const activeAmount = collectionsMode === "GROSS" ? revenueMetrics.totalGrossRevenue : revenueMetrics.rentStream;
-                      const targetExpected = revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 0;
-                      const revPct = targetExpected > 0 ? (activeAmount / targetExpected) * 100 : 0;
-                      return (
-                        <div className="flex items-center gap-2 mt-3.5 w-full">
-                          <div className="relative flex-1 pb-4">
-                            <div className="h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
-                              <div
-                                className={`h-full rounded-full ${getDynamicProgressGradient(revPct)} transition-all duration-700 ease-out`}
-                                style={{
-                                  width: `${Math.min(100, Math.max(0, revPct))}%`,
-                                }}
-                              />
-                            </div>
+                    <div key={collectionsMode} className="animate-slide-right space-y-2 sm:space-y-3">
+                      <h2 className="font-sans font-bold text-xl sm:text-2xl lg:text-3xl text-gray-900 tracking-tight truncate">
+                        {isOccupantsLoading && (collectionsMode === "GROSS" ? revenueMetrics.totalGrossRevenue === 0 : revenueMetrics.rentStream === 0) ? (
+                          <span className="inline-block w-28 h-8 bg-gray-200 animate-pulse rounded-lg" />
+                        ) : (
+                          `₹${(collectionsMode === "GROSS" ? revenueMetrics.totalGrossRevenue : revenueMetrics.rentStream).toLocaleString("en-IN")}`
+                        )}
+                      </h2>
+                      {(() => {
+                        const activeAmount = collectionsMode === "GROSS" ? revenueMetrics.totalGrossRevenue : revenueMetrics.rentStream;
+                        const targetExpected = revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 0;
+                        const revPct = targetExpected > 0 ? (activeAmount / targetExpected) * 100 : 0;
+                        return (
+                          <div className="flex items-center gap-2 mt-3.5 w-full">
+                            <div className="relative flex-1 pb-4">
+                              <div className="h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
+                                <div
+                                  className={`h-full rounded-full ${getDynamicProgressGradient(revPct)} transition-all duration-700 ease-out`}
+                                  style={{
+                                    width: `${Math.min(100, Math.max(0, revPct))}%`,
+                                  }}
+                                />
+                              </div>
 
-                            {/* Floating Purple Cloud Badge Pointed Below */}
-                            <div
-                              className="absolute top-2 sm:top-2.5 -translate-x-1/2 flex flex-col items-center pointer-events-none transition-all duration-700 ease-out z-10"
-                              style={{
-                                left: `${Math.min(100, Math.max(0, revPct))}%`,
-                              }}
-                            >
-                              <div className="w-0 h-0 border-x-[3px] border-x-transparent border-b-[3.5px] border-b-[#7c3aed] -mb-[0.5px]" />
-                              <div className="bg-[#7c3aed] text-white text-[8.5px] sm:text-[9px] font-black tracking-tight px-1.5 py-0.5 rounded-full shadow-xs whitespace-nowrap flex items-center justify-center leading-none">
-                                {revPct >= 10 ? `${Math.round(revPct)}%` : `${revPct.toFixed(1)}%`}
+                              {/* Floating Purple Cloud Badge Pointed Below */}
+                              <div
+                                className="absolute top-2 sm:top-2.5 -translate-x-1/2 flex flex-col items-center pointer-events-none transition-all duration-700 ease-out z-10"
+                                style={{
+                                  left: `${Math.min(100, Math.max(0, revPct))}%`,
+                                }}
+                              >
+                                <div className="w-0 h-0 border-x-[3px] border-x-transparent border-b-[3.5px] border-b-[#7c3aed] -mb-[0.5px]" />
+                                <div className="bg-[#7c3aed] text-white text-[8.5px] sm:text-[9px] font-black tracking-tight px-1.5 py-0.5 rounded-full shadow-xs whitespace-nowrap flex items-center justify-center leading-none">
+                                  {revPct >= 10 ? `${Math.round(revPct)}%` : `${revPct.toFixed(1)}%`}
+                                </div>
                               </div>
                             </div>
+                            <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums mb-4">
+                              (₹{targetExpected.toLocaleString("en-IN")})
+                            </span>
                           </div>
-                          <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums mb-4">
-                            (₹{targetExpected.toLocaleString("en-IN")})
-                          </span>
-                        </div>
-                      );
-                    })()}
+                        );
+                      })()}
+                    </div>
                   </div>
 
                   {/* KPI 2: Rent Collection Efficiency Rate */}

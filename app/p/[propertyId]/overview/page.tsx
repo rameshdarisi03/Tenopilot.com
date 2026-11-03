@@ -332,7 +332,7 @@ export default function PropertyOverviewPage({
     return calculatePropertyRentComplianceSummary(occupants, propertySettings);
   }, [occupants, propertySettings]);
 
-  const { mode: collectionsMode, setMode: setCollectionsMode } = useCollectionsViewMode();
+  const { mode: collectionsMode, setMode: setCollectionsMode, toggleMode: toggleCollectionsMode } = useCollectionsViewMode();
 
   // Dynamic Rent & Gross Metrics Calculations (100% SSOT matching Tenants, Property Map, and Financial Hub)
   const collectionsData = useMemo(() => {
@@ -642,12 +642,10 @@ export default function PropertyOverviewPage({
                 </span>
                 <CollectionsCardSwitcher
                   mode={collectionsMode}
-                  onSelect={setCollectionsMode}
-                  rentAmount={collectionsData.rentCollections.sumCollected}
-                  grossAmount={collectionsData.grossCollections.sumCollected}
+                  onToggle={toggleCollectionsMode}
                 />
               </div>
-              <div className="mt-3">
+              <div key={collectionsMode} className="mt-3 animate-slide-right">
                 <p className="font-sans font-bold text-3xl text-gray-900 tracking-tight">
                   {isReceptionist ? "*****" : <AnimatedNumberCounter value={activeCollections.sumCollected} prefix="₹" />}
                 </p>

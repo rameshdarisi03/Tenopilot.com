@@ -97,7 +97,7 @@ export default function TenantsDirectoryPage({
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
 
   const { user, profile } = useAuth();
-  const { mode: collectionsMode, setMode: setCollectionsMode } = useCollectionsViewMode();
+  const { mode: collectionsMode, setMode: setCollectionsMode, toggleMode: toggleCollectionsMode } = useCollectionsViewMode();
   const [activeRole, setActiveRole] = useState<UserRole>(() => staffStore.getActiveRole());
   useEffect(() => {
     const unsub = staffStore.subscribe(() => {
@@ -2467,12 +2467,10 @@ export default function TenantsDirectoryPage({
                       </p>
                       <CollectionsCardSwitcher
                         mode={collectionsMode}
-                        onSelect={setCollectionsMode}
-                        rentAmount={rentMetrics.collectionsData?.rentCollections.sumCollected ?? rentMetrics.sumCollected}
-                        grossAmount={rentMetrics.collectionsData?.grossCollections.sumCollected ?? rentMetrics.sumCollected}
+                        onToggle={toggleCollectionsMode}
                       />
                     </div>
-                    <div>
+                    <div key={collectionsMode} className="animate-slide-right">
                       <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
                         {isReceptionist
                           ? "*****"

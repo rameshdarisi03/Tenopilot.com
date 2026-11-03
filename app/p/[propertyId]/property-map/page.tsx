@@ -94,7 +94,7 @@ function PropertyMapContent({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, profile } = useAuth();
-  const { mode: collectionsMode, setMode: setCollectionsMode } = useCollectionsViewMode();
+  const { mode: collectionsMode, setMode: setCollectionsMode, toggleMode: toggleCollectionsMode } = useCollectionsViewMode();
 
   // Mobile menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -1289,12 +1289,10 @@ function PropertyMapContent({
                       </p>
                       <CollectionsCardSwitcher
                         mode={collectionsMode}
-                        onSelect={setCollectionsMode}
-                        rentAmount={rentMetrics.collectionsData?.rentCollections.sumCollected ?? rentMetrics.sumCollected}
-                        grossAmount={rentMetrics.collectionsData?.grossCollections.sumCollected ?? rentMetrics.sumCollected}
+                        onToggle={toggleCollectionsMode}
                       />
                     </div>
-                    <div>
+                    <div key={collectionsMode} className="animate-slide-right">
                       <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
                         {isReceptionist
                           ? "*****"
