@@ -76,7 +76,6 @@ function SelfKycDeskContent({
     isInviteAction ? "INVITES" : (urlTab === "RESIDENTS" ? "RESIDENTS" : (urlTab === "REVIEW" || reviewSubmissionId || urlRoom ? "REVIEW" : "INVITES"))
   );
   const [residentSearchTerm, setResidentSearchTerm] = useState("");
-  const [residentFilterChip, setResidentFilterChip] = useState<"ALL" | "CORRECTION" | "PENDING" | "AWAITING" | "APPROVED">("ALL");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [submissions, setSubmissions] = useState<SelfKycSubmission[]>([]);
   const [invites, setInvites] = useState<SelfKycInvite[]>([]);
@@ -379,6 +378,94 @@ function SelfKycDeskContent({
     [submissions]
   );
 
+  // Deduplicated list of all approved KYC records (from approved submissions + verified active occupants)
+  const approvedKycList = useMemo(() => {
+    const list: Array<{
+      id: string;
+      name: string;
+      photoUrl?: string;
+      joiningDate?: string;
+      phone: string;
+      countryCode?: string;
+      roomNumber: string;
+      bedCode: string;
+      rentAmount: number;
+      reviewedBy?: string;
+      reviewedAt?: string;
+      isExistingResident: boolean;
+      occupantId?: string;
+      submission?: SelfKycSubmission;
+    }> = [];
+
+    const seenKeys = new Set<string>();
+
+    // 1. Approved submissions
+    approvedSubmissions.forEach((sub) => {
+      const cleanSubPhone = (sub.phone || "").replace(/\D/g, "").slice(-10);
+      const matchedOcc = occupantsList.find((o) => {
+        if (sub.occupantId && o.id === sub.occupantId) return true;
+        const occPhone = (o.phone || "").replace(/\D/g, "").slice(-10);
+        return occPhone && cleanSubPhone && occPhone === cleanSubPhone;
+      });
+
+      const isExisting = Boolean(
+        sub.submissionType === "EXISTING_RESIDENT" ||
+        sub.occupantId ||
+        matchedOcc
+      );
+
+      const key = sub.occupantId || matchedOcc?.id || (cleanSubPhone ? `phone_${cleanSubPhone}` : sub.id);
+      if (seenKeys.has(key)) return;
+      seenKeys.add(key);
+
+      list.push({
+        id: sub.id,
+        name: sub.name,
+        photoUrl: sub.photoUrl || matchedOcc?.kycDocs?.photoUrl,
+        joiningDate: sub.joiningDate || matchedOcc?.joiningDate || "—",
+        phone: sub.phone,
+        countryCode: sub.countryCode || "+91",
+        roomNumber: sub.roomNumber || matchedOcc?.roomNumber || "—",
+        bedCode: sub.bedCode || matchedOcc?.bedCode || "—",
+        rentAmount: sub.rentAmount || matchedOcc?.rentAmount || 0,
+        reviewedBy: sub.reviewedBy || "Staff",
+        reviewedAt: sub.reviewedAt,
+        isExistingResident: isExisting,
+        occupantId: matchedOcc?.id || sub.occupantId,
+        submission: sub,
+      });
+    });
+
+    // 2. Active occupants who are verified in the system but may not have a submission document
+    occupantsList.forEach((occ) => {
+      if (occ.lifecycleStatus === "Past") return;
+      if (!occ.kycVerified) return;
+      const cleanOccPhone = (occ.phone || "").replace(/\D/g, "").slice(-10);
+      const key = occ.id || (cleanOccPhone ? `phone_${cleanOccPhone}` : occ.id);
+      if (seenKeys.has(key)) return;
+      if (cleanOccPhone && seenKeys.has(`phone_${cleanOccPhone}`)) return;
+      seenKeys.add(key);
+
+      list.push({
+        id: occ.id,
+        name: occ.name,
+        photoUrl: occ.kycDocs?.photoUrl,
+        joiningDate: occ.joiningDate || "—",
+        phone: occ.phone || "",
+        countryCode: "+91",
+        roomNumber: occ.roomNumber || "—",
+        bedCode: occ.bedCode || "—",
+        rentAmount: occ.rentAmount || (occ as any).tariff || 0,
+        reviewedBy: "Owner Desk",
+        reviewedAt: occ.joiningDate,
+        isExistingResident: true,
+        occupantId: occ.id,
+      });
+    });
+
+    return list;
+  }, [approvedSubmissions, occupantsList]);
+
   // Sent Invites Log: Only active invites awaiting candidate action (first fill or re-upload after rejection)
   // Transitions OUT when candidate submits (enters Review KYC), or when candidate is Approved
   const activeInvites = useMemo(() => {
@@ -413,14 +500,31 @@ function SelfKycDeskContent({
     });
   }, [invites, pendingSubmissions, approvedSubmissions]);
 
-  // Existing Residents KYC Desk (Triggered-only: bulk reminders sent, single invite sent, or correction requested)
+  // Existing Residents KYC Desk: Only actionable requests awaiting candidate response (Awaiting Submission or Needs Correction)
+  // Submissions under review belong in "Review KYC"; approved verifications belong in "Approved"
   const existingResidentsKycList = useMemo(() => {
     return occupantsList
       .filter((occ) => {
         if (occ.lifecycleStatus === "Past") return false;
         const cleanOccPhone = (occ.phone || "").replace(/\D/g, "").slice(-10);
 
-        // 1. Check if invite exists for this resident
+        // Check if submission exists
+        const sub = submissions.find(
+          (s) =>
+            s.occupantId === occ.id ||
+            s.id === occ.id ||
+            (s.phone &&
+              cleanOccPhone &&
+              s.phone.replace(/\D/g, "").slice(-10) === cleanOccPhone)
+        );
+
+        // 1. If already approved, it lives in Approved tab
+        if (occ.kycVerified || sub?.status === "APPROVED") return false;
+
+        // 2. If submitted and pending review, it lives in Review KYC tab
+        if (sub?.status === "PENDING") return false;
+
+        // 3. Check if invite exists for this resident
         const hasInvite = invites.some(
           (inv) =>
             inv.occupantId === occ.id ||
@@ -431,21 +535,13 @@ function SelfKycDeskContent({
         );
         if (hasInvite) return true;
 
-        // 2. Check if submission exists
-        const hasSubmission = submissions.some(
-          (sub) =>
-            sub.occupantId === occ.id ||
-            sub.id === occ.id ||
-            (sub.phone &&
-              cleanOccPhone &&
-              sub.phone.replace(/\D/g, "").slice(-10) === cleanOccPhone)
-        );
-        if (hasSubmission) return true;
+        // 4. Check if rejected/needs correction submission exists
+        if (sub?.status === "REJECTED") return true;
 
-        // 3. Check Firestore occupant field
+        // 5. Check Firestore occupant reminder timestamp
         if ((occ as any).kycReminderSentAt) return true;
 
-        // 4. Check local storage triggers
+        // 6. Check local storage triggers
         if (typeof window !== "undefined") {
           try {
             if (localStorage.getItem(`tenopilot_kyc_reminder_sent_${propertyId}_${occ.id}`)) return true;
@@ -483,14 +579,10 @@ function SelfKycDeskContent({
                 s.phone.replace(/\D/g, "").slice(-10) === cleanOccPhone))
         );
 
-        let status: "NEEDS_CORRECTION" | "PENDING_REVIEW" | "APPROVED" | "AWAITING_SUBMISSION" = "AWAITING_SUBMISSION";
-        if (occ.kycVerified || sub?.status === "APPROVED") {
-          status = "APPROVED";
-        } else if (sub?.status === "PENDING") {
-          status = "PENDING_REVIEW";
-        } else if (lastRejection || sub?.status === "REJECTED") {
-          status = "NEEDS_CORRECTION";
-        }
+        const status: "NEEDS_CORRECTION" | "AWAITING_SUBMISSION" =
+          lastRejection || sub?.status === "REJECTED"
+            ? "NEEDS_CORRECTION"
+            : "AWAITING_SUBMISSION";
 
         return {
           occupant: occ,
@@ -505,16 +597,6 @@ function SelfKycDeskContent({
   const filteredExistingResidents = useMemo(() => {
     let list = existingResidentsKycList;
 
-    if (residentFilterChip === "CORRECTION") {
-      list = list.filter((r) => r.status === "NEEDS_CORRECTION");
-    } else if (residentFilterChip === "PENDING") {
-      list = list.filter((r) => r.status === "PENDING_REVIEW");
-    } else if (residentFilterChip === "AWAITING") {
-      list = list.filter((r) => r.status === "AWAITING_SUBMISSION");
-    } else if (residentFilterChip === "APPROVED") {
-      list = list.filter((r) => r.status === "APPROVED");
-    }
-
     if (residentSearchTerm.trim()) {
       const q = residentSearchTerm.toLowerCase().trim();
       list = list.filter(
@@ -527,7 +609,7 @@ function SelfKycDeskContent({
     }
 
     return list;
-  }, [existingResidentsKycList, residentFilterChip, residentSearchTerm]);
+  }, [existingResidentsKycList, residentSearchTerm]);
 
   // Helper to prevent redundant "Bed Bed" prefix
   const formatBedLabel = (bedCode?: string): string => {
@@ -1401,9 +1483,9 @@ function SelfKycDeskContent({
               }`}
             >
               <span>Existing Resident KYC</span>
-              {existingResidentsKycList.filter((r) => r.status !== "APPROVED").length > 0 && (
+              {existingResidentsKycList.length > 0 && (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 font-bold">
-                  {existingResidentsKycList.filter((r) => r.status !== "APPROVED").length}
+                  {existingResidentsKycList.length}
                 </span>
               )}
             </button>
@@ -1434,7 +1516,7 @@ function SelfKycDeskContent({
                   : "border-transparent text-gray-500 hover:text-gray-900"
               }`}
             >
-              <span>Approved ({approvedSubmissions.length + existingResidentsKycList.filter((r) => r.status === "APPROVED").length})</span>
+              <span>Approved ({approvedKycList.length})</span>
             </button>
           </div>
 
@@ -1702,23 +1784,20 @@ function SelfKycDeskContent({
             </div>
           )}
 
-          {/* STAGE 2: EXISTING RESIDENT KYC DESK (Triggered-Only) */}
+          {/* STAGE 2: EXISTING RESIDENT KYC DESK (Actionable Awaiting Candidate Response) */}
           {activeTab === "RESIDENTS" && (
             <div className="space-y-4">
               {/* Controls Card */}
-              <div className="bg-white p-4 sm:p-5 rounded-3xl border border-gray-200 shadow-xs space-y-3.5">
+              <div className="bg-white p-4 sm:p-5 rounded-3xl border border-gray-200 shadow-xs">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <h3 className="font-serif font-bold text-base text-gray-900 flex items-center gap-2">
-                      <span>🏠 In-House Resident KYC Requests</span>
+                  <h3 className="font-serif font-bold text-base text-gray-900 flex items-center gap-2">
+                    <span>🏠 In-House Resident KYC Requests</span>
+                    {existingResidentsKycList.length > 0 && (
                       <span className="text-xs font-sans font-bold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-200">
-                        {existingResidentsKycList.length} Triggered
+                        {existingResidentsKycList.length} Action Needed
                       </span>
-                    </h3>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      Tracks residents who received KYC reminders or correction requests. Existing beds and financial ledgers stay locked.
-                    </p>
-                  </div>
+                    )}
+                  </h3>
 
                   {/* Search Bar */}
                   <div className="relative w-full sm:w-72">
@@ -1740,69 +1819,6 @@ function SelfKycDeskContent({
                     )}
                   </div>
                 </div>
-
-                {/* Filter Chips */}
-                <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-gray-100 text-xs">
-                  <button
-                    onClick={() => setResidentFilterChip("ALL")}
-                    className={`px-3 py-1 rounded-xl font-bold transition-all cursor-pointer ${
-                      residentFilterChip === "ALL"
-                        ? "bg-gray-900 text-white shadow-2xs"
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    }`}
-                  >
-                    All ({existingResidentsKycList.length})
-                  </button>
-                  <button
-                    onClick={() => setResidentFilterChip("CORRECTION")}
-                    className={`px-3 py-1 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      residentFilterChip === "CORRECTION"
-                        ? "bg-amber-600 text-white shadow-2xs"
-                        : "bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200"
-                    }`}
-                  >
-                    <span>⚠️ Needs Correction</span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/10 font-mono">
-                      {existingResidentsKycList.filter((r) => r.status === "NEEDS_CORRECTION").length}
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => setResidentFilterChip("PENDING")}
-                    className={`px-3 py-1 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      residentFilterChip === "PENDING"
-                        ? "bg-rose-600 text-white shadow-2xs"
-                        : "bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200"
-                    }`}
-                  >
-                    <span>⏳ Submitted (Awaiting Review)</span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/10 font-mono">
-                      {existingResidentsKycList.filter((r) => r.status === "PENDING_REVIEW").length}
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => setResidentFilterChip("AWAITING")}
-                    className={`px-3 py-1 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      residentFilterChip === "AWAITING"
-                        ? "bg-blue-600 text-white shadow-2xs"
-                        : "bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200"
-                    }`}
-                  >
-                    <span>✉️ Awaiting Submission</span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/10 font-mono">
-                      {existingResidentsKycList.filter((r) => r.status === "AWAITING_SUBMISSION").length}
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => setResidentFilterChip("APPROVED")}
-                    className={`px-3 py-1 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      residentFilterChip === "APPROVED"
-                        ? "bg-emerald-600 text-white shadow-2xs"
-                        : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200"
-                    }`}
-                  >
-                    <span>✅ Verified ({existingResidentsKycList.filter((r) => r.status === "APPROVED").length})</span>
-                  </button>
-                </div>
               </div>
 
               {/* Table / List */}
@@ -1812,16 +1828,14 @@ function SelfKycDeskContent({
                     🏠
                   </div>
                   <h3 className="font-serif font-bold text-lg text-gray-900">
-                    {existingResidentsKycList.length === 0
-                      ? "No active in-house resident KYC requests."
-                      : "No residents match this filter."}
+                    {residentSearchTerm ? "No matching resident requests found." : "No pending in-house resident KYC requests."}
                   </h3>
                   <p className="text-xs text-gray-500 max-w-md mx-auto">
-                    {existingResidentsKycList.length === 0
-                      ? "Only residents for whom a KYC reminder or correction request was actually triggered will appear here."
-                      : "Try switching filter chips or clearing the search box."}
+                    {residentSearchTerm
+                      ? "Try searching by a different name, room, or phone number."
+                      : "All triggered resident KYC requests have been submitted or approved. New requests will appear here when you dispatch KYC links to tenants."}
                   </p>
-                  {existingResidentsKycList.length === 0 && (
+                  {!residentSearchTerm && (
                     <div className="pt-2">
                       <Link
                         href={`/p/${propertyId}/tenants?tab=KYCPending`}
@@ -1896,22 +1910,10 @@ function SelfKycDeskContent({
                                       </span>
                                     )}
                                   </div>
-                                ) : item.status === "PENDING_REVIEW" ? (
-                                  <div className="flex flex-col gap-1 items-start">
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-300 animate-pulse">
-                                      <Clock className="w-3 h-3 text-rose-600" />
-                                      <span>Submitted • Review Pending</span>
-                                    </span>
-                                  </div>
-                                ) : item.status === "APPROVED" ? (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                    <Check className="w-3 h-3 text-emerald-600" />
-                                    <span>Verified &amp; Approved</span>
-                                  </span>
                                 ) : (
                                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
-                                    <Check className="w-3 h-3 text-blue-600" />
-                                    <span>Reminder Sent</span>
+                                    <Clock className="w-3 h-3 text-blue-600" />
+                                    <span>Reminder Sent • Awaiting Submission</span>
                                   </span>
                                 )}
                               </td>
@@ -1953,22 +1955,6 @@ function SelfKycDeskContent({
                                   <Copy className="w-3.5 h-3.5" />
                                   <span>Link</span>
                                 </button>
-
-                                {item.submission && item.submission.status === "PENDING" && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveReviewSubmission(item.submission!);
-                                      setShowRejectionInput(false);
-                                      setRejectionReason("");
-                                    }}
-                                    className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1 shadow-xs"
-                                    title="Open Review & Verification Modal"
-                                  >
-                                    <Eye className="w-3.5 h-3.5" />
-                                    <span>Review</span>
-                                  </button>
-                                )}
                               </td>
                             </tr>
                           );
@@ -2149,10 +2135,10 @@ function SelfKycDeskContent({
             </div>
           )}
 
-          {/* TAB 3: APPROVED RESIDENTS */}
+          {/* TAB 4: APPROVED RESIDENTS (Deduplicated Compliance Archive) */}
           {activeTab === "APPROVED" && (
             <div className="space-y-4">
-              {approvedSubmissions.length === 0 ? (
+              {approvedKycList.length === 0 ? (
                 <div className="p-12 text-center bg-white rounded-3xl border border-gray-200 shadow-2xs space-y-3">
                   <div className="w-14 h-14 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center mx-auto text-2xl font-bold">
                     📋
@@ -2179,41 +2165,54 @@ function SelfKycDeskContent({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {approvedSubmissions.map((sub) => (
-                          <tr key={sub.id} className="hover:bg-gray-50/80 transition-colors">
+                        {approvedKycList.map((item) => (
+                          <tr key={item.id} className="hover:bg-gray-50/80 transition-colors">
                             <td className="py-3.5 px-4 font-bold text-gray-900">
                               <div className="flex items-center gap-2.5">
                                 <img
-                                  src={sub.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(sub.name)}`}
-                                  alt={sub.name}
+                                  src={item.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(item.name)}`}
+                                  alt={item.name}
                                   className="w-8 h-8 rounded-full object-cover border border-gray-200"
                                 />
                                 <div>
-                                  <span className="block font-bold">{sub.name}</span>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="block font-bold">{item.name}</span>
+                                    {item.isExistingResident ? (
+                                      <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 inline-flex items-center gap-1 shadow-2xs">
+                                        <span>🏠</span>
+                                        <span>Existing Resident</span>
+                                      </span>
+                                    ) : (
+                                      <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-200 inline-flex items-center gap-1">
+                                        <span>🔵</span>
+                                        <span>New Check-In</span>
+                                      </span>
+                                    )}
+                                  </div>
                                   <span className="text-[10px] font-sans text-gray-400">
-                                    Joined on {sub.joiningDate}
+                                    Joined on {item.joiningDate}
                                   </span>
                                 </div>
                               </div>
                             </td>
                             <td className="py-3.5 px-4 font-mono font-semibold text-gray-700">
-                              {formatDisplayPhone(sub.phone, sub.countryCode)}
+                              {formatDisplayPhone(item.phone, item.countryCode)}
                             </td>
                             <td className="py-3.5 px-4 font-bold text-gray-900">
-                              Room {sub.roomNumber} ({formatBedLabel(sub.bedCode)})
+                              Room {item.roomNumber} ({formatBedLabel(item.bedCode)})
                             </td>
                             <td className="py-3.5 px-4 font-mono font-bold text-[#c2652a]">
-                              ₹{(sub.rentAmount ?? 0).toLocaleString("en-IN")}/mo
+                              ₹{(item.rentAmount ?? 0).toLocaleString("en-IN")}/mo
                             </td>
                             <td className="py-3.5 px-4 text-gray-600">
-                              <span className="font-semibold">{sub.reviewedBy || "Staff"}</span>
+                              <span className="font-semibold">{item.reviewedBy || "Staff"}</span>
                               <span className="block text-[10px] text-gray-400">
-                                {sub.reviewedAt ? new Date(sub.reviewedAt).toLocaleDateString("en-IN") : "Verified"}
+                                {item.reviewedAt ? new Date(item.reviewedAt).toLocaleDateString("en-IN") : "Verified"}
                               </span>
                             </td>
                             <td className="py-3.5 px-4 text-right">
                               <Link
-                                href={getOccupantProfileLink(sub)}
+                                href={item.submission ? getOccupantProfileLink(item.submission) : (item.occupantId ? `/p/${propertyId}/tenants/${item.occupantId}` : `/p/${propertyId}/tenants`)}
                                 className="px-3 py-1.5 rounded-xl border border-gray-300 hover:bg-gray-100 hover:border-[#c2652a] hover:text-[#c2652a] text-gray-800 text-xs font-bold transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
                               >
                                 <span>View Profile</span>
