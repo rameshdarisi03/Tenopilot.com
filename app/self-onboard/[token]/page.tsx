@@ -2202,23 +2202,37 @@ export default function TenantSelfOnboardingPage({
 
             <div className="space-y-2">
               <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                Check-In Submitted Successfully
+                {invite?.isExistingResident || invite?.occupantId
+                  ? "KYC Verification Submitted"
+                  : "Check-In Submitted Successfully"}
               </span>
               <h2 className="font-serif font-bold text-2xl sm:text-3xl text-gray-900">
-                Registration in Review!
+                {invite?.isExistingResident || invite?.occupantId
+                  ? "Verification in Review!"
+                  : "Registration in Review!"}
               </h2>
               <p className="text-xs text-gray-600 max-w-md mx-auto">
-                Thank you, <span className="font-bold text-gray-900">{candidateName}</span>! Your pre-joining KYC details and documents have been submitted to the reception desk of <span className="font-bold">{propertyName}</span>.
+                {invite?.isExistingResident || invite?.occupantId ? (
+                  <>
+                    Thank you, <span className="font-bold text-gray-900">{candidateName}</span>! Your digital KYC verification details and documents have been submitted to the management desk of <span className="font-bold">{propertyName}</span>.
+                  </>
+                ) : (
+                  <>
+                    Thank you, <span className="font-bold text-gray-900">{candidateName}</span>! Your pre-joining KYC details and documents have been submitted to the reception desk of <span className="font-bold">{propertyName}</span>.
+                  </>
+                )}
               </p>
             </div>
 
             <div className="p-5 bg-gradient-to-br from-orange-50/60 to-amber-50/60 rounded-3xl border border-orange-100 text-left text-xs space-y-2.5">
-              <div className="flex items-center justify-between pb-2 border-b border-orange-200/60">
-                <span className="font-bold text-gray-800">Accommodation Status:</span>
-                <span className="text-[11px] font-bold text-rose-700 bg-rose-100/80 px-2.5 py-0.5 rounded-full border border-rose-300">
-                  BED ON HOLD 🔒
-                </span>
-              </div>
+              {!invite?.isExistingResident && !invite?.occupantId && (
+                <div className="flex items-center justify-between pb-2 border-b border-orange-200/60">
+                  <span className="font-bold text-gray-800">Accommodation Status:</span>
+                  <span className="text-[11px] font-bold text-rose-700 bg-rose-100/80 px-2.5 py-0.5 rounded-full border border-rose-300">
+                    BED ON HOLD 🔒
+                  </span>
+                </div>
+              )}
               <p className="text-gray-700 flex items-center justify-between">
                 <span>🏢 Room & Bed:</span>
                 <span className="font-bold text-gray-900">
@@ -2239,7 +2253,7 @@ export default function TenantSelfOnboardingPage({
                 )}
               </p>
               <p className="text-gray-700 flex items-center justify-between">
-                <span>📅 Check-in Date:</span>
+                <span>📅 {invite?.isExistingResident || invite?.occupantId ? "Resident Since:" : "Check-in Date:"}</span>
                 <span className="font-mono font-bold text-gray-900">
                   {joiningDate}
                 </span>
@@ -2251,7 +2265,9 @@ export default function TenantSelfOnboardingPage({
                 <Clock className="w-4 h-4 text-[#c2652a]" /> What happens next?
               </p>
               <p className="text-[11px] text-gray-500">
-                The property manager will review your Aadhaar details and photo. Once approved, your bed will be active and you will receive your official check-in confirmation and rent receipt on WhatsApp.
+                {invite?.isExistingResident || invite?.occupantId
+                  ? "The property manager will review your submitted Aadhaar proofs and photo. Once approved, your digital verification will be complete and your residency record will be securely locked."
+                  : "The property manager will review your Aadhaar details and photo. Once approved, your bed will be active and you will receive your official check-in confirmation and rent receipt on WhatsApp."}
               </p>
             </div>
 
