@@ -1950,6 +1950,75 @@ export function parsePaymentDateToIso(dateStr?: string, timestamp?: number): str
   return "";
 }
 
+/**
+ * 🔒 SSOT Monthly Operating Revenue Metrics Resolver
+ * Computes pure operating collections (Rent + Prior Arrears + Parking + Checkout Settled Rent)
+ * for the current month against total expected monthly dues, strictly isolating refundable security deposits.
+ */
+export function calculateMonthlyOperatingRevenueMetrics(
+  occupants: Partial<Occupant>[],
+  settings?: any
+) {
+  const billableOccupants = occupants.filter(
+    (o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice"
+  );
+
+  const { year: currentYear, month: currentMonthIndex } = getNowIST();
+  const currentMonthIsoPrefix = `${currentYear}-${String(currentMonthIndex + 1).padStart(2, "0")}`;
+
+  let sumCollected = 0;
+  let totalExpected = 0;
+
+  // 1. Numerator: Strict operating collections for current month
+  occupants.forEach((occ) => {
+    const rawHistory = occ.paymentHistory || [];
+    const validReceipts = rawHistory.filter(
+      (pm) => pm.status !== "VOIDED" && (pm as any).status !== "FAILED" && (pm as any).status !== "CANCELLED"
+    );
+
+    validReceipts.forEach((pm) => {
+      const iso = parsePaymentDateToIso(pm.date, (pm as any).timestamp);
+      if (iso && iso.startsWith(currentMonthIsoPrefix)) {
+        // If itemized rent or parking exists, take their sum
+        if (pm.rentAmount !== undefined || pm.parkingAmount !== undefined) {
+          sumCollected += (pm.rentAmount || 0) + (pm.parkingAmount || 0);
+          return;
+        }
+
+        // If explicitly flagged as security deposit or deposit refund, exclude from operating revenue
+        const monthLower = (pm.month || "").toLowerCase();
+        const receiptLower = (pm.receiptNo || "").toLowerCase();
+        const isRent = monthLower.includes("rent") || receiptLower.includes("rent");
+        const isDepositOrRefund =
+          !isRent && (
+            monthLower.includes("deposit") ||
+            receiptLower.startsWith("#dep") ||
+            receiptLower.startsWith("ref-") ||
+            Boolean(pm.id?.includes("-dep-"))
+          );
+
+        if (!isDepositOrRefund) {
+          sumCollected += (pm.amount || 0);
+        }
+      }
+    });
+  });
+
+  // 2. Denominator: Expected recurring dues for occupied beds (Rent + Prior Arrears + Parking)
+  billableOccupants.forEach((curr) => {
+    const stmt = calculateOccupantFinancialStatement(curr, settings);
+    totalExpected += stmt.proRataRent + stmt.priorArrears + stmt.parkingFee;
+  });
+
+  const collectionPct = totalExpected > 0 ? Number(((sumCollected / totalExpected) * 100).toFixed(1)) : 0;
+
+  return {
+    sumCollected,
+    totalExpected,
+    collectionPct,
+  };
+}
+
 
 
 

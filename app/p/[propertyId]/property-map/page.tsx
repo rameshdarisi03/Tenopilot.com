@@ -28,6 +28,7 @@ import {
   normalizeRoomNumber,
   matchesTenoPilotSearch,
   calculateOccupantFinancialStatement,
+  calculateMonthlyOperatingRevenueMetrics,
   resolveOccupantPaymentDueDate,
   getNowIST,
   getDynamicProgressGradient,
@@ -776,33 +777,13 @@ function PropertyMapContent({
       (o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice"
     );
 
-    const { year: currentYear, month: currentMonthIndex } = getNowIST();
-    const currentMonthIsoPrefix = `${currentYear}-${String(currentMonthIndex + 1).padStart(2, "0")}`;
-
     let dueCount = 0;
     let dueSum = 0;
     let overdueCount = 0;
     let overdueSum = 0;
-    let sumCollected = 0;
-    let totalExpected = 0;
-
-    // 🛡️ STRICT SSOT: Collect real cash inflows for the current month across receipts, strictly excluding VOIDED/CANCELLED/FAILED receipts
-    occupants.forEach((occ) => {
-      const rawHistory = occ.paymentHistory || [];
-      const validReceipts = rawHistory.filter(
-        (pm) => pm.status !== "VOIDED" && (pm as any).status !== "FAILED" && (pm as any).status !== "CANCELLED"
-      );
-      validReceipts.forEach((pm) => {
-        const iso = parsePaymentDateToIso(pm.date, (pm as any).timestamp);
-        if (iso && iso.startsWith(currentMonthIsoPrefix)) {
-          sumCollected += (pm.amount || 0);
-        }
-      });
-    });
 
     billableOccupants.forEach((curr) => {
       const stmt = calculateOccupantFinancialStatement(curr, propertySettings);
-      totalExpected += stmt.proRataRent + stmt.priorArrears;
 
       if (!stmt.isFullyPaid) {
         const netDue = stmt.netOutstandingBalance;
@@ -816,7 +797,11 @@ function PropertyMapContent({
       }
     });
 
-    const collectionPct = totalExpected > 0 ? Number(((sumCollected / totalExpected) * 100).toFixed(1)) : 0;
+    // 🔒 SSOT Operating Revenue Metrics (Rent + Prior Arrears + Parking, strictly isolating security deposits)
+    const { sumCollected, totalExpected, collectionPct } = calculateMonthlyOperatingRevenueMetrics(
+      occupants,
+      propertySettings
+    );
 
     return {
       dueCount,

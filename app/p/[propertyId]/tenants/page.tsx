@@ -14,7 +14,7 @@ import { propertySettingsStore, DEFAULT_QR_PROFILES, PaymentQRProfile, PAY_BY_CA
 import { partnerStore, PaymentAccountConfig, PartnerConfig } from "@/constants/partnerStore";
 import { subscribeOccupantsFromFirestore, saveOccupantToFirestore, updateOccupantInFirestore, deleteOccupantFromFirestore, purgeAllMockOccupantsFromFirestore, isGenuineOccupantId } from "@/lib/firestoreService";
 import { sanitizeSearchInput, normalizePhoneNumber, formatWhatsAppPhone, formatDisplayPhone, buildWhatsAppUrl, sanitizeVehicleNumber } from "@/utils/security";
-import { calculateOccupantFinancialStatement, calculateProRataRent, resolveOccupantLastPaidInfo, resolveOccupantPaymentDueDate, parseOccupantDate, matchesTenoPilotSearch, getNowIST, getDynamicProgressGradient } from "@/utils/domainSSOT";
+import { calculateOccupantFinancialStatement, calculateProRataRent, calculateMonthlyOperatingRevenueMetrics, resolveOccupantLastPaidInfo, resolveOccupantPaymentDueDate, parseOccupantDate, matchesTenoPilotSearch, getNowIST, getDynamicProgressGradient } from "@/utils/domainSSOT";
 import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot, doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
 import { PaymentProofReviewModal, PaymentProofRecord } from "@/components/dashboard/PaymentProofReviewModal";
@@ -1905,9 +1905,6 @@ export default function TenantsDirectoryPage({
       (o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice"
     );
 
-    const { year: currentYear, month: currentMonthIndex } = getNowIST();
-    const currentMonthIsoPrefix = `${currentYear}-${String(currentMonthIndex + 1).padStart(2, "0")}`;
-
     let dueTodayCount = 0;
     let dueTodaySum = 0;
     let dueTomorrowCount = 0;
@@ -1916,26 +1913,9 @@ export default function TenantsDirectoryPage({
     let dueNext2DaysSum = 0;
     let overdueCount = 0;
     let overdueSum = 0;
-    let sumCollected = 0;
-    let totalExpected = 0;
-
-    // 🔒 STRICT SSOT: Collect real cash inflows for the current month across receipts, strictly excluding VOIDED/CANCELLED/FAILED receipts
-    occupantsList.forEach((occ) => {
-      const rawHistory = occ.paymentHistory || [];
-      const validReceipts = rawHistory.filter(
-        (pm) => pm.status !== "VOIDED" && (pm as any).status !== "FAILED" && (pm as any).status !== "CANCELLED"
-      );
-      validReceipts.forEach((pm) => {
-        const iso = parsePaymentDateToIso(pm.date, (pm as any).timestamp);
-        if (iso && iso.startsWith(currentMonthIsoPrefix)) {
-          sumCollected += (pm.amount || 0);
-        }
-      });
-    });
 
     billableOccupants.forEach((curr) => {
       const stmt = calculateOccupantFinancialStatement(curr, currentSettings);
-      totalExpected += stmt.proRataRent + stmt.priorArrears;
 
       if (!stmt.isFullyPaid) {
         const netDue = stmt.netOutstandingBalance;
@@ -1950,7 +1930,11 @@ export default function TenantsDirectoryPage({
       }
     });
 
-    const collectionPct = totalExpected > 0 ? Number(((sumCollected / totalExpected) * 100).toFixed(1)) : 0;
+    // 🔒 SSOT Operating Revenue Metrics (Rent + Prior Arrears + Parking, strictly isolating security deposits)
+    const { sumCollected, totalExpected, collectionPct } = calculateMonthlyOperatingRevenueMetrics(
+      occupantsList,
+      currentSettings
+    );
 
     return {
       dueTodayCount,

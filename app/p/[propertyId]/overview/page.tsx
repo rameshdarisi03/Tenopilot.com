@@ -56,6 +56,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import {
   calculateOccupantFinancialStatement,
   calculatePropertyRentComplianceSummary,
+  calculateMonthlyOperatingRevenueMetrics,
   getBedOccupantsTimeline,
   getCanonicalBedIndex,
   getDynamicProgressGradient,
@@ -331,39 +332,7 @@ export default function PropertyOverviewPage({
 
   // Dynamic Rent Metrics Calculations (100% SSOT matching Tenants, Property Map, and Financial Hub)
   const rentMetrics = useMemo(() => {
-    const billableOccupants = occupants.filter(
-      (o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice"
-    );
-
-    const { year: currentYear, month: currentMonthIndex } = getNowIST();
-    const currentMonthIsoPrefix = `${currentYear}-${String(currentMonthIndex + 1).padStart(2, "0")}`;
-
-    let sumCollected = 0;
-    let totalExpected = 0;
-
-    // STRICT SSOT: Collect real cash inflows for the current month across receipts, strictly excluding VOIDED/CANCELLED/FAILED receipts
-    occupants.forEach((occ) => {
-      const rawHistory = occ.paymentHistory || [];
-      const validReceipts = rawHistory.filter(
-        (pm) => pm.status !== "VOIDED" && (pm as any).status !== "FAILED" && (pm as any).status !== "CANCELLED"
-      );
-      validReceipts.forEach((pm) => {
-        const iso = parsePaymentDateToIso(pm.date, (pm as any).timestamp);
-        if (iso && iso.startsWith(currentMonthIsoPrefix)) {
-          sumCollected += (pm.amount || 0);
-        }
-      });
-    });
-
-    billableOccupants.forEach((curr) => {
-      const stmt = calculateOccupantFinancialStatement(curr, propertySettings);
-      totalExpected += stmt.proRataRent + stmt.priorArrears;
-    });
-
-    return {
-      sumCollected,
-      totalExpected,
-    };
+    return calculateMonthlyOperatingRevenueMetrics(occupants, propertySettings);
   }, [occupants, propertySettings]);
 
   // Financial Metrics Calculation
