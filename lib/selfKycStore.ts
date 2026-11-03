@@ -728,7 +728,16 @@ export const selfKycStore = {
     };
 
     const list = SUBMISSIONS_CACHE.get(submission.propertyId) || [];
-    SUBMISSIONS_CACHE.set(submission.propertyId, [submission, ...list.filter((s) => s.id !== submission.id)]);
+    // Automatically supersede any previous pending submission for the same occupant or invite to prevent duplicates
+    const filteredList = list.filter((s) => {
+      if (s.id === submission.id) return false;
+      if (s.status === "PENDING") {
+        if (submission.occupantId && s.occupantId === submission.occupantId) return false;
+        if (submission.inviteId && s.inviteId === submission.inviteId) return false;
+      }
+      return true;
+    });
+    SUBMISSIONS_CACHE.set(submission.propertyId, [submission, ...filteredList]);
     saveLocalCache(submission.propertyId, "subs");
     notifySubscribers(submission.propertyId);
 
@@ -775,6 +784,21 @@ export const selfKycStore = {
       // 1. PRIMARY: Property scoped collection (ALWAYS has write permissions)
       const docRef = doc(db, "properties", submission.propertyId, "self_kyc_submissions", submission.id);
       await setDoc(docRef, sanitized);
+
+      // Clean up superseded pending submissions from Firestore
+      if (submission.occupantId || submission.inviteId) {
+        const superseded = list.filter((s) => {
+          if (s.id === submission.id || s.status !== "PENDING") return false;
+          if (submission.occupantId && s.occupantId === submission.occupantId) return true;
+          if (submission.inviteId && s.inviteId === submission.inviteId) return true;
+          return false;
+        });
+        for (const oldSub of superseded) {
+          try {
+            await deleteDoc(doc(db, "properties", submission.propertyId, "self_kyc_submissions", oldSub.id));
+          } catch {}
+        }
+      }
 
       // 2. Direct root collection write (wrapped so it never aborts primary)
       try {
