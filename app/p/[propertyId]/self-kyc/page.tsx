@@ -2175,20 +2175,7 @@ function SelfKycDeskContent({
                                   className="w-8 h-8 rounded-full object-cover border border-gray-200"
                                 />
                                 <div>
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="block font-bold">{item.name}</span>
-                                    {item.isExistingResident ? (
-                                      <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 inline-flex items-center gap-1 shadow-2xs">
-                                        <span>🏠</span>
-                                        <span>Existing Resident</span>
-                                      </span>
-                                    ) : (
-                                      <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-200 inline-flex items-center gap-1">
-                                        <span>🔵</span>
-                                        <span>New Check-In</span>
-                                      </span>
-                                    )}
-                                  </div>
+                                  <span className="block font-bold text-gray-900">{item.name}</span>
                                   <span className="text-[10px] font-sans text-gray-400">
                                     Joined on {item.joiningDate}
                                   </span>
