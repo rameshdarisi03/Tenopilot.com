@@ -1,22 +1,20 @@
 "use client";
 
 import React from "react";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { CollectionsViewMode } from "@/hooks/useCollectionsViewMode";
 
 interface CollectionsCardSwitcherProps {
   mode: CollectionsViewMode;
   onToggle?: () => void;
   onSelect?: (mode: CollectionsViewMode) => void;
-  rentAmount?: number;
-  grossAmount?: number;
   className?: string;
 }
 
 /**
- * 1-Tap Slide Switcher for Collections Metric Cards.
- * Features a highlighted right-pointing arrow towards the next card.
- * Clicking instantly slides and toggles between Rent Collections and Gross Collections with zero dropdown clutter.
+ * 1-Tap Highlighted Arrow Switcher for Collections Metric Cards.
+ * Features a highlighted right-pointing arrow towards the next card with zero text clutter.
+ * Clicking instantly slides and toggles between Rent Collections and Gross Collections.
  */
 export function CollectionsCardSwitcher({
   mode,
@@ -40,25 +38,16 @@ export function CollectionsCardSwitcher({
     <button
       type="button"
       onClick={handleClick}
-      title={isRent ? "Click to slide to Gross Collections (Rent + Deposits)" : "Click to slide to Rent Collections"}
-      className={`group relative flex items-center gap-1.5 px-2.5 py-1 sm:py-1.5 rounded-xl text-[10px] sm:text-xs font-bold transition-all shadow-2xs cursor-pointer border active:scale-95 shrink-0 select-none ${
+      title={isRent ? "Switch to Gross Collections (Rent + Deposits)" : "Switch to Rent Collections"}
+      className={`group relative flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full sm:rounded-xl transition-all shadow-2xs cursor-pointer border active:scale-90 shrink-0 select-none ${
         isRent
-          ? "bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200 hover:border-purple-300 ring-2 ring-purple-400/20"
-          : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 hover:border-emerald-300 ring-2 ring-emerald-400/20"
+          ? "bg-purple-100 hover:bg-purple-200 text-purple-700 border-purple-300 ring-2 ring-purple-400/30"
+          : "bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border-emerald-300 ring-2 ring-emerald-400/30"
       } ${className}`}
     >
-      <span className="flex items-center gap-1">
-        <Sparkles className={`w-3 h-3 shrink-0 ${isRent ? "text-purple-600" : "text-emerald-600"}`} />
-        <span className="tracking-wide uppercase font-extrabold text-[10px]">
-          <span className="hidden sm:inline">Switch to </span>
-          {isRent ? "Gross" : "Rent"}
-        </span>
-      </span>
-
-      {/* Prominent Right-Pointing Arrow directed towards the next card */}
       <ArrowRight
-        className={`w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-1 shrink-0 ${
-          isRent ? "text-purple-600" : "text-emerald-600"
+        className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform duration-200 group-hover:translate-x-0.5 shrink-0 ${
+          isRent ? "text-purple-700" : "text-emerald-700"
         }`}
       />
     </button>

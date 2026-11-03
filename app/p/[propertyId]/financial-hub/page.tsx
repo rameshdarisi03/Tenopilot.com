@@ -57,7 +57,11 @@ import { CollectionsCardSwitcher } from "@/components/dashboard/CollectionsCardS
 import { occupantStore } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
-import { calculateOccupantFinancialStatement, getDynamicProgressGradient } from "@/utils/domainSSOT";
+import {
+  calculateOccupantFinancialStatement,
+  calculateMonthlyOperatingRevenueMetrics,
+  getDynamicProgressGradient,
+} from "@/utils/domainSSOT";
 import { complianceLogStore } from "@/constants/complianceLogStore";
 import { staffStore, UserRole } from "@/lib/staffStore";
 import { ThemedAccountSelect } from "@/components/dashboard/ThemedAccountSelect";
@@ -675,6 +679,16 @@ export default function FinancialHubPage({
     setPartnerContributions(expenseStore.getPartnerPersonalContributions(propertyId, startDate, endDate));
     setRevenueMetrics(computeLiveRevenueData());
   }, [selectedTimelineFilter, customStartDate, customEndDate, propertyId]);
+
+  // Dynamic Rent & Gross Collections Calculations (100% SSOT matching Overview, Property Map, and Tenants)
+  const collectionsData = useMemo(() => {
+    const allOccs = occupantStore.getOccupants(propertyId) || [];
+    return calculateMonthlyOperatingRevenueMetrics(allOccs, propertySettings);
+  }, [propertyId, propertySettings, revenueMetrics]);
+
+  const activeCollections = collectionsMode === "GROSS"
+    ? collectionsData.grossCollections
+    : collectionsData.rentCollections;
 
   useEffect(() => {
     partnerStore.initFirebaseListener(propertyId);
@@ -1600,7 +1614,7 @@ export default function FinancialHubPage({
                       <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider truncate ${
                         collectionsMode === "GROSS" ? "text-purple-700" : "text-emerald-600"
                       }`}>
-                        {collectionsMode === "GROSS" ? "GROSS COLLECTIONS" : "RENT COLLECTIONS"} ({activeDateBounds.label.toUpperCase()})
+                        {collectionsMode === "GROSS" ? "GROSS COLLECTIONS" : "RENT COLLECTIONS"} — {activeDateBounds.label.replace(/^\(+|\)+$/g, "").toUpperCase()}
                       </span>
                       <CollectionsCardSwitcher
                         mode={collectionsMode}
@@ -1609,16 +1623,14 @@ export default function FinancialHubPage({
                     </div>
                     <div key={collectionsMode} className="animate-slide-right space-y-2 sm:space-y-3">
                       <h2 className="font-sans font-bold text-xl sm:text-2xl lg:text-3xl text-gray-900 tracking-tight truncate">
-                        {isOccupantsLoading && (collectionsMode === "GROSS" ? revenueMetrics.totalGrossRevenue === 0 : revenueMetrics.rentStream === 0) ? (
+                        {isOccupantsLoading && activeCollections.sumCollected === 0 ? (
                           <span className="inline-block w-28 h-8 bg-gray-200 animate-pulse rounded-lg" />
                         ) : (
-                          `₹${(collectionsMode === "GROSS" ? revenueMetrics.totalGrossRevenue : revenueMetrics.rentStream).toLocaleString("en-IN")}`
+                          `₹${activeCollections.sumCollected.toLocaleString("en-IN")}`
                         )}
                       </h2>
                       {(() => {
-                        const activeAmount = collectionsMode === "GROSS" ? revenueMetrics.totalGrossRevenue : revenueMetrics.rentStream;
-                        const targetExpected = revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 0;
-                        const revPct = targetExpected > 0 ? (activeAmount / targetExpected) * 100 : 0;
+                        const revPct = activeCollections.totalExpected > 0 ? (activeCollections.sumCollected / activeCollections.totalExpected) * 100 : 0;
                         return (
                           <div className="flex items-center gap-2 mt-3.5 w-full">
                             <div className="relative flex-1 pb-4">
@@ -1645,7 +1657,7 @@ export default function FinancialHubPage({
                               </div>
                             </div>
                             <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums mb-4">
-                              (₹{targetExpected.toLocaleString("en-IN")})
+                              (₹{activeCollections.totalExpected.toLocaleString("en-IN")})
                             </span>
                           </div>
                         );
