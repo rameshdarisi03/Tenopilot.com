@@ -52,6 +52,8 @@ import {
 import { expenseStore, ExpenseRecord, CategoryWeightage } from "@/constants/expenseStore";
 import { recurringBillStore, RecurringBillRecord } from "@/constants/recurringBillStore";
 import { CATEGORIZED_ICON_LIBRARY, RenderDynamicCategoryIcon, ReceiptRupeeIcon } from "@/constants/businessIconLibrary";
+import { useCollectionsViewMode } from "@/hooks/useCollectionsViewMode";
+import { CollectionsCardSwitcher } from "@/components/dashboard/CollectionsCardSwitcher";
 import { occupantStore } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
@@ -83,6 +85,7 @@ export default function FinancialHubPage({
 }) {
   const resolvedParams = use(params);
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
+  const { mode: collectionsMode, setMode: setCollectionsMode } = useCollectionsViewMode();
   const [activeRole, setActiveRole] = useState<UserRole>(() => staffStore.getActiveRole());
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== "undefined") {
@@ -1589,26 +1592,34 @@ export default function FinancialHubPage({
               <div className="space-y-6 md:space-y-8 animate-in fade-in">
                 {/* 1. Top 4 Revenue KPI Metrics Bento Grid (2x2 on Mobile, 4x1 on Desktop) */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
-                  {/* KPI 1: Revenue Collected */}
-                  <div className="bg-white border border-gray-200 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group hover:border-[#c2652a] transition-all">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-emerald-600 truncate">
-                        REVENUE COLLECTED ({activeDateBounds.label.toUpperCase()})
+                  {/* KPI 1: Rent Collections / Gross Collections (Interactive Switcher) */}
+                  <div className={`bg-white border p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group transition-all ${
+                    collectionsMode === "GROSS" ? "border-gray-200 hover:border-purple-400" : "border-gray-200 hover:border-emerald-500"
+                  }`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider truncate ${
+                        collectionsMode === "GROSS" ? "text-purple-700" : "text-emerald-600"
+                      }`}>
+                        {collectionsMode === "GROSS" ? "GROSS COLLECTIONS" : "RENT COLLECTIONS"} ({activeDateBounds.label.toUpperCase()})
                       </span>
-                      <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-emerald-50 text-emerald-700 shrink-0">
-                        <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                      </div>
+                      <CollectionsCardSwitcher
+                        mode={collectionsMode}
+                        onSelect={setCollectionsMode}
+                        rentAmount={revenueMetrics.rentStream}
+                        grossAmount={revenueMetrics.totalGrossRevenue}
+                      />
                     </div>
                     <h2 className="font-sans font-bold text-xl sm:text-2xl lg:text-3xl text-gray-900 tracking-tight truncate">
-                      {isOccupantsLoading && revenueMetrics.totalGrossRevenue === 0 ? (
+                      {isOccupantsLoading && (collectionsMode === "GROSS" ? revenueMetrics.totalGrossRevenue === 0 : revenueMetrics.rentStream === 0) ? (
                         <span className="inline-block w-28 h-8 bg-gray-200 animate-pulse rounded-lg" />
                       ) : (
-                        `₹${revenueMetrics.totalGrossRevenue.toLocaleString("en-IN")}`
+                        `₹${(collectionsMode === "GROSS" ? revenueMetrics.totalGrossRevenue : revenueMetrics.rentStream).toLocaleString("en-IN")}`
                       )}
                     </h2>
                     {(() => {
+                      const activeAmount = collectionsMode === "GROSS" ? revenueMetrics.totalGrossRevenue : revenueMetrics.rentStream;
                       const targetExpected = revenueMetrics.totalExpectedRent || revenueMetrics.totalBilledRent || 0;
-                      const revPct = targetExpected > 0 ? (revenueMetrics.totalGrossRevenue / targetExpected) * 100 : 0;
+                      const revPct = targetExpected > 0 ? (activeAmount / targetExpected) * 100 : 0;
                       return (
                         <div className="flex items-center gap-2 mt-3.5 w-full">
                           <div className="relative flex-1 pb-4">

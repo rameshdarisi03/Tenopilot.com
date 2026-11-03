@@ -53,6 +53,8 @@ import { subscribeToComplaints, Complaint } from "@/lib/complaintStore";
 import { subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
 import { buildWhatsAppUrl } from "@/utils/security";
 import { useAuth } from "@/providers/AuthProvider";
+import { useCollectionsViewMode } from "@/hooks/useCollectionsViewMode";
+import { CollectionsCardSwitcher } from "@/components/dashboard/CollectionsCardSwitcher";
 import {
   calculateOccupantFinancialStatement,
   calculatePropertyRentComplianceSummary,
@@ -330,13 +332,19 @@ export default function PropertyOverviewPage({
     return calculatePropertyRentComplianceSummary(occupants, propertySettings);
   }, [occupants, propertySettings]);
 
-  // Dynamic Rent Metrics Calculations (100% SSOT matching Tenants, Property Map, and Financial Hub)
-  const rentMetrics = useMemo(() => {
+  const { mode: collectionsMode, setMode: setCollectionsMode } = useCollectionsViewMode();
+
+  // Dynamic Rent & Gross Metrics Calculations (100% SSOT matching Tenants, Property Map, and Financial Hub)
+  const collectionsData = useMemo(() => {
     return calculateMonthlyOperatingRevenueMetrics(occupants, propertySettings);
   }, [occupants, propertySettings]);
 
+  const activeCollections = collectionsMode === "GROSS" 
+    ? collectionsData.grossCollections 
+    : collectionsData.rentCollections;
+
   // Financial Metrics Calculation
-  let totalCollectedThisMonth = rentMetrics.sumCollected;
+  let totalCollectedThisMonth = collectionsData.sumCollected;
   let totalPendingDue = rentCompliance.totalPendingDueAmount;
   let overdueCount = rentCompliance.overdueTenantsCount;
   let pendingCount = rentCompliance.totalPendingDueCount;
@@ -618,27 +626,34 @@ export default function PropertyOverviewPage({
               </div>
             </Link>
 
-            {/* Card 2: Revenue Collected (Same as Tenants Page) */}
+            {/* Card 2: Rent Collections / Gross Collections (Interactive Mode Switcher) */}
             <Link
               href={isReceptionist ? `/p/${propertyId}/financial-hub` : `/p/${propertyId}/financial-hub?tab=revenues`}
-              className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs hover:border-emerald-500 hover:shadow-md transition-all flex flex-col justify-between group cursor-pointer active:scale-[0.98]"
+              className={`p-5 rounded-3xl bg-white border border-gray-200 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group cursor-pointer active:scale-[0.98] ${
+                collectionsMode === "GROSS" ? "hover:border-purple-400" : "hover:border-emerald-500"
+              }`}
               title="Click to view live revenues & cashflow in Financial Hub"
             >
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">
-                  REVENUE COLLECTED
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                  collectionsMode === "GROSS" ? "text-purple-700" : "text-emerald-600"
+                }`}>
+                  {collectionsMode === "GROSS" ? "GROSS COLLECTIONS" : "RENT COLLECTIONS"}
                 </span>
-                <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 group-hover:scale-110 group-hover:bg-emerald-600 group-hover:text-white transition-all">
-                  <CheckCircle2 className="w-4 h-4" />
-                </div>
+                <CollectionsCardSwitcher
+                  mode={collectionsMode}
+                  onSelect={setCollectionsMode}
+                  rentAmount={collectionsData.rentCollections.sumCollected}
+                  grossAmount={collectionsData.grossCollections.sumCollected}
+                />
               </div>
               <div className="mt-3">
                 <p className="font-sans font-bold text-3xl text-gray-900 tracking-tight">
-                  {isReceptionist ? "*****" : <AnimatedNumberCounter value={rentMetrics.sumCollected} prefix="₹" />}
+                  {isReceptionist ? "*****" : <AnimatedNumberCounter value={activeCollections.sumCollected} prefix="₹" />}
                 </p>
                 {/* Dynamic Collection Progress Bar with Floating % Pointer */}
                 {(() => {
-                  const revCollectPct = rentMetrics.totalExpected > 0 ? (rentMetrics.sumCollected / rentMetrics.totalExpected) * 100 : 0;
+                  const revCollectPct = activeCollections.totalExpected > 0 ? (activeCollections.sumCollected / activeCollections.totalExpected) * 100 : 0;
                   return (
                     <div className="flex items-center gap-2 mt-3.5 w-full">
                       <div className="relative flex-1 pb-4">
@@ -665,7 +680,7 @@ export default function PropertyOverviewPage({
                         </div>
                       </div>
                       <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums mb-4">
-                        ({isReceptionist ? "*****" : <AnimatedNumberCounter value={rentMetrics.totalExpected} prefix="₹" />})
+                        ({isReceptionist ? "*****" : <AnimatedNumberCounter value={activeCollections.totalExpected} prefix="₹" />})
                       </span>
                     </div>
                   );

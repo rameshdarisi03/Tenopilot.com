@@ -29,6 +29,8 @@ import {
 } from "@/lib/subscriptionEngine";
 import { usePlatformConfig } from "@/lib/usePlatformConfig";
 import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
+import { CollectionsCardSwitcher } from "@/components/dashboard/CollectionsCardSwitcher";
+import { useCollectionsViewMode } from "@/hooks/useCollectionsViewMode";
 import { AnimatedNumberCounter } from "@/components/motion/AnimatedNumberCounter";
 import { GlidingTabs, TabOption } from "@/components/motion/GlidingTabs";
 import { MagneticGlowCard } from "@/components/motion/MagneticGlowCard";
@@ -95,6 +97,7 @@ export default function TenantsDirectoryPage({
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
 
   const { user, profile } = useAuth();
+  const { mode: collectionsMode, setMode: setCollectionsMode } = useCollectionsViewMode();
   const [activeRole, setActiveRole] = useState<UserRole>(() => staffStore.getActiveRole());
   useEffect(() => {
     const unsub = staffStore.subscribe(() => {
@@ -1930,8 +1933,8 @@ export default function TenantsDirectoryPage({
       }
     });
 
-    // 🔒 SSOT Operating Revenue Metrics (Rent + Prior Arrears + Parking, strictly isolating security deposits)
-    const { sumCollected, totalExpected, collectionPct } = calculateMonthlyOperatingRevenueMetrics(
+    // 🔒 SSOT Dual Collections Metrics (Rent Collections vs Gross Collections)
+    const collectionsData = calculateMonthlyOperatingRevenueMetrics(
       occupantsList,
       currentSettings
     );
@@ -1945,9 +1948,10 @@ export default function TenantsDirectoryPage({
       dueNext2DaysSum,
       overdueCount,
       overdueSum,
-      collectionPct,
-      sumCollected,
-      totalExpected,
+      collectionsData,
+      collectionPct: collectionsData.collectionPct,
+      sumCollected: collectionsData.sumCollected,
+      totalExpected: collectionsData.totalExpected,
     };
   }, [occupantsList, currentSettings]);
 
@@ -2430,67 +2434,90 @@ export default function TenantsDirectoryPage({
               </div>
             </MagneticGlowCard>
 
-            {/* 2. Collected This Month */}
-            <Link
-              href={isReceptionist ? `/p/${propertyId}/financial-hub` : `/p/${propertyId}/financial-hub?tab=revenues`}
-              className="block group"
-            >
-              <MagneticGlowCard
-                glowColor="rgba(16, 185, 129, 0.15)"
-                className="bg-white p-3.5 sm:p-5 rounded-xl sm:rounded-2xl border border-gray-100 shadow-xs flex flex-col justify-between group-hover:border-emerald-500 group-hover:shadow-md transition-all cursor-pointer h-full"
-              >
-                <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
-                  <p className="text-[10px] sm:text-[11px] uppercase font-bold text-emerald-600 tracking-wider truncate">
-                    Revenue Collected
-                  </p>
-                  <div className="bg-emerald-50 text-emerald-600 p-1.5 sm:p-2 h-7 w-7 sm:h-9 sm:w-9 flex items-center justify-center rounded-lg shrink-0 group-hover:scale-110 group-hover:bg-emerald-600 group-hover:text-white transition-all">
-                    <CheckCircle2 className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
-                  </div>
-                </div>
-                <div>
-                  <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
-                    {isReceptionist
-                      ? "*****"
-                      : <AnimatedNumberCounter value={rentMetrics.sumCollected} prefix="₹" />}
-                  </p>
-                  {(() => {
-                    const revCollectPct = rentMetrics.totalExpected > 0 ? (rentMetrics.sumCollected / rentMetrics.totalExpected) * 100 : 0;
-                    return (
-                      <div className="flex items-center gap-2 mt-3.5 w-full">
-                        <div className="relative flex-1 pb-4">
-                          <div className="h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
-                            <div
-                              className={`h-full rounded-full ${getDynamicProgressGradient(revCollectPct)} transition-all duration-700 ease-out`}
-                              style={{
-                                width: `${Math.min(100, Math.max(0, revCollectPct))}%`,
-                              }}
-                            />
-                          </div>
+            {/* 2. Rent Collections / Gross Collections (Interactive Switcher) */}
+            {(() => {
+              const activeCollections = collectionsMode === "GROSS"
+                ? (rentMetrics.collectionsData?.grossCollections || {
+                    sumCollected: rentMetrics.sumCollected,
+                    totalExpected: rentMetrics.totalExpected,
+                    collectionPct: rentMetrics.collectionPct,
+                  })
+                : (rentMetrics.collectionsData?.rentCollections || {
+                    sumCollected: rentMetrics.sumCollected,
+                    totalExpected: rentMetrics.totalExpected,
+                    collectionPct: rentMetrics.collectionPct,
+                  });
 
-                          {/* Floating Purple Cloud Badge Pointed Below */}
-                          <div
-                            className="absolute top-2 sm:top-2.5 -translate-x-1/2 flex flex-col items-center pointer-events-none transition-all duration-700 ease-out z-10"
-                            style={{
-                              left: `${Math.min(100, Math.max(0, revCollectPct))}%`,
-                            }}
-                          >
-                            <div className="w-0 h-0 border-x-[3px] border-x-transparent border-b-[3.5px] border-b-[#7c3aed] -mb-[0.5px]" />
-                            <div className="bg-[#7c3aed] text-white text-[8.5px] sm:text-[9px] font-black tracking-tight px-1.5 py-0.5 rounded-full shadow-xs whitespace-nowrap flex items-center justify-center leading-none">
-                              {revCollectPct >= 10 ? `${Math.round(revCollectPct)}%` : `${revCollectPct.toFixed(1)}%`}
+              return (
+                <Link
+                  href={isReceptionist ? `/p/${propertyId}/financial-hub` : `/p/${propertyId}/financial-hub?tab=revenues`}
+                  className="block group"
+                >
+                  <MagneticGlowCard
+                    glowColor={collectionsMode === "GROSS" ? "rgba(168, 85, 247, 0.15)" : "rgba(16, 185, 129, 0.15)"}
+                    className={`bg-white p-3.5 sm:p-5 rounded-xl sm:rounded-2xl border border-gray-100 shadow-xs flex flex-col justify-between group-hover:shadow-md transition-all cursor-pointer h-full ${
+                      collectionsMode === "GROSS" ? "group-hover:border-purple-400" : "group-hover:border-emerald-500"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
+                      <p className={`text-[10px] sm:text-[11px] uppercase font-bold tracking-wider truncate ${
+                        collectionsMode === "GROSS" ? "text-purple-700" : "text-emerald-600"
+                      }`}>
+                        {collectionsMode === "GROSS" ? "Gross Collections" : "Rent Collections"}
+                      </p>
+                      <CollectionsCardSwitcher
+                        mode={collectionsMode}
+                        onSelect={setCollectionsMode}
+                        rentAmount={rentMetrics.collectionsData?.rentCollections.sumCollected ?? rentMetrics.sumCollected}
+                        grossAmount={rentMetrics.collectionsData?.grossCollections.sumCollected ?? rentMetrics.sumCollected}
+                      />
+                    </div>
+                    <div>
+                      <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
+                        {isReceptionist
+                          ? "*****"
+                          : <AnimatedNumberCounter value={activeCollections.sumCollected} prefix="₹" />}
+                      </p>
+                      {(() => {
+                        const revCollectPct = activeCollections.totalExpected > 0 ? (activeCollections.sumCollected / activeCollections.totalExpected) * 100 : 0;
+                        return (
+                          <div className="flex items-center gap-2 mt-3.5 w-full">
+                            <div className="relative flex-1 pb-4">
+                              <div className="h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden p-[1px]">
+                                <div
+                                  className={`h-full rounded-full ${getDynamicProgressGradient(revCollectPct)} transition-all duration-700 ease-out`}
+                                  style={{
+                                    width: `${Math.min(100, Math.max(0, revCollectPct))}%`,
+                                  }}
+                                />
+                              </div>
+
+                              {/* Floating Purple Cloud Badge Pointed Below */}
+                              <div
+                                className="absolute top-2 sm:top-2.5 -translate-x-1/2 flex flex-col items-center pointer-events-none transition-all duration-700 ease-out z-10"
+                                style={{
+                                  left: `${Math.min(100, Math.max(0, revCollectPct))}%`,
+                                }}
+                              >
+                                <div className="w-0 h-0 border-x-[3px] border-x-transparent border-b-[3.5px] border-b-[#7c3aed] -mb-[0.5px]" />
+                                <div className="bg-[#7c3aed] text-white text-[8.5px] sm:text-[9px] font-black tracking-tight px-1.5 py-0.5 rounded-full shadow-xs whitespace-nowrap flex items-center justify-center leading-none">
+                                  {revCollectPct >= 10 ? `${Math.round(revCollectPct)}%` : `${revCollectPct.toFixed(1)}%`}
+                                </div>
+                              </div>
                             </div>
+                            <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums mb-4">
+                              ({isReceptionist
+                                ? "*****"
+                                : <AnimatedNumberCounter value={activeCollections.totalExpected} prefix="₹" />})
+                            </span>
                           </div>
-                        </div>
-                        <span className="text-[10px] sm:text-xs font-semibold text-gray-500 shrink-0 tabular-nums mb-4">
-                          ({isReceptionist
-                            ? "*****"
-                            : <AnimatedNumberCounter value={rentMetrics.totalExpected} prefix="₹" />})
-                        </span>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </MagneticGlowCard>
-            </Link>
+                        );
+                      })()}
+                    </div>
+                  </MagneticGlowCard>
+                </Link>
+              );
+            })()}
           </div>
 
           {/* 🔍 Dedicated In-Page Search Bar (Full-Width on Mobile & Desktop) */}

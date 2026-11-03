@@ -1950,15 +1950,39 @@ export function parsePaymentDateToIso(dateStr?: string, timestamp?: number): str
   return "";
 }
 
+export interface MonthlyCollectionsData {
+  sumCollected: number;
+  totalExpected: number;
+  collectionPct: number;
+  rentCollections: {
+    sumCollected: number;
+    totalExpected: number;
+    collectionPct: number;
+  };
+  grossCollections: {
+    sumCollected: number;
+    totalExpected: number;
+    collectionPct: number;
+    breakdown: {
+      rentAndParking: number;
+      deposits: number;
+      settlementDeductions: number;
+      deficitCollected: number;
+      pendingDeposits: number;
+    };
+  };
+}
+
 /**
- * 🔒 SSOT Monthly Operating Revenue Metrics Resolver
- * Computes pure operating collections (Rent + Prior Arrears + Parking + Checkout Settled Rent)
- * for the current month against total expected monthly dues, strictly isolating refundable security deposits.
+ * 🔒 SSOT Dual Collections Metrics Resolver
+ * Computes both:
+ * 1. Rent Collections: Pure operating revenue (Monthly Rent + Pro-rata + Arrears + Parking + Checkout Unpaid Rent Settled)
+ * 2. Gross Collections: Total cash inflow & realized income (Rent Collections + Security Deposits + Checkout Deductions + Deficit Collected)
  */
 export function calculateMonthlyOperatingRevenueMetrics(
   occupants: Partial<Occupant>[],
   settings?: any
-) {
+): MonthlyCollectionsData {
   const billableOccupants = occupants.filter(
     (o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice"
   );
@@ -1966,26 +1990,37 @@ export function calculateMonthlyOperatingRevenueMetrics(
   const { year: currentYear, month: currentMonthIndex } = getNowIST();
   const currentMonthIsoPrefix = `${currentYear}-${String(currentMonthIndex + 1).padStart(2, "0")}`;
 
-  let sumCollected = 0;
-  let totalExpected = 0;
+  let rentSumCollected = 0;
+  let rentTotalExpected = 0;
 
-  // 1. Numerator: Strict operating collections for current month
+  let depositsCollected = 0;
+  let settlementDeductionsCollected = 0;
+  let deficitCollected = 0;
+
+  // 1. Numerator: Scan receipts across all occupants
   occupants.forEach((occ) => {
     const rawHistory = occ.paymentHistory || [];
     const validReceipts = rawHistory.filter(
       (pm) => pm.status !== "VOIDED" && (pm as any).status !== "FAILED" && (pm as any).status !== "CANCELLED"
     );
 
+    let occDepositPaidThisMonth = 0;
+
     validReceipts.forEach((pm) => {
       const iso = parsePaymentDateToIso(pm.date, (pm as any).timestamp);
       if (iso && iso.startsWith(currentMonthIsoPrefix)) {
         // If itemized rent or parking exists, take their sum
         if (pm.rentAmount !== undefined || pm.parkingAmount !== undefined) {
-          sumCollected += (pm.rentAmount || 0) + (pm.parkingAmount || 0);
+          const itemizedRent = (pm.rentAmount || 0) + (pm.parkingAmount || 0);
+          rentSumCollected += itemizedRent;
+          if (pm.depositAmount) {
+            depositsCollected += pm.depositAmount;
+            occDepositPaidThisMonth += pm.depositAmount;
+          }
           return;
         }
 
-        // If explicitly flagged as security deposit or deposit refund, exclude from operating revenue
+        // Categorize receipt
         const monthLower = (pm.month || "").toLowerCase();
         const receiptLower = (pm.receiptNo || "").toLowerCase();
         const isRent = monthLower.includes("rent") || receiptLower.includes("rent");
@@ -1998,24 +2033,79 @@ export function calculateMonthlyOperatingRevenueMetrics(
           );
 
         if (!isDepositOrRefund) {
-          sumCollected += (pm.amount || 0);
+          // Pure operating rent collection
+          rentSumCollected += (pm.amount || 0);
+        } else if (!receiptLower.startsWith("ref-") && !monthLower.includes("refund")) {
+          // Inflow security deposit (excluding refund outflows)
+          depositsCollected += (pm.amount || 0);
+          occDepositPaidThisMonth += (pm.amount || 0);
         }
       }
     });
+
+    // Capture check-out settlement maintenance & repair deductions settled in the current month
+    if (occ.checkoutSettlement) {
+      const settleIso = parsePaymentDateToIso(occ.checkoutSettlement.settledDate) || occ.vacatingDate || "";
+      if (settleIso && settleIso.startsWith(currentMonthIsoPrefix)) {
+        const repairs = occ.checkoutSettlement.repairDeduction || 0;
+        const maintenance = occ.checkoutSettlement.maintenanceDeduction || 0;
+        const totalDeductions = repairs + maintenance;
+        const netDeficit = occ.checkoutSettlement.netDeficitCollected || 0;
+
+        deficitCollected += netDeficit;
+
+        // If deposit was paid earlier (prior month or onboarding), withheld deductions are newly recognized income!
+        // If deposit was paid this month, deductions were funded from this month's deposit receipts
+        const uncountedDeduction = Math.max(0, totalDeductions - occDepositPaidThisMonth);
+        settlementDeductionsCollected += uncountedDeduction;
+      }
+    }
   });
 
   // 2. Denominator: Expected recurring dues for occupied beds (Rent + Prior Arrears + Parking)
+  let totalPendingDeposits = 0;
   billableOccupants.forEach((curr) => {
     const stmt = calculateOccupantFinancialStatement(curr, settings);
-    totalExpected += stmt.proRataRent + stmt.priorArrears + stmt.parkingFee;
+    rentTotalExpected += stmt.proRataRent + stmt.priorArrears + stmt.parkingFee;
+
+    if (!stmt.isDepositCleared && stmt.remainingDepositDue > 0) {
+      totalPendingDeposits += stmt.remainingDepositDue;
+    }
   });
 
-  const collectionPct = totalExpected > 0 ? Number(((sumCollected / totalExpected) * 100).toFixed(1)) : 0;
+  const rentCollectionPct = rentTotalExpected > 0 ? Number(((rentSumCollected / rentTotalExpected) * 100).toFixed(1)) : 0;
+
+  // 3. Gross Collections Computations
+  const grossSumCollected = rentSumCollected + depositsCollected + settlementDeductionsCollected + deficitCollected;
+  const grossTotalExpected = rentTotalExpected + totalPendingDeposits;
+  const grossCollectionPct = grossTotalExpected > 0 ? Number(((grossSumCollected / grossTotalExpected) * 100).toFixed(1)) : 0;
 
   return {
-    sumCollected,
-    totalExpected,
-    collectionPct,
+    // Default legacy fields
+    sumCollected: rentSumCollected,
+    totalExpected: rentTotalExpected,
+    collectionPct: rentCollectionPct,
+
+    // Approach 1: Rent Collections
+    rentCollections: {
+      sumCollected: rentSumCollected,
+      totalExpected: rentTotalExpected,
+      collectionPct: rentCollectionPct,
+    },
+
+    // Approach 2: Gross Collections
+    grossCollections: {
+      sumCollected: grossSumCollected,
+      totalExpected: grossTotalExpected,
+      collectionPct: grossCollectionPct,
+      breakdown: {
+        rentAndParking: rentSumCollected,
+        deposits: depositsCollected,
+        settlementDeductions: settlementDeductionsCollected,
+        deficitCollected,
+        pendingDeposits: totalPendingDeposits,
+      },
+    },
   };
 }
 
