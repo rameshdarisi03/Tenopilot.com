@@ -587,6 +587,22 @@ function PropertyMapContent({
           const occStmt = calculateOccupantFinancialStatement(occ, propertySettings);
           const effectiveAmount = occStmt.netOutstandingBalance > 0 ? occStmt.netOutstandingBalance : occ.rentAmount;
           const cleanPhone = (occ.phone || "").replace(/\D/g, "");
+          const isCash = activeQr?.upiId === "CASH_PAYMENT" || activeQr?.upiId === "CASH" || activeQr?.accountType === "CASH_DESK" || activeQr?.upiId?.toLowerCase().includes("cash");
+          const payUrl = isCash
+            ? undefined
+            : `https://www.tenopilot.com/pay/${generatePayToken({
+                propertyId,
+                propertyName: propertySettings.propertyName || "TenoPilot PG",
+                tenantId: occ.id,
+                tenantName: occ.name,
+                roomNumber: occ.roomNumber,
+                amount: effectiveAmount,
+                dueDate: occ.dueDate || "1st of the month",
+                upiId: activeQr?.upiId || propertySettings.upiPaymentId,
+                partnerName: activeQr?.name || propertySettings.propertyName,
+                partnerPhone: activeQr?.phone || propertySettings.managerPhone || "",
+                propertyPhone: propertySettings.managerPhone || "",
+              })}`;
 
           try {
             const waRes = await fetch("/api/whatsapp/send", {
@@ -606,10 +622,14 @@ function PropertyMapContent({
                     params: {
                       roomNumber: occ.roomNumber,
                       bedCode: occ.bedCode,
+                      amount: effectiveAmount,
                       amountDue: effectiveAmount,
                       dueDate: occ.dueDate || "1st of the month",
                       upiId: activeQr?.upiId || propertySettings.upiPaymentId,
                       payeeName: activeQr?.name || propertySettings.propertyName,
+                      payUrl,
+                      managerPhone: propertySettings.managerPhone || "",
+                      propertyPhone: propertySettings.managerPhone || "",
                     },
                   },
                 ],
