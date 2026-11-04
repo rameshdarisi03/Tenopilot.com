@@ -683,7 +683,84 @@ export default function FinancialHubPage({
     };
   };
 
+  // 100% Real-Time Date-Filtered Deposits Calculation Engine
+  const computeLiveDepositData = () => {
+    const allOccupants = occupantStore.getOccupants(propertyId);
+    const activeAndNotice = allOccupants.filter((o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice");
+    const { startDate, endDate, isAllTime, label } = resolveActiveDateBounds();
+
+    let depositsCollected = 0;
+    let depositsRefunded = 0;
+    let pendingDeposits = 0;
+    let activeDepositsHeld = 0;
+
+    // 1. Pending Deposit & Deposit in Hand (Escrow) for Active & Notice residents
+    activeAndNotice.forEach((occ) => {
+      const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
+      const req = stmt.securityDepositRequired || 0;
+      const paid = stmt.totalDepositPaid || (stmt.isDepositCleared ? req : 0);
+      activeDepositsHeld += Math.min(req, paid);
+      pendingDeposits += (stmt.remainingDepositDue !== undefined ? stmt.remainingDepositDue : Math.max(0, req - paid));
+    });
+
+    // 2. Timeline-Filtered Collections & Refunds (Respects activeDateBounds)
+    allOccupants.forEach((occ) => {
+      const rawHistory = occ.paymentHistory || [];
+      const history = rawHistory.filter(
+        (pm) => pm.status !== "VOIDED" && (pm as any).status !== "FAILED" && (pm as any).status !== "CANCELLED"
+      );
+
+      history.forEach((pm) => {
+        const rawDate = pm.date || "";
+        if (!rawDate) return;
+        const isoDate = parseDateToIso(rawDate, (pm as any).timestamp);
+        if (!isoDate) return;
+
+        const inPeriod = isAllTime || (isoDate >= startDate && isoDate <= endDate);
+        if (!inPeriod) return;
+
+        const rNo = (pm.receiptNo || "").trim();
+        const mStr = (pm.month || "").trim().toLowerCase();
+        const isRefund = rNo.startsWith("REF-") || mStr.includes("refund");
+        const isDep = !isRefund && (mStr.includes("deposit") || rNo.toLowerCase().includes("dep") || ((pm as any).depositAmount && (pm as any).depositAmount > 0));
+
+        if (isDep) {
+          depositsCollected += pm.amount;
+        } else if (isRefund) {
+          depositsRefunded += pm.amount;
+        }
+      });
+    });
+
+    // Cross-check compliance logs for check-out refunds
+    const complianceLogs = complianceLogStore.getLogs(propertyId);
+    complianceLogs.forEach((log) => {
+      const logDate = parseDateToIso(log.checkOutDate, log.timestamp);
+      if (isAllTime || (logDate >= startDate && logDate <= endDate)) {
+        if (log.depositRefunded && log.depositRefunded > 0) {
+          const occ = allOccupants.find((o) => o.id === log.occupantId);
+          const hasHistRefund = (occ?.paymentHistory || []).some(
+            (pm) => (pm.receiptNo || "").startsWith("REF-") || (pm.month || "").toLowerCase().includes("refund")
+          );
+          if (!hasHistRefund) {
+            depositsRefunded += log.depositRefunded;
+          }
+        }
+      }
+    });
+
+    return {
+      depositsCollected,
+      depositsRefunded,
+      pendingDeposits,
+      activeDepositsHeld,
+      activeAndNotice,
+      label,
+    };
+  };
+
   const [revenueMetrics, setRevenueMetrics] = useState(computeLiveRevenueData);
+  const [depositMetrics, setDepositMetrics] = useState(computeLiveDepositData);
 
   // Sync state whenever timeline filter or custom dates change
   useEffect(() => {
@@ -694,6 +771,7 @@ export default function FinancialHubPage({
     setTotalSpent(expenseStore.getTotalSpentThisMonth(propertyId, startDate, endDate));
     setPartnerContributions(expenseStore.getPartnerPersonalContributions(propertyId, startDate, endDate));
     setRevenueMetrics(computeLiveRevenueData());
+    setDepositMetrics(computeLiveDepositData());
   }, [selectedTimelineFilter, customStartDate, customEndDate, propertyId]);
 
   // Dynamic Rent & Gross Collections Calculations (100% SSOT matching Overview, Property Map, and Tenants)
@@ -744,6 +822,7 @@ export default function FinancialHubPage({
 
     const updateRevenuesState = () => {
       setRevenueMetrics(computeLiveRevenueData());
+      setDepositMetrics(computeLiveDepositData());
     };
 
     updateExpenseState();
@@ -952,82 +1031,7 @@ export default function FinancialHubPage({
   const [depositSearchQuery, setDepositSearchQuery] = useState("");
   const [depositStatusFilter, setDepositStatusFilter] = useState<"ALL" | "PAID" | "PENDING">("ALL");
 
-  const liveDepositData = useMemo(() => {
-    const allOccupants = occupantStore.getOccupants(propertyId);
-    const activeAndNotice = allOccupants.filter((o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice");
-    const { startDate, endDate, isAllTime, label } = resolveActiveDateBounds();
-
-    let depositsCollected = 0;
-    let depositsRefunded = 0;
-    let pendingDeposits = 0;
-    let activeDepositsHeld = 0;
-
-    // 1. Pending Deposit & Deposit in Hand (Escrow) for Active & Notice residents
-    activeAndNotice.forEach((occ) => {
-      const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
-      const req = stmt.securityDepositRequired || 0;
-      const paid = stmt.totalDepositPaid || (stmt.isDepositCleared ? req : 0);
-      activeDepositsHeld += Math.min(req, paid);
-      pendingDeposits += (stmt.remainingDepositDue !== undefined ? stmt.remainingDepositDue : Math.max(0, req - paid));
-    });
-
-    // 2. Timeline-Filtered Collections & Refunds (Respects activeDateBounds)
-    allOccupants.forEach((occ) => {
-      const rawHistory = occ.paymentHistory || [];
-      const history = rawHistory.filter(
-        (pm) => pm.status !== "VOIDED" && (pm as any).status !== "FAILED" && (pm as any).status !== "CANCELLED"
-      );
-
-      history.forEach((pm) => {
-        const rawDate = pm.date || "";
-        if (!rawDate) return;
-        const isoDate = parseDateToIso(rawDate, (pm as any).timestamp);
-        if (!isoDate) return;
-
-        const inPeriod = isAllTime || (isoDate >= startDate && isoDate <= endDate);
-        if (!inPeriod) return;
-
-        const rNo = (pm.receiptNo || "").trim();
-        const mStr = (pm.month || "").trim().toLowerCase();
-        const isRefund = rNo.startsWith("REF-") || mStr.includes("refund");
-        const isDep = !isRefund && (mStr.includes("deposit") || rNo.toLowerCase().includes("dep") || ((pm as any).depositAmount && (pm as any).depositAmount > 0));
-
-        if (isDep) {
-          depositsCollected += pm.amount;
-        } else if (isRefund) {
-          depositsRefunded += pm.amount;
-        }
-      });
-    });
-
-    // Cross-check compliance logs for check-out refunds
-    const complianceLogs = complianceLogStore.getLogs(propertyId);
-    complianceLogs.forEach((log) => {
-      const logDate = parseDateToIso(log.checkOutDate, log.timestamp);
-      if (isAllTime || (logDate >= startDate && logDate <= endDate)) {
-        if (log.depositRefunded && log.depositRefunded > 0) {
-          const occ = allOccupants.find((o) => o.id === log.occupantId);
-          const hasHistRefund = (occ?.paymentHistory || []).some(
-            (pm) => (pm.receiptNo || "").startsWith("REF-") || (pm.month || "").toLowerCase().includes("refund")
-          );
-          if (!hasHistRefund) {
-            depositsRefunded += log.depositRefunded;
-          }
-        }
-      }
-    });
-
-    return {
-      depositsCollected,
-      depositsRefunded,
-      pendingDeposits,
-      activeDepositsHeld,
-      activeAndNotice,
-      label,
-    };
-  }, [propertyId, propertySettings, selectedTimelineFilter, customStartDate, customEndDate, isOccupantsLoading]);
-
-  // Filtered occupants list for Deposits table
+  // Filtered occupants list for Deposits table (Reactively syncs with depositMetrics)
   const filteredDepositOccupants = useMemo(() => {
     const allOccupants = occupantStore.getOccupants(propertyId);
     const activeAndNotice = allOccupants.filter((o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice");
@@ -1051,7 +1055,7 @@ export default function FinancialHubPage({
 
       return true;
     });
-  }, [propertyId, propertySettings, depositStatusFilter, depositSearchQuery, isOccupantsLoading]);
+  }, [propertyId, propertySettings, depositStatusFilter, depositSearchQuery, depositMetrics]);
 
   // Counts for status pills
   const depositCounts = useMemo(() => {
@@ -1065,7 +1069,7 @@ export default function FinancialHubPage({
       else pendingCount++;
     });
     return { total: activeAndNotice.length, paidCount, pendingCount };
-  }, [propertyId, propertySettings, isOccupantsLoading]);
+  }, [propertyId, propertySettings, depositMetrics]);
 
   // 1-Click CSV Exporter for Deposit Register
   const exportDepositRegisterToCSV = () => {
@@ -3911,9 +3915,13 @@ export default function FinancialHubPage({
                     </div>
                   </div>
                   <div>
-                    <h2 className="font-sans font-bold text-lg sm:text-2xl md:text-3xl text-gray-900 tracking-tight truncate">
-                      ₹{liveDepositData.depositsCollected.toLocaleString("en-IN")}
-                    </h2>
+                    {isOccupantsLoading && depositMetrics.depositsCollected === 0 ? (
+                      <div className="h-8 w-24 bg-gray-100 animate-pulse rounded-lg my-0.5" />
+                    ) : (
+                      <h2 className="font-sans font-bold text-lg sm:text-2xl md:text-3xl text-gray-900 tracking-tight truncate">
+                        ₹{depositMetrics.depositsCollected.toLocaleString("en-IN")}
+                      </h2>
+                    )}
                     <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-0.5 line-clamp-2">
                       Collected ({activeDateBounds.label})
                     </p>
@@ -3931,9 +3939,13 @@ export default function FinancialHubPage({
                     </div>
                   </div>
                   <div>
-                    <h2 className="font-sans font-bold text-lg sm:text-2xl md:text-3xl text-blue-900 tracking-tight truncate">
-                      ₹{liveDepositData.depositsRefunded.toLocaleString("en-IN")}
-                    </h2>
+                    {isOccupantsLoading && depositMetrics.depositsRefunded === 0 ? (
+                      <div className="h-8 w-24 bg-gray-100 animate-pulse rounded-lg my-0.5" />
+                    ) : (
+                      <h2 className="font-sans font-bold text-lg sm:text-2xl md:text-3xl text-blue-900 tracking-tight truncate">
+                        ₹{depositMetrics.depositsRefunded.toLocaleString("en-IN")}
+                      </h2>
+                    )}
                     <p className="text-[10px] sm:text-[11px] text-blue-700 font-medium mt-0.5 line-clamp-2">
                       Refunded ({activeDateBounds.label})
                     </p>
@@ -3952,7 +3964,7 @@ export default function FinancialHubPage({
                   </div>
                   <div>
                     <h2 className="font-sans font-bold text-lg sm:text-2xl md:text-3xl text-amber-900 tracking-tight truncate">
-                      ₹{liveDepositData.pendingDeposits.toLocaleString("en-IN")}
+                      ₹{depositMetrics.pendingDeposits.toLocaleString("en-IN")}
                     </h2>
                     <p className="text-[10px] sm:text-[11px] text-amber-700 font-medium mt-0.5 line-clamp-2">
                       Deposit dues yet to be collected
@@ -3973,10 +3985,10 @@ export default function FinancialHubPage({
                   <div>
                     <h2
                       className={`font-sans font-bold text-lg sm:text-2xl md:text-3xl tracking-tight truncate ${
-                        liveDepositData.activeDepositsHeld > 0 ? "text-emerald-700" : "text-gray-900"
+                        depositMetrics.activeDepositsHeld > 0 ? "text-emerald-700" : "text-gray-900"
                       }`}
                     >
-                      ₹{liveDepositData.activeDepositsHeld.toLocaleString("en-IN")}
+                      ₹{depositMetrics.activeDepositsHeld.toLocaleString("en-IN")}
                     </h2>
                     <p className="text-[10px] sm:text-[11px] text-emerald-700 font-medium mt-0.5 line-clamp-2">
                       Held in escrow for active residents
