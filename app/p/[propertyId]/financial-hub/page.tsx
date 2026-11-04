@@ -31,6 +31,8 @@ import {
   Tag,
   Palette,
   Shield,
+  ShieldCheck,
+  Search,
   Fuel,
   Pencil,
   Clock,
@@ -93,13 +95,14 @@ export default function FinancialHubPage({
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
   const { mode: collectionsMode, setMode: setCollectionsMode, toggleMode: toggleCollectionsMode } = useCollectionsViewMode();
   const [activeRole, setActiveRole] = useState<UserRole>(() => staffStore.getActiveRole());
-  const [activeTab, setActiveTab] = useState(() => {
+  const [activeTab, setActiveTab] = useState<"Revenues" | "Expenses" | "Deposits" | "Partner Settlement">(() => {
     if (typeof window !== "undefined") {
       const sp = new URLSearchParams(window.location.search);
       const tabParam = sp.get("tab")?.toLowerCase();
       const role = staffStore.getActiveRole();
       if (role === "receptionist") return "Expenses";
       if (tabParam === "expenses") return "Expenses";
+      if (tabParam === "deposits" || tabParam === "deposit" || tabParam === "security-deposits") return "Deposits";
       if (tabParam === "partner settlement" || tabParam === "settlement" || tabParam === "partner-settlement") return "Partner Settlement";
       return "Revenues";
     }
@@ -175,6 +178,8 @@ export default function FinancialHubPage({
         setActiveTab("Expenses");
       } else if (tabParam === "partner settlement" || tabParam === "settlement" || tabParam === "partner-settlement") {
         setActiveTab("Partner Settlement");
+      } else if (tabParam === "deposits" || tabParam === "deposit" || tabParam === "security-deposits") {
+        setActiveTab("Deposits");
       } else if (tabParam === "expenses") {
         setActiveTab("Expenses");
       } else if (tabParam === "revenues") {
@@ -185,6 +190,15 @@ export default function FinancialHubPage({
       }
     }
   }, [activeRole]);
+
+  const handleTabSwitch = (tab: "Revenues" | "Expenses" | "Deposits" | "Partner Settlement") => {
+    setActiveTab(tab);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", tab.toLowerCase());
+      window.history.replaceState({}, "", url.toString());
+    }
+  };
 
   // Helper: Resolve active start and end date bounds based on timeline filter
   const resolveActiveDateBounds = () => {
@@ -932,6 +946,163 @@ export default function FinancialHubPage({
     }, 3500);
   };
 
+  // -------------------------------------------------------------
+  // DEPOSITS PILLAR ENGINE & ESCROW CUSTODY CALCULATIONS
+  // -------------------------------------------------------------
+  const [depositSearchQuery, setDepositSearchQuery] = useState("");
+  const [depositStatusFilter, setDepositStatusFilter] = useState<"ALL" | "PAID" | "PENDING">("ALL");
+
+  const liveDepositData = useMemo(() => {
+    const allOccupants = occupantStore.getOccupants(propertyId);
+    const activeAndNotice = allOccupants.filter((o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice");
+    const { startDate, endDate, isAllTime, label } = resolveActiveDateBounds();
+
+    let depositsCollected = 0;
+    let depositsRefunded = 0;
+    let pendingDeposits = 0;
+    let activeDepositsHeld = 0;
+
+    // 1. Pending Deposit & Deposit in Hand (Escrow) for Active & Notice residents
+    activeAndNotice.forEach((occ) => {
+      const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
+      const req = stmt.securityDepositRequired || 0;
+      const paid = stmt.totalDepositPaid || (stmt.isDepositCleared ? req : 0);
+      activeDepositsHeld += Math.min(req, paid);
+      pendingDeposits += (stmt.remainingDepositDue !== undefined ? stmt.remainingDepositDue : Math.max(0, req - paid));
+    });
+
+    // 2. Timeline-Filtered Collections & Refunds (Respects activeDateBounds)
+    allOccupants.forEach((occ) => {
+      const rawHistory = occ.paymentHistory || [];
+      const history = rawHistory.filter(
+        (pm) => pm.status !== "VOIDED" && (pm as any).status !== "FAILED" && (pm as any).status !== "CANCELLED"
+      );
+
+      history.forEach((pm) => {
+        const rawDate = pm.date || "";
+        if (!rawDate) return;
+        const isoDate = parseDateToIso(rawDate, (pm as any).timestamp);
+        if (!isoDate) return;
+
+        const inPeriod = isAllTime || (isoDate >= startDate && isoDate <= endDate);
+        if (!inPeriod) return;
+
+        const rNo = (pm.receiptNo || "").trim();
+        const mStr = (pm.month || "").trim().toLowerCase();
+        const isRefund = rNo.startsWith("REF-") || mStr.includes("refund");
+        const isDep = !isRefund && (mStr.includes("deposit") || rNo.toLowerCase().includes("dep") || ((pm as any).depositAmount && (pm as any).depositAmount > 0));
+
+        if (isDep) {
+          depositsCollected += pm.amount;
+        } else if (isRefund) {
+          depositsRefunded += pm.amount;
+        }
+      });
+    });
+
+    // Cross-check compliance logs for check-out refunds
+    const complianceLogs = complianceLogStore.getLogs(propertyId);
+    complianceLogs.forEach((log) => {
+      const logDate = parseDateToIso(log.checkOutDate, log.timestamp);
+      if (isAllTime || (logDate >= startDate && logDate <= endDate)) {
+        if (log.depositRefunded && log.depositRefunded > 0) {
+          const occ = allOccupants.find((o) => o.id === log.occupantId);
+          const hasHistRefund = (occ?.paymentHistory || []).some(
+            (pm) => (pm.receiptNo || "").startsWith("REF-") || (pm.month || "").toLowerCase().includes("refund")
+          );
+          if (!hasHistRefund) {
+            depositsRefunded += log.depositRefunded;
+          }
+        }
+      }
+    });
+
+    return {
+      depositsCollected,
+      depositsRefunded,
+      pendingDeposits,
+      activeDepositsHeld,
+      activeAndNotice,
+      label,
+    };
+  }, [propertyId, propertySettings, selectedTimelineFilter, customStartDate, customEndDate, isOccupantsLoading]);
+
+  // Filtered occupants list for Deposits table
+  const filteredDepositOccupants = useMemo(() => {
+    const allOccupants = occupantStore.getOccupants(propertyId);
+    const activeAndNotice = allOccupants.filter((o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice");
+
+    return activeAndNotice.filter((occ) => {
+      const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
+
+      // Status filter
+      if (depositStatusFilter === "PAID" && !stmt.isDepositCleared) return false;
+      if (depositStatusFilter === "PENDING" && stmt.isDepositCleared) return false;
+
+      // Search query
+      if (depositSearchQuery.trim()) {
+        const q = depositSearchQuery.toLowerCase().trim();
+        const matchName = (occ.name || "").toLowerCase().includes(q);
+        const matchRoom = (occ.roomNumber || "").toLowerCase().includes(q);
+        const matchBed = (occ.bedCode || "").toLowerCase().includes(q);
+        const matchPhone = (occ.phone || "").toLowerCase().includes(q);
+        if (!matchName && !matchRoom && !matchBed && !matchPhone) return false;
+      }
+
+      return true;
+    });
+  }, [propertyId, propertySettings, depositStatusFilter, depositSearchQuery, isOccupantsLoading]);
+
+  // Counts for status pills
+  const depositCounts = useMemo(() => {
+    const allOccupants = occupantStore.getOccupants(propertyId);
+    const activeAndNotice = allOccupants.filter((o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice");
+    let paidCount = 0;
+    let pendingCount = 0;
+    activeAndNotice.forEach((occ) => {
+      const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
+      if (stmt.isDepositCleared) paidCount++;
+      else pendingCount++;
+    });
+    return { total: activeAndNotice.length, paidCount, pendingCount };
+  }, [propertyId, propertySettings, isOccupantsLoading]);
+
+  // 1-Click CSV Exporter for Deposit Register
+  const exportDepositRegisterToCSV = () => {
+    const allOccupants = occupantStore.getOccupants(propertyId);
+    const activeAndNotice = allOccupants.filter((o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice");
+    const { label, startDate, endDate } = resolveActiveDateBounds();
+
+    const rows: string[] = [
+      `"TENOPILOT TENANT SECURITY DEPOSIT REGISTER"`,
+      `"Property:","${(propertySettings.propertyName || "Property").replace(/"/g, '""')}"`,
+      `"Timeline Filter:","${label}"`,
+      `"Generated On:","${new Date().toLocaleString("en-IN")}"`,
+      ``,
+      `"Tenant ID","Resident Name","Room","Bed","Phone","Joining Date","Deposit Required (INR)","Deposit Paid (INR)","Remaining Due (INR)","Status"`,
+    ];
+
+    activeAndNotice.forEach((occ) => {
+      const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
+      const req = stmt.securityDepositRequired || 0;
+      const paid = stmt.totalDepositPaid || (stmt.isDepositCleared ? req : 0);
+      const rem = stmt.remainingDepositDue !== undefined ? stmt.remainingDepositDue : Math.max(0, req - paid);
+      const status = stmt.isDepositCleared ? "PAID" : "PENDING";
+      rows.push(
+        `"${occ.id}","${(occ.name || "").replace(/"/g, '""')}","${occ.roomNumber || ""}","${occ.bedCode || ""}","${occ.phone || ""}","${occ.joiningDate || "Active"}","${req}","${paid}","${rem}","${status}"`
+      );
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(rows.join("\n"));
+    const link = document.createElement("a");
+    link.setAttribute("href", csvContent);
+    link.setAttribute("download", `TenoPilot-Deposit-Register-${propertyId}-${startDate}-to-${endDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    triggerToast("✓ Security Deposit Register downloaded as CSV!");
+  };
+
   const handleCreateInlineCategory = () => {
     const trimmed = newCategoryInput.trim();
     if (!trimmed) {
@@ -1145,9 +1316,9 @@ export default function FinancialHubPage({
           title="Financial Hub"
           showSearch={false}
           propertyId={propertyId}
-          sectionTabs={["Operations", "Expenses", "Partner Settlement", "Reports"]}
+          sectionTabs={["Revenues", "Expenses", "Deposits", "Partner Settlement"]}
           activeTab={activeTab}
-          onTabChange={(tab) => setActiveTab(tab)}
+          onTabChange={(tab) => handleTabSwitch(tab as any)}
           onMobileMenuToggle={() => setMobileMenuOpen(true)}
         />
 
@@ -1203,9 +1374,9 @@ export default function FinancialHubPage({
               </div>
             </div>
 
-            {/* Prominent 3-Section Core Pillar Navigation Cards */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-4">
-              {/* REVENUES TAB */}
+            {/* Prominent 4-Section Core Pillar Navigation Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
+              {/* 1. REVENUES TAB */}
               {activeRole === "receptionist" ? (
                 <div className="p-2.5 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border text-left bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed flex items-center justify-between">
                   <div className="flex flex-col sm:flex-row items-center text-center sm:text-left gap-1.5 sm:gap-3 min-w-0 w-full">
@@ -1223,7 +1394,7 @@ export default function FinancialHubPage({
               ) : (
                 <button
                   type="button"
-                  onClick={() => setActiveTab("Revenues")}
+                  onClick={() => handleTabSwitch("Revenues")}
                   className={`p-2.5 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
                     activeTab === "Revenues"
                       ? "bg-white border-[#c2652a] ring-2 ring-[#c2652a]/20 shadow-md scale-[1.01]"
@@ -1256,10 +1427,10 @@ export default function FinancialHubPage({
                 </button>
               )}
 
-              {/* EXPENSES TAB */}
+              {/* 2. EXPENSES TAB */}
               <button
                 type="button"
-                onClick={() => setActiveTab("Expenses")}
+                onClick={() => handleTabSwitch("Expenses")}
                 className={`p-2.5 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
                   activeTab === "Expenses"
                     ? "bg-white border-[#c2652a] ring-2 ring-[#c2652a]/20 shadow-md scale-[1.01]"
@@ -1291,7 +1462,58 @@ export default function FinancialHubPage({
                 )}
               </button>
 
-              {/* PARTNER SETTLEMENT TAB */}
+              {/* 3. DEPOSITS TAB */}
+              {activeRole === "receptionist" ? (
+                <div className="p-2.5 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border text-left bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row items-center text-center sm:text-left gap-1.5 sm:gap-3 min-w-0 w-full">
+                    <div className="p-2 sm:p-2.5 rounded-xl bg-gray-200 text-gray-400 shrink-0">
+                      <Lock className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-serif font-bold text-xs sm:text-sm md:text-base text-gray-500 flex items-center justify-center sm:justify-start gap-1">
+                        <span className="truncate">Deposits</span>
+                        <span className="text-[8px] sm:text-[9px] bg-gray-200 text-gray-600 px-1 py-0.2 rounded-md uppercase font-bold shrink-0">Admin</span>
+                      </h3>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleTabSwitch("Deposits")}
+                  className={`p-2.5 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
+                    activeTab === "Deposits"
+                      ? "bg-white border-[#c2652a] ring-2 ring-[#c2652a]/20 shadow-md scale-[1.01]"
+                      : "bg-[#fcf9f8] border-gray-200 hover:bg-white hover:border-gray-300"
+                  }`}
+                >
+                  <div className="flex flex-col sm:flex-row items-center text-center sm:text-left gap-1.5 sm:gap-3 min-w-0 w-full sm:w-auto">
+                    <div
+                      className={`p-2 sm:p-2.5 rounded-xl transition-colors shrink-0 ${
+                        activeTab === "Deposits"
+                          ? "bg-[#c2652a] text-white"
+                          : "bg-emerald-100 text-emerald-800 group-hover:bg-[#c2652a] group-hover:text-white"
+                      }`}
+                    >
+                      <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3
+                        className={`font-serif font-bold text-xs sm:text-sm md:text-base truncate ${
+                          activeTab === "Deposits" ? "text-[#c2652a]" : "text-gray-900"
+                        }`}
+                      >
+                        Deposits
+                      </h3>
+                    </div>
+                  </div>
+                  {activeTab === "Deposits" && (
+                    <span className="hidden sm:inline-block w-2.5 h-2.5 rounded-full bg-[#c2652a] animate-pulse shrink-0"></span>
+                  )}
+                </button>
+              )}
+
+              {/* 4. PARTNER SETTLEMENT TAB */}
               {activeRole === "receptionist" ? (
                 <div className="p-2.5 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border text-left bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed flex items-center justify-between">
                   <div className="flex flex-col sm:flex-row items-center text-center sm:text-left gap-1.5 sm:gap-3 min-w-0 w-full">
@@ -1309,7 +1531,7 @@ export default function FinancialHubPage({
               ) : (
                 <button
                   type="button"
-                  onClick={() => setActiveTab("Partner Settlement")}
+                  onClick={() => handleTabSwitch("Partner Settlement")}
                   className={`p-2.5 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
                     activeTab === "Partner Settlement"
                       ? "bg-white border-[#c2652a] ring-2 ring-[#c2652a]/20 shadow-md scale-[1.01]"
@@ -3673,7 +3895,281 @@ export default function FinancialHubPage({
             </div>
           )}
 
-          {/* TAB 3: PARTNER SETTLEMENT & CASHFLOW HUB */}
+          {/* TAB 3: DEPOSITS & ESCROW CUSTODY HUB */}
+          {activeTab === "Deposits" && (
+            <div className="space-y-6 sm:space-y-8 animate-in fade-in">
+              {/* 1. Core 4-Card Metric Bento Grid */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                {/* Card 1: Deposits Collected (Timeline Filtered) */}
+                <div className="bg-white border border-gray-200 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group hover:border-[#c2652a] transition-all flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                      DEPOSITS COLLECTED
+                    </span>
+                    <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-700 shrink-0">
+                      <ArrowUpRight className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                    </div>
+                  </div>
+                  <div>
+                    <h2 className="font-sans font-bold text-lg sm:text-2xl md:text-3xl text-gray-900 tracking-tight truncate">
+                      ₹{liveDepositData.depositsCollected.toLocaleString("en-IN")}
+                    </h2>
+                    <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-0.5 line-clamp-2">
+                      Collected ({activeDateBounds.label})
+                    </p>
+                  </div>
+                </div>
+
+                {/* Card 2: Deposits Refunded (Timeline Filtered) */}
+                <div className="bg-white border border-gray-200 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group hover:border-blue-400 transition-all flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                      DEPOSITS REFUNDED
+                    </span>
+                    <div className="p-1.5 sm:p-2 rounded-xl bg-blue-50 text-blue-700 shrink-0">
+                      <Wallet className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                    </div>
+                  </div>
+                  <div>
+                    <h2 className="font-sans font-bold text-lg sm:text-2xl md:text-3xl text-blue-900 tracking-tight truncate">
+                      ₹{liveDepositData.depositsRefunded.toLocaleString("en-IN")}
+                    </h2>
+                    <p className="text-[10px] sm:text-[11px] text-blue-700 font-medium mt-0.5 line-clamp-2">
+                      Refunded ({activeDateBounds.label})
+                    </p>
+                  </div>
+                </div>
+
+                {/* Card 3: Pending Deposit */}
+                <div className="bg-white border border-gray-200 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group hover:border-amber-400 transition-all flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                      PENDING DEPOSIT
+                    </span>
+                    <div className="p-1.5 sm:p-2 rounded-xl bg-amber-50 text-amber-700 shrink-0">
+                      <Clock className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                    </div>
+                  </div>
+                  <div>
+                    <h2 className="font-sans font-bold text-lg sm:text-2xl md:text-3xl text-amber-900 tracking-tight truncate">
+                      ₹{liveDepositData.pendingDeposits.toLocaleString("en-IN")}
+                    </h2>
+                    <p className="text-[10px] sm:text-[11px] text-amber-700 font-medium mt-0.5 line-clamp-2">
+                      Deposit dues yet to be collected
+                    </p>
+                  </div>
+                </div>
+
+                {/* Card 4: Deposit In Hand (Highlighted in green if positive) */}
+                <div className="bg-white border border-gray-200 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group hover:border-emerald-500 transition-all flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                      DEPOSIT IN HAND
+                    </span>
+                    <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-700 shrink-0">
+                      <ShieldCheck className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                    </div>
+                  </div>
+                  <div>
+                    <h2
+                      className={`font-sans font-bold text-lg sm:text-2xl md:text-3xl tracking-tight truncate ${
+                        liveDepositData.activeDepositsHeld > 0 ? "text-emerald-700" : "text-gray-900"
+                      }`}
+                    >
+                      ₹{liveDepositData.activeDepositsHeld.toLocaleString("en-IN")}
+                    </h2>
+                    <p className="text-[10px] sm:text-[11px] text-emerald-700 font-medium mt-0.5 line-clamp-2">
+                      Held in escrow for active residents
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Interactive Tenant Security Deposit Register Table */}
+              <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 shadow-xs space-y-4">
+                {/* Header and Filter/Export Bar */}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+                  <div>
+                    <h3 className="font-serif font-bold text-lg sm:text-xl text-gray-900 flex items-center gap-2">
+                      <ShieldCheck className="w-5 h-5 text-[#c2652a]" />
+                      Tenant Security Deposit Register
+                    </h3>
+                    <p className="text-xs text-gray-500 font-medium mt-0.5">
+                      Audit escrow custody and individual deposit clearance status for all residents
+                    </p>
+                  </div>
+
+                  {/* Filter Pills + Search + CSV Button */}
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    {/* Status Filter Pills */}
+                    <div className="inline-flex rounded-xl bg-gray-100 p-1 text-xs font-semibold">
+                      <button
+                        type="button"
+                        onClick={() => setDepositStatusFilter("ALL")}
+                        className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                          depositStatusFilter === "ALL"
+                            ? "bg-white text-gray-900 font-bold shadow-2xs"
+                            : "text-gray-600 hover:text-gray-900"
+                        }`}
+                      >
+                        All ({depositCounts.total})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDepositStatusFilter("PAID")}
+                        className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                          depositStatusFilter === "PAID"
+                            ? "bg-emerald-600 text-white font-bold shadow-2xs"
+                            : "text-gray-600 hover:text-gray-900"
+                        }`}
+                      >
+                        Paid ({depositCounts.paidCount})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDepositStatusFilter("PENDING")}
+                        className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                          depositStatusFilter === "PENDING"
+                            ? "bg-amber-600 text-white font-bold shadow-2xs"
+                            : "text-gray-600 hover:text-gray-900"
+                        }`}
+                      >
+                        Pending ({depositCounts.pendingCount})
+                      </button>
+                    </div>
+
+                    {/* Search Box */}
+                    <div className="relative min-w-[200px] sm:min-w-[240px]">
+                      <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={depositSearchQuery}
+                        onChange={(e) => setDepositSearchQuery(e.target.value)}
+                        placeholder="Search resident, room, phone..."
+                        className="w-full pl-9 pr-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#c2652a] focus:bg-white"
+                      />
+                      {depositSearchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setDepositSearchQuery("")}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    {/* 1-Click CSV Export */}
+                    <button
+                      type="button"
+                      onClick={exportDepositRegisterToCSV}
+                      className="px-3.5 py-1.5 rounded-xl bg-white border border-gray-200 hover:border-[#c2652a] text-gray-700 hover:text-[#c2652a] font-bold text-xs transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                      title="Download Deposit Register as CSV"
+                    >
+                      <Download className="w-3.5 h-3.5 text-[#c2652a]" />
+                      <span>Export CSV</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Table Area */}
+                <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+                  <table className="min-w-[700px] w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-200 text-[10px] font-bold uppercase tracking-wider text-gray-500 bg-gray-50/50">
+                        <th className="py-3 px-4 rounded-l-xl">Resident</th>
+                        <th className="py-3 px-4">Room & Bed</th>
+                        <th className="py-3 px-4">Joining Date</th>
+                        <th className="py-3 px-4 text-right">Required</th>
+                        <th className="py-3 px-4 text-right">Paid</th>
+                        <th className="py-3 px-4 text-right">Pending</th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                        <th className="py-3 px-4 text-right rounded-r-xl">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 font-medium">
+                      {filteredDepositOccupants.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="py-12 text-center text-gray-500">
+                            <div className="max-w-xs mx-auto space-y-2">
+                              <ShieldCheck className="w-8 h-8 text-gray-300 mx-auto" />
+                              <p className="font-semibold text-gray-700 text-sm">No residents found</p>
+                              <p className="text-[11px] text-gray-400">
+                                Try adjusting your search query or status filter.
+                              </p>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredDepositOccupants.map((occ) => {
+                          const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
+                          const req = stmt.securityDepositRequired || 0;
+                          const paid = stmt.totalDepositPaid || (stmt.isDepositCleared ? req : 0);
+                          const rem = stmt.remainingDepositDue !== undefined ? stmt.remainingDepositDue : Math.max(0, req - paid);
+
+                          return (
+                            <tr key={occ.id} className="hover:bg-gray-50/60 transition-colors">
+                              <td className="py-3.5 px-4 font-bold text-gray-900">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-8 h-8 rounded-full bg-orange-100 text-[#c2652a] font-bold flex items-center justify-center text-xs shrink-0">
+                                    {occ.name.charAt(0)}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="truncate max-w-[150px] text-gray-900 font-bold">{occ.name}</p>
+                                    <p className="text-[10px] text-gray-400 font-mono font-normal truncate">{occ.phone}</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-3.5 px-4 text-gray-600 font-medium whitespace-nowrap">
+                                Room {occ.roomNumber} ({occ.bedCode})
+                              </td>
+                              <td className="py-3.5 px-4 text-gray-500 font-mono whitespace-nowrap">
+                                {occ.joiningDate || "Active"}
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-bold text-gray-900 font-mono whitespace-nowrap">
+                                ₹{req.toLocaleString("en-IN")}
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-bold text-emerald-700 font-mono whitespace-nowrap">
+                                ₹{paid.toLocaleString("en-IN")}
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-bold font-mono whitespace-nowrap">
+                                {rem > 0 ? (
+                                  <span className="text-amber-700">₹{rem.toLocaleString("en-IN")}</span>
+                                ) : (
+                                  <span className="text-gray-400">₹0</span>
+                                )}
+                              </td>
+                              <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                                <span
+                                  className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                                    stmt.isDepositCleared
+                                      ? "bg-emerald-100 text-emerald-900 border border-emerald-200"
+                                      : "bg-amber-100 text-amber-900 border border-amber-200"
+                                  }`}
+                                >
+                                  {stmt.isDepositCleared ? "✓ DEPOSIT PAID" : "⚠️ PENDING"}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                <Link
+                                  href={`/p/${propertyId}/tenants/${occ.id}`}
+                                  className="text-xs font-bold text-[#c2652a] hover:underline"
+                                >
+                                  View Tenant ➔
+                                </Link>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: PARTNER SETTLEMENT & CASHFLOW HUB */}
           {activeTab === "Partner Settlement" && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
               {/* Main Content Left (Partner Switcher, Stat Cards, Settlement Overview / Partner Detail Ledger) */}

@@ -188,63 +188,6 @@ export default function ReportsAnalyticsPage({
   }, [propertyId, selectedTimelineFilter, customStartDate, customEndDate]);
 
   // -------------------------------------------------------------
-  // TAB 1: FINANCIAL & SECURITY DEPOSIT ESCROW DATA ENGINE
-  // -------------------------------------------------------------
-  const depositEscrowMetrics = useMemo(() => {
-    const activeAndNotice = occupants.filter((o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice");
-    let activeDepositsHeld = 0;
-    let pendingDeposits = 0;
-
-    activeAndNotice.forEach((occ) => {
-      const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
-      if (stmt.isDepositCleared) {
-        activeDepositsHeld += stmt.securityDepositRequired;
-      } else {
-        pendingDeposits += stmt.securityDepositRequired;
-      }
-    });
-
-    const complianceLogs = complianceLogStore.getLogs(propertyId);
-    const { startDate, endDate, isAllTime } = resolveActiveDateBounds();
-    let totalRefunded = 0;
-    let totalDamageDeductions = 0;
-
-    const parseDateToIso = (dateStr?: string, timestamp?: number): string => {
-      if (timestamp && !isNaN(timestamp)) {
-        try {
-          return new Date(timestamp).toISOString().slice(0, 10);
-        } catch (_) {}
-      }
-      if (!dateStr) return "";
-      const trimmed = dateStr.trim();
-      if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
-        return trimmed.slice(0, 10);
-      }
-      const parsed = Date.parse(trimmed);
-      if (!isNaN(parsed)) {
-        return new Date(parsed).toISOString().slice(0, 10);
-      }
-      return trimmed;
-    };
-
-    complianceLogs.forEach((log) => {
-      const logDate = parseDateToIso(log.checkOutDate, log.timestamp);
-      if (isAllTime || (logDate >= startDate && logDate <= endDate)) {
-        totalRefunded += log.depositRefunded || 0;
-        totalDamageDeductions += (log.penaltyPaid || 0) + (log.maintenancePaid || 0);
-      }
-    });
-
-    return {
-      activeDepositsHeld,
-      pendingDeposits,
-      totalRefunded,
-      totalDamageDeductions,
-      activeAndNotice,
-    };
-  }, [occupants, propertySettings, propertyId, selectedTimelineFilter, customStartDate, customEndDate]);
-
-  // -------------------------------------------------------------
   // TAB 2: BUSINESS & YIELD ANALYTICS ENGINE
   // -------------------------------------------------------------
   const businessAnalytics = useMemo(() => {
@@ -682,10 +625,10 @@ export default function ReportsAnalyticsPage({
                       activeTab === "FINANCIAL_REPORTS" ? "text-[#c2652a]" : "text-gray-900"
                     }`}
                   >
-                    Security Deposits & Downloads
+                    Downloads & Reports
                   </h3>
                   <p className="text-[11px] sm:text-xs text-gray-500 font-medium truncate">
-                    Track security deposits and Reports
+                    Export ready-made Excel & CSV files for accounts and audit
                   </p>
                 </div>
               </div>
@@ -737,87 +680,33 @@ export default function ReportsAnalyticsPage({
           {/* ========================================================= */}
           {activeTab === "FINANCIAL_REPORTS" && (
             <div className="space-y-6 sm:space-y-8 animate-in fade-in">
-              {/* 1. Security Deposit Balance Cards (2x2 on Mobile, 4 on Desktop) */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                {/* Deposit Stat 1: Security Deposit in Hand */}
-                <div className="bg-white border border-gray-200 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group hover:border-[#c2652a] transition-all flex flex-col justify-between">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                      DEPOSIT IN HAND
-                    </span>
-                    <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-700 shrink-0">
-                      <ShieldCheck className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-                    </div>
+              {/* Security Deposits Moved Banner */}
+              <div className="bg-gradient-to-r from-emerald-50/80 via-white to-orange-50/60 border border-emerald-200/90 rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <div className="p-3 rounded-2xl bg-emerald-600 text-white shrink-0 shadow-xs">
+                    <ShieldCheck className="w-5 sm:w-6 h-5 sm:h-6" />
                   </div>
-                  <div>
-                    <h2 className="font-sans font-bold text-lg sm:text-2xl md:text-3xl text-gray-900 tracking-tight truncate">
-                      ₹{depositEscrowMetrics.activeDepositsHeld.toLocaleString("en-IN")}
-                    </h2>
-                    <p className="text-[10px] sm:text-[11px] text-emerald-700 font-medium mt-0.5 line-clamp-2">
-                      Deposit collected from active tenants
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-serif font-bold text-base sm:text-lg text-gray-900">
+                        Looking for Live Security Deposit Custody?
+                      </h4>
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                        Upgraded to Financial Hub 🟢
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600 max-w-2xl leading-relaxed">
+                      Security deposits collected, move-out refunds, resident escrow balances, and the complete audit register are now tracked directly in the <strong>Deposits</strong> tab within Financial Hub.
                     </p>
                   </div>
                 </div>
-
-                {/* Deposit Stat 2: Pending Security Deposit */}
-                <div className="bg-white border border-gray-200 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group hover:border-amber-400 transition-all flex flex-col justify-between">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                      PENDING DEPOSIT
-                    </span>
-                    <div className="p-1.5 sm:p-2 rounded-xl bg-amber-50 text-amber-700 shrink-0">
-                      <Clock className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-                    </div>
-                  </div>
-                  <div>
-                    <h2 className="font-sans font-bold text-lg sm:text-2xl md:text-3xl text-amber-900 tracking-tight truncate">
-                      ₹{depositEscrowMetrics.pendingDeposits.toLocaleString("en-IN")}
-                    </h2>
-                    <p className="text-[10px] sm:text-[11px] text-amber-700 font-medium mt-0.5 line-clamp-2">
-                      Deposit yet to be collected
-                    </p>
-                  </div>
-                </div>
-
-                {/* Deposit Stat 3: Deposits Refunded */}
-                <div className="bg-white border border-gray-200 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group hover:border-blue-400 transition-all flex flex-col justify-between">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                      DEPOSITS REFUNDED
-                    </span>
-                    <div className="p-1.5 sm:p-2 rounded-xl bg-blue-50 text-blue-700 shrink-0">
-                      <Wallet className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-                    </div>
-                  </div>
-                  <div>
-                    <h2 className="font-sans font-bold text-lg sm:text-2xl md:text-3xl text-blue-900 tracking-tight truncate">
-                      ₹{depositEscrowMetrics.totalRefunded.toLocaleString("en-IN")}
-                    </h2>
-                    <p className="text-[10px] sm:text-[11px] text-blue-700 font-medium mt-0.5 line-clamp-2">
-                      Refunded to move-outs ({activeDateBounds.label})
-                    </p>
-                  </div>
-                </div>
-
-                {/* Deposit Stat 4: Deductions / Repairs */}
-                <div className="bg-white border border-gray-200 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group hover:border-purple-400 transition-all flex flex-col justify-between">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                      DEDUCTIONS & REPAIRS
-                    </span>
-                    <div className="p-1.5 sm:p-2 rounded-xl bg-purple-50 text-purple-700 shrink-0">
-                      <ReceiptRupeeIcon className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-                    </div>
-                  </div>
-                  <div>
-                    <h2 className="font-sans font-bold text-lg sm:text-2xl md:text-3xl text-purple-900 tracking-tight truncate">
-                      ₹{depositEscrowMetrics.totalDamageDeductions.toLocaleString("en-IN")}
-                    </h2>
-                    <p className="text-[10px] sm:text-[11px] text-purple-700 font-medium mt-0.5 line-clamp-2">
-                      Deducted for room damage or shortfall
-                    </p>
-                  </div>
-                </div>
+                <Link
+                  href={`/p/${propertyId}/financial-hub?tab=deposits`}
+                  className="px-4 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2 shrink-0 cursor-pointer active:scale-95"
+                >
+                  <span>Open Deposits Hub</span>
+                  <ArrowUpRight className="w-4 h-4" />
+                </Link>
               </div>
 
               {/* 2. 1-Click Master Audit Export Center */}
@@ -891,83 +780,6 @@ export default function ReportsAnalyticsPage({
                       <Download className="w-4 h-4" /> Download Deposit Report
                     </button>
                   </div>
-                </div>
-              </div>
-
-              {/* 3. Security Deposit Custody List Table */}
-              <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 shadow-xs space-y-4">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 sm:gap-4 border-b border-gray-100 pb-3 sm:pb-4">
-                  <div>
-                    <h3 className="font-serif font-bold text-lg sm:text-xl text-gray-900">
-                      Tenant Security Deposit List
-                    </h3>
-                    <p className="text-xs text-gray-500 font-medium">
-                      Deposit status for all active residents
-                    </p>
-                  </div>
-                  <span className="text-[10px] text-gray-400 font-semibold sm:hidden">
-                    👉 Swipe horizontally to view all
-                  </span>
-                </div>
-
-                <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-                  <table className="min-w-[620px] w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-gray-200 text-[10px] font-bold uppercase tracking-wider text-gray-500 bg-gray-50/50">
-                        <th className="py-3 px-4 rounded-l-xl">Resident</th>
-                        <th className="py-3 px-4">Room & Bed</th>
-                        <th className="py-3 px-4">Joining Date</th>
-                        <th className="py-3 px-4 text-right">Deposit Required</th>
-                        <th className="py-3 px-4 text-center">Deposit Status</th>
-                        <th className="py-3 px-4 text-right rounded-r-xl">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 font-medium">
-                      {depositEscrowMetrics.activeAndNotice.slice(0, 10).map((occ) => {
-                        const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
-                        return (
-                          <tr key={occ.id} className="hover:bg-gray-50/60 transition-colors">
-                            <td className="py-3.5 px-4 font-bold text-gray-900">
-                              <div className="flex items-center gap-2.5">
-                                <div className="w-7 h-7 rounded-full bg-orange-100 text-[#c2652a] font-bold flex items-center justify-center text-xs shrink-0">
-                                  {occ.name.charAt(0)}
-                                </div>
-                                <span className="truncate max-w-[140px]">{occ.name}</span>
-                              </div>
-                            </td>
-                            <td className="py-3.5 px-4 text-gray-600 font-medium whitespace-nowrap">
-                              Room {occ.roomNumber} ({occ.bedCode})
-                            </td>
-                            <td className="py-3.5 px-4 text-gray-500 font-mono whitespace-nowrap">
-                              {occ.joiningDate || "Active Cycle"}
-                            </td>
-                            <td className="py-3.5 px-4 text-right font-bold text-gray-900 font-mono text-sm whitespace-nowrap">
-                              ₹{stmt.securityDepositRequired.toLocaleString("en-IN")}
-                            </td>
-                            <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                              <span
-                                className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
-                                  stmt.isDepositCleared
-                                    ? "bg-emerald-100 text-emerald-900 border border-emerald-200"
-                                    : "bg-amber-100 text-amber-900 border border-amber-200"
-                                }`}
-                              >
-                                {stmt.isDepositCleared ? "✓ DEPOSIT PAID" : "⚠️ PENDING"}
-                              </span>
-                            </td>
-                            <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                              <Link
-                                href={`/p/${propertyId}/tenants/${occ.id}`}
-                                className="text-xs font-bold text-[#c2652a] hover:underline"
-                              >
-                                View Tenant ➔
-                              </Link>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
                 </div>
               </div>
             </div>
