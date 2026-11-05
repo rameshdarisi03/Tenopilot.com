@@ -49,6 +49,7 @@ export interface CheckoutSettlementAudit {
   exitDisposition?: "NORMAL" | "ABSCONDED" | "DEFAULTED";
   status: "FULL_REFUND" | "PARTIAL_REFUND" | "NO_REFUND" | "BAD_DEBT_WRITTEN_OFF";
   paymentChannel?: string;
+  paidFrom?: string;
   notes?: string;
 }
 

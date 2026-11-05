@@ -23,6 +23,7 @@ import { propertySettingsStore } from "@/constants/propertySettings";
 import { getCanonicalPortalOrigin } from "@/utils/urlUtils";
 import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
 import { saveOccupantToFirestore } from "@/lib/firestoreService";
+import { partnerStore } from "@/constants/partnerStore";
 
 export function CheckOutSettlementModal({
   occupant,
@@ -96,6 +97,13 @@ export function CheckOutSettlementModal({
   const [paymentChannel, setPaymentChannel] = useState<"Online payments (UPI)" | "Cash Desk">(() =>
     (occupant.checkoutSettlement?.paymentChannel as any) || "Online payments (UPI)"
   );
+
+  const paymentAccounts = useMemo(() => partnerStore.getPaymentAccounts(propertyId), [propertyId]);
+  const partners = useMemo(() => partnerStore.getPartners(propertyId), [propertyId]);
+  const [refundAccount, setRefundAccount] = useState<string>(() => {
+    return occupant.checkoutSettlement?.paidFrom || (paymentAccounts[0]?.name || partners[0]?.name || "Main Business Account");
+  });
+
   const [settlementNotes, setSettlementNotes] = useState(() => occupant.checkoutSettlement?.notes || "");
   const [sendThankYouNotice, setSendThankYouNotice] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -133,6 +141,7 @@ export function CheckOutSettlementModal({
           date: todayStr,
           month: `Rent Cleared on Checkout (${netDifference >= 0 ? "Adjusted from Security Deposit" : "Collected on Departure"})`,
           mode: netDifference >= 0 ? "Deposit Settlement" : (paymentChannel === "Online payments (UPI)" ? "UPI" : "Cash"),
+          paidTo: refundAccount || paymentChannel,
           receiptNo: `SET-RENT-${Date.now().toString().slice(-4)}`,
           status: "PAID" as const,
         });
@@ -146,6 +155,7 @@ export function CheckOutSettlementModal({
           date: todayStr,
           month: "Security Deposit Refund",
           mode: paymentChannel === "Online payments (UPI)" ? "UPI" : "Cash",
+          paidTo: refundAccount || paymentChannel,
           receiptNo: `REF-${Date.now().toString().slice(-6)}`,
           status: "PAID" as const,
         });
@@ -164,6 +174,7 @@ export function CheckOutSettlementModal({
         exitDisposition,
         status: settlementStatus,
         paymentChannel,
+        paidFrom: refundAccount || paymentChannel,
         notes: settlementNotes.trim() || undefined,
       };
 
@@ -199,11 +210,11 @@ export function CheckOutSettlementModal({
         expenseStore.addExpense(propertyId, {
           category: "Security Deposit Refund",
           amount: netRefundableAmount,
-          paidFrom: paymentChannel || "Main Business Account",
+          paidFrom: refundAccount || paymentChannel || "Main Business Account",
           property: propName,
           date: todayIso,
           hasReceipt: false,
-          notes: `Check-out deposit refund for ${occupant.name} (Room ${roomNumber || occupant.roomNumber || "N/A"} - ${bedCode || occupant.bedCode || "N/A"})`,
+          notes: `Check-out deposit refund for ${occupant.name} (Room ${roomNumber || occupant.roomNumber || "N/A"} - ${bedCode || occupant.bedCode || "N/A"}) via ${refundAccount || paymentChannel}`,
         });
       } else if (badDebtAmount > 0) {
         // Record non-cash bad debt operating write-off
@@ -716,6 +727,31 @@ export function CheckOutSettlementModal({
                 <ShieldCheck className="w-4 h-4" /> Cash Desk
               </button>
             </div>
+
+            {(paymentAccounts.length > 0 || partners.length > 0) && netDifference >= 0 && (
+              <div className="space-y-1.5 pt-1">
+                <label className="block text-slate-700 font-semibold text-xs">
+                  Disbursed From Partner / Bank Account *
+                </label>
+                <select
+                  value={refundAccount}
+                  onChange={(e) => setRefundAccount(e.target.value)}
+                  className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2 text-xs font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#c2652a]"
+                >
+                  {paymentAccounts.map((acc) => (
+                    <option key={acc.id} value={acc.name}>
+                      {acc.name} ({acc.bankLabel || acc.accountType || "Bank"})
+                    </option>
+                  ))}
+                  {partners.map((p) => (
+                    <option key={p.id} value={p.name}>
+                      Partner: {p.name}
+                    </option>
+                  ))}
+                  <option value="Property Cash Box">Property Cash Box</option>
+                </select>
+              </div>
+            )}
           </div>
         )}
 
