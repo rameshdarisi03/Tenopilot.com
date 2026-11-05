@@ -24,15 +24,22 @@ export async function GET(req: NextRequest) {
     const paidTo = searchParams.get("paidTo") || "Main Business Pool";
     const month = searchParams.get("month") || "Current Cycle";
     const joiningDate = searchParams.get("joiningDate") || undefined;
-    const isDeposit = searchParams.get("isDeposit") === "true" || receiptNo.startsWith("DEP");
+    const rentAmountParam = searchParams.get("rentAmount");
+    const depositAmountParam = searchParams.get("depositAmount");
+    const parkingAmountParam = searchParams.get("parkingAmount");
+    const rentAmount = rentAmountParam !== null && rentAmountParam !== "" ? Number(rentAmountParam) : undefined;
+    const depositAmount = depositAmountParam !== null && depositAmountParam !== "" ? Number(depositAmountParam) : undefined;
+    const parkingAmount = parkingAmountParam !== null && parkingAmountParam !== "" ? Number(parkingAmountParam) : undefined;
+    const isDeposit =
+      searchParams.get("isDeposit") === "true" ||
+      receiptNo.startsWith("DEP") ||
+      month.toLowerCase().includes("deposit") ||
+      Boolean(depositAmount && depositAmount > 0 && (!rentAmount || rentAmount === 0));
     const isSettlement = searchParams.get("isSettlement") === "true" || receiptNo.startsWith("REF") || receiptNo.startsWith("SETTLE");
     const isVoided = searchParams.get("isVoided") === "true";
     const voidReason = searchParams.get("voidReason") || undefined;
     const replacesReceiptNo = searchParams.get("replacesReceiptNo") || undefined;
     const replacedByReceiptNo = searchParams.get("replacedByReceiptNo") || undefined;
-    const rentAmount = searchParams.get("rentAmount") ? Number(searchParams.get("rentAmount")) : undefined;
-    const depositAmount = searchParams.get("depositAmount") ? Number(searchParams.get("depositAmount")) : undefined;
-    const parkingAmount = searchParams.get("parkingAmount") ? Number(searchParams.get("parkingAmount")) : undefined;
 
     if (propertyId && (!signatureUrl || !ownerName)) {
       try {

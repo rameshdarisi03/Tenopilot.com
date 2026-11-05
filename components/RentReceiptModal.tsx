@@ -6,6 +6,7 @@ import { PropertySettingsData } from "@/constants/propertySettings";
 import { Printer, Download, CheckCircle2, ShieldCheck, Building2, Calendar, CreditCard, User, Sparkles, X, FileText, Eye, ZoomIn, RotateCcw, AlertTriangle } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { resolveBillingCycleMonth } from "@/lib/pdfGenerator";
 
 interface RentReceiptModalProps {
   isOpen: boolean;
@@ -34,7 +35,26 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
 
   const isDeposit =
     receiptItem.receiptNo.startsWith("DEP") ||
-    receiptItem.month.toLowerCase().includes("deposit");
+    receiptItem.month.toLowerCase().includes("deposit") ||
+    Boolean(receiptItem.depositAmount && receiptItem.depositAmount > 0 && (!receiptItem.rentAmount || receiptItem.rentAmount === 0));
+
+  const displayBillingMonth = resolveBillingCycleMonth(
+    receiptItem.month,
+    receiptItem.date,
+    occupant.joiningDate
+  );
+
+  const effectiveDepositAmount = receiptItem.depositAmount !== undefined
+    ? receiptItem.depositAmount
+    : isDeposit
+    ? receiptItem.amount
+    : 0;
+
+  const effectiveRentAmount = receiptItem.rentAmount !== undefined
+    ? receiptItem.rentAmount
+    : isDeposit
+    ? 0
+    : Math.max(0, receiptItem.amount - effectiveDepositAmount - (receiptItem.parkingAmount || 0));
 
   const formattedAmount = Number(receiptItem.amount || 0).toLocaleString("en-IN");
   const pName = propertySettings.propertyName || "TenoPilot PG & Coliving";
@@ -66,8 +86,8 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
       isVoided: String(isVoided),
       download: "true",
     });
-    if (receiptItem.rentAmount !== undefined) q.set("rentAmount", String(receiptItem.rentAmount));
-    if (receiptItem.depositAmount !== undefined) q.set("depositAmount", String(receiptItem.depositAmount));
+    q.set("rentAmount", String(effectiveRentAmount));
+    q.set("depositAmount", String(effectiveDepositAmount));
     if (receiptItem.parkingAmount !== undefined) q.set("parkingAmount", String(receiptItem.parkingAmount));
     if (occupant.joiningDate) q.set("joiningDate", occupant.joiningDate);
     if (propertySettings.ownerName) q.set("ownerName", propertySettings.ownerName);
@@ -216,7 +236,7 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
                 </div>
                 <div className="flex items-baseline border-b border-slate-300 pb-1">
                   <span className="font-bold text-xs sm:text-sm text-[#142952] shrink-0">Billing Period :</span>
-                  <span className="font-medium text-xs sm:text-sm text-slate-900 ml-2">{receiptItem.month}</span>
+                  <span className="font-medium text-xs sm:text-sm text-slate-900 ml-2">{displayBillingMonth}</span>
                 </div>
               </div>
 
@@ -226,19 +246,17 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
                   <div>
                     <span className="font-bold text-[#142952]">Deposit : </span>
                     <span className="font-mono font-bold text-slate-900">
-                      {receiptItem.depositAmount && receiptItem.depositAmount > 0
-                        ? `INR ${receiptItem.depositAmount.toLocaleString("en-IN")}`
-                        : isDeposit
-                        ? `INR ${Number(receiptItem.amount).toLocaleString("en-IN")}`
+                      {effectiveDepositAmount > 0
+                        ? `INR ${effectiveDepositAmount.toLocaleString("en-IN")}`
                         : "-"}
                     </span>
                   </div>
                   <div className="pl-3">
                     <span className="font-bold text-[#142952]">Rent : </span>
                     <span className="font-mono font-bold text-slate-900">
-                      {isDeposit
-                        ? "-"
-                        : `INR ${(receiptItem.rentAmount !== undefined ? receiptItem.rentAmount : (receiptItem.parkingAmount ? Math.max(0, receiptItem.amount - receiptItem.parkingAmount) : receiptItem.amount)).toLocaleString("en-IN")}`}
+                      {effectiveRentAmount > 0
+                        ? `INR ${effectiveRentAmount.toLocaleString("en-IN")}`
+                        : "-"}
                     </span>
                   </div>
                 </div>
@@ -271,11 +289,11 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
                 </div>
               </div>
 
-              {/* Item 4: Signatures Section (Box 4: Owners Signature on Left, Guest on Right) */}
-              <div className="grid grid-cols-2 gap-6 sm:gap-10 pt-3 mb-5">
+              {/* Item 4: Signatures Section (Brought down away from financial border) */}
+              <div className="grid grid-cols-2 gap-6 sm:gap-10 pt-8 sm:pt-10 mb-8 sm:mb-10">
                 {/* Box 4: Owners Signature */}
                 <div>
-                  <div className="h-12 flex items-end justify-center mb-1">
+                  <div className="h-14 flex items-end justify-center mb-1.5">
                     {propertySettings.signatureUrl ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img
@@ -289,7 +307,7 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
                       </span>
                     )}
                   </div>
-                  <div className="border-t border-slate-900 pt-1 text-center">
+                  <div className="border-t border-slate-900 pt-1.5 text-center">
                     <p className="font-bold text-xs text-[#142952]">Owners Signature</p>
                     <p className="text-[9px] text-slate-500">
                       {propertySettings.ownerName ? `Authorized Signatory • ${propertySettings.ownerName}` : "Authorized Signatory • Property Management"}
@@ -299,10 +317,10 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
 
                 {/* Guest Signature */}
                 <div>
-                  <div className="h-12 flex items-end justify-center mb-1">
+                  <div className="h-14 flex items-end justify-center mb-1.5">
                     {/* Empty space for tenant / resident to physically or digitally sign */}
                   </div>
-                  <div className="border-t border-slate-900 pt-1 text-center">
+                  <div className="border-t border-slate-900 pt-1.5 text-center">
                     <p className="font-bold text-xs text-[#142952]">Guest Signature</p>
                     <p className="text-[9px] text-slate-500">Tenant / Resident Confirmation</p>
                   </div>

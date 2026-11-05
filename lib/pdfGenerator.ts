@@ -55,6 +55,32 @@ export interface RentalAgreementPdfData {
   ownerName?: string;
 }
 
+export function resolveBillingCycleMonth(month?: string, dateStr?: string, joiningDateStr?: string): string {
+  if (month && !month.toLowerCase().includes("deposit")) {
+    return month;
+  }
+  const candidate = dateStr || joiningDateStr;
+  if (candidate) {
+    const parsed = new Date(candidate);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+    }
+    const parts = candidate.split(/[\s\-/.]+/);
+    if (parts.length >= 3) {
+      const m = parts[1];
+      const y = parts[2].length === 4 ? parts[2] : `20${parts[2]}`;
+      const monthsMap: Record<string, string> = {
+        jan: "January", feb: "February", mar: "March", apr: "April",
+        may: "May", jun: "June", jul: "July", aug: "August",
+        sep: "September", oct: "October", nov: "November", dec: "December"
+      };
+      const fullMonth = monthsMap[m.toLowerCase().slice(0, 3)];
+      if (fullMonth) return `${fullMonth} ${y}`;
+    }
+  }
+  return new Date().toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+}
+
 /**
  * Generates an official, legally binding A4 Rental Agreement & Allocation PDF buffer using pdf-lib.
  * 100% in-memory — suitable for email attachment and digital record archiving.
@@ -544,10 +570,18 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
 
   curY -= 32;
 
+  // Detect whether this receipt is for Security Deposit
+  const isDeposit = Boolean(
+    data.isDeposit ||
+    data.receiptNo?.startsWith("DEP") ||
+    data.month?.toLowerCase().includes("deposit") ||
+    (data.depositAmount !== undefined && data.depositAmount > 0 && (!data.rentAmount || data.rentAmount === 0))
+  );
+
   // 7. Pill Banner: [ GUEST DETAILS / RESIDENT DETAILS / SETTLEMENT DETAILS ]
   const pillTitle = data.isSettlement
     ? "SETTLEMENT & NO-DUES DETAILS"
-    : data.isDeposit
+    : isDeposit
     ? "SECURITY DEPOSIT DETAILS"
     : "GUEST DETAILS";
 
@@ -603,7 +637,7 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
 
   // 9. Billing Period with clean underline (Check-in Date omitted per user request)
   const labelCycle = "Billing Period : ";
-  const valCycle = data.month || "Current Cycle";
+  const valCycle = resolveBillingCycleMonth(data.month, data.paidDate, data.joiningDate);
   page.drawText(labelCycle, {
     x: frameX + 22,
     y: curY,
@@ -678,10 +712,11 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
 
     page.drawText("Settlement Status :", { x: midX + 14, y: r2Y, size: 10, font: fontBold, color: navyDeep });
     page.drawText("Bed Vacated & Ledger Finalized", { x: midX + 14, y: r2Y - 12, size: 8.5, font: fontBold, color: emeraldDark });
-  } else if (data.isDeposit) {
+  } else if (isDeposit) {
     // Deposit Grid (Hyphen '-' for zero/non-applicable values per user request)
+    const depositAmt = data.depositAmount && data.depositAmount > 0 ? data.depositAmount : data.amount;
     page.drawText("Deposit :", { x: gridX + 14, y: r1Y, size: 11, font: fontBold, color: navyDeep });
-    page.drawText(`INR ${Number(data.amount).toLocaleString("en-IN")}`, { x: gridX + 75, y: r1Y, size: 11, font: fontMono, color: slateDark });
+    page.drawText(`INR ${Number(depositAmt).toLocaleString("en-IN")}`, { x: gridX + 75, y: r1Y, size: 11, font: fontMono, color: slateDark });
 
     page.drawText("Rent :", { x: midX + 14, y: r1Y, size: 11, font: fontBold, color: navyDeep });
     page.drawText("-", { x: midX + 65, y: r1Y, size: 11, font: fontBold, color: slateMuted });
@@ -693,10 +728,12 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
     page.drawText("-", { x: midX + 96, y: r2Y, size: 11, font: fontBold, color: slateMuted });
   } else {
     // Standard Rent Grid (Hyphen '-' for zero values per user request)
-    const effectiveRent = data.rentAmount !== undefined ? data.rentAmount : (data.parkingAmount ? Math.max(0, data.amount - data.parkingAmount) : data.amount);
     const effectiveDeposit = data.depositAmount || 0;
     const effectiveParking = data.parkingAmount || 0;
     const effectiveMaint = data.maintenanceAmount || 0;
+    const effectiveRent = data.rentAmount !== undefined
+      ? data.rentAmount
+      : Math.max(0, data.amount - effectiveDeposit - effectiveParking - effectiveMaint);
 
     page.drawText("Deposit :", { x: gridX + 14, y: r1Y, size: 11, font: fontBold, color: navyDeep });
     page.drawText(effectiveDeposit > 0 ? `INR ${Number(effectiveDeposit).toLocaleString("en-IN")}` : "-", {
@@ -769,9 +806,9 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
     color: slateDark,
   });
 
-  curY = gridY - 48;
+  // 11. Signatures Section (Brought down so signatures don't hug the financial border)
+  curY = gridY - 80;
 
-  // 11. Signatures Section (Box 4: Owners Signature on Left, Guest on Right)
   const sigLineW = 195;
   const ownerSigX = frameX + 24;
   const guestSigX = frameX + frameW - 24 - sigLineW;
@@ -811,7 +848,7 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
           const imgDims = embeddedImg.scaleToFit(140, 38);
           page.drawImage(embeddedImg, {
             x: ownerSigX + (sigLineW - imgDims.width) / 2,
-            y: sigBoxY + 12,
+            y: sigBoxY + 14,
             width: imgDims.width,
             height: imgDims.height,
           });
