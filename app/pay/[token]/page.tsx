@@ -160,7 +160,14 @@ export default function TenantPaymentBridgePage() {
           const occData = docSnap.data();
           const history = occData.paymentHistory;
           if (Array.isArray(history) && history.length > 0) {
-            const latest = history[0];
+            // Priority: Find the receipt matching this bill amount or current rent cycle, fallback to latest non-deposit, then history[0]
+            const matchingRent = history.find(
+              (h: any) =>
+                h.status !== "VOIDED" &&
+                (Math.abs(Number(h.amount || 0) - details.amount) < 2 ||
+                  (!h.month?.toLowerCase().includes("security deposit") && (h.rentAmount || 0) > 0))
+            );
+            const latest = matchingRent || history[0];
             if (latest && latest.status !== "VOIDED") {
               setVerifiedReceipt({
                 receiptNo: latest.receiptNo || "RCP-VERIFIED",
@@ -184,21 +191,28 @@ export default function TenantPaymentBridgePage() {
         if (!snap.empty) {
           const docs = snap.docs.map((d) => d.data());
           docs.sort((a, b) => ((b.createdAt as string) || "").localeCompare((a.createdAt as string) || ""));
-          const latest = docs[0];
-          if (latest) {
-            if (latest.status === "APPROVED") {
+          // Filter to proof matching current bill amount or most recent proof
+          const matchingProof = docs.find(
+            (p) => Math.abs(Number(p.approvedAmount || p.reportedAmount || 0) - details.amount) < 2
+          ) || docs[0];
+
+          if (matchingProof) {
+            if (matchingProof.status === "APPROVED") {
               setLiveProofStatus("APPROVED");
               setVerifiedReceipt((prev) => {
-                if (prev) return prev;
+                // If occupant history already provided a matching receipt, keep it
+                if (prev && Math.abs(prev.amount - details.amount) < 2) return prev;
                 return {
-                  receiptNo: latest.receiptNumber || `RCP-${latest.id.slice(-6)}`,
-                  amount: Number(latest.approvedAmount || latest.reportedAmount || details.amount),
-                  date: latest.verifiedAt ? new Date(latest.verifiedAt).toLocaleDateString("en-IN") : new Date().toLocaleDateString("en-IN"),
+                  receiptNo: matchingProof.receiptNumber || `RCP-${matchingProof.id.slice(-6)}`,
+                  amount: Number(matchingProof.approvedAmount || matchingProof.reportedAmount || details.amount),
+                  date: matchingProof.verifiedAt
+                    ? new Date(matchingProof.verifiedAt).toLocaleDateString("en-IN")
+                    : new Date().toLocaleDateString("en-IN"),
                   mode: "UPI / Digital",
-                  paidTo: latest.partnerName || details.partnerName,
+                  paidTo: matchingProof.partnerName || details.partnerName,
                 };
               });
-            } else if (latest.status === "PENDING_VERIFICATION") {
+            } else if (matchingProof.status === "PENDING_VERIFICATION") {
               setLiveProofStatus("PENDING");
             }
           }

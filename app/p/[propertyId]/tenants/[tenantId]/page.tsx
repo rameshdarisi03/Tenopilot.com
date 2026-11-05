@@ -774,6 +774,7 @@ export default function IndividualTenantProfilePage({
   const [showTariffAccordion, setShowTariffAccordion] = useState(false);
   const [showFinancialAccordion, setShowFinancialAccordion] = useState(false);
   const [showBalanceBreakdown, setShowBalanceBreakdown] = useState(false);
+  const [showPaymentBreakdown, setShowPaymentBreakdown] = useState(false);
   const [showLedgerBreakdownDetail, setShowLedgerBreakdownDetail] = useState(false);
 
   // In-Profile Upload KYC Modal State
@@ -2580,31 +2581,232 @@ export default function IndividualTenantProfilePage({
             const topStmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
             return (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* 1. Rent Paid (Current Cycle) */}
-                <div className="p-5 bg-white rounded-2xl border border-gray-200 shadow-xs relative">
-                  <div className="p-2 bg-emerald-50 w-fit rounded-lg mb-2 text-emerald-600">
-                    <Wallet className="w-5 h-5" />
-                  </div>
-                  <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">
-                    Rent Paid (This Cycle)
-                  </p>
-                  <p className="text-2xl font-bold font-serif text-gray-900">
-                    ₹{topStmt.totalRentPaid.toLocaleString("en-IN")}
-                  </p>
-                  <p className={`text-[10px] font-bold mt-1.5 flex items-center gap-1 ${
-                    topStmt.totalRentPaid >= topStmt.proRataRent && topStmt.proRataRent > 0
-                      ? "text-emerald-600"
-                      : topStmt.totalRentPaid > 0
-                      ? "text-amber-600"
-                      : "text-gray-500"
-                  }`}>
-                    {topStmt.totalRentPaid >= topStmt.proRataRent && topStmt.proRataRent > 0
-                      ? `🟢 Cycle Cleared • Last: ${paymentHistory[0]?.date || occupantState.joiningDate || "Recent"}`
-                      : topStmt.totalRentPaid > 0
-                      ? `🟡 Partial (₹${topStmt.remainingRentDue.toLocaleString("en-IN")} Due)`
-                      : `⏳ Unpaid (₹${topStmt.proRataRent.toLocaleString("en-IN")} Due)`}
-                  </p>
-                </div>
+                {/* 1. Rent Paid (Current Cycle) with Interactive Breakdown */}
+                {(() => {
+                  const latestPayment = paymentHistory && paymentHistory.length > 0 ? paymentHistory[0] : null;
+                  const displayedPaidAmount =
+                    latestPayment?.amount && latestPayment.amount > 0 ? latestPayment.amount : topStmt.totalRentPaid;
+                  const rentPortion =
+                    latestPayment?.rentAmount ||
+                    (latestPayment?.amount
+                      ? Math.max(0, latestPayment.amount - (latestPayment.parkingAmount || 0))
+                      : topStmt.totalRentPaid);
+                  const parkingPortion = latestPayment?.parkingAmount || 0;
+                  const depositPortion = latestPayment?.depositAmount || 0;
+
+                  return (
+                    <div className="p-5 bg-white rounded-2xl border border-gray-200 shadow-xs relative">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600">
+                          <Wallet className="w-5 h-5" />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowPaymentBreakdown(!showPaymentBreakdown);
+                          }}
+                          className={`p-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1 text-[11px] font-bold active:scale-95 ${
+                            showPaymentBreakdown
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                              : "bg-emerald-50/70 hover:bg-emerald-100 text-emerald-700 border-emerald-200"
+                          }`}
+                          title="View Payment Breakdown"
+                        >
+                          <Info className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Breakdown</span>
+                        </button>
+                      </div>
+
+                      <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">
+                        Last Paid (This Cycle)
+                      </p>
+                      <p className="text-2xl font-bold font-serif text-gray-900">
+                        ₹{displayedPaidAmount.toLocaleString("en-IN")}
+                      </p>
+                      <p
+                        className={`text-[10px] font-bold mt-1.5 flex items-center gap-1 ${
+                          topStmt.totalRentPaid >= topStmt.proRataRent && topStmt.proRataRent > 0
+                            ? "text-emerald-600"
+                            : topStmt.totalRentPaid > 0
+                            ? "text-amber-600"
+                            : "text-gray-500"
+                        }`}
+                      >
+                        {topStmt.totalRentPaid >= topStmt.proRataRent && topStmt.proRataRent > 0
+                          ? `🟢 Cycle Cleared • Last: ${latestPayment?.date || occupantState.joiningDate || "Recent"}`
+                          : topStmt.totalRentPaid > 0
+                          ? `🟡 Partial (₹${topStmt.remainingRentDue.toLocaleString("en-IN")} Due)`
+                          : `⏳ Unpaid (₹${topStmt.proRataRent.toLocaleString("en-IN")} Due)`}
+                      </p>
+
+                      {/* Interactive Payment Breakdown Popover / Modal */}
+                      {showPaymentBreakdown && (
+                        <>
+                          {/* Mobile Backdrop & Centered Modal */}
+                          <div
+                            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 sm:hidden animate-in fade-in"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowPaymentBreakdown(false);
+                            }}
+                          >
+                            <div
+                              className="bg-white rounded-3xl border border-gray-200 shadow-2xl w-full max-w-sm p-5 space-y-4 animate-in zoom-in-95 text-xs select-none"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                                <span className="font-serif font-bold text-base text-gray-900 flex items-center gap-2">
+                                  <Wallet className="w-5 h-5 text-emerald-600" /> Payment Breakdown
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowPaymentBreakdown(false)}
+                                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                                >
+                                  <X className="w-5 h-5" />
+                                </button>
+                              </div>
+
+                              <div className="space-y-2.5 font-medium text-xs">
+                                <div className="flex items-center justify-between py-1 text-gray-700">
+                                  <span className="flex items-center gap-1.5">🏠 Room Rent Portion</span>
+                                  <span className="font-bold font-mono text-gray-900 text-sm">
+                                    ₹{rentPortion.toLocaleString("en-IN")}
+                                  </span>
+                                </div>
+
+                                {parkingPortion > 0 && (
+                                  <div className="flex items-center justify-between py-1.5 text-emerald-900 bg-emerald-50 px-2.5 rounded-xl border border-emerald-200/60">
+                                    <span className="flex items-center gap-1.5 font-bold">🚗 Vehicle Parking Fee</span>
+                                    <span className="font-bold font-mono text-sm">
+                                      ₹{parkingPortion.toLocaleString("en-IN")}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {depositPortion > 0 && (
+                                  <div className="flex items-center justify-between py-1.5 text-purple-900 bg-purple-50 px-2.5 rounded-xl border border-purple-200/60">
+                                    <span className="flex items-center gap-1.5 font-bold">🛡️ Security Deposit Portion</span>
+                                    <span className="font-bold font-mono text-sm">
+                                      ₹{depositPortion.toLocaleString("en-IN")}
+                                    </span>
+                                  </div>
+                                )}
+
+                                <div className="pt-3 border-t border-gray-200 flex items-center justify-between font-bold text-gray-900">
+                                  <span className="text-xs">Total Amount Received:</span>
+                                  <span className="font-mono text-base text-emerald-700 font-extrabold">
+                                    ₹{displayedPaidAmount.toLocaleString("en-IN")}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {latestPayment && (
+                                <div className="p-3 bg-gray-50 rounded-2xl text-[11px] text-gray-600 space-y-1.5 border border-gray-100">
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-400 font-medium">Receipt #:</span>
+                                    <span className="font-mono font-bold text-gray-800">{latestPayment.receiptNo}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-400 font-medium">Date Paid:</span>
+                                    <span className="font-semibold text-gray-800">{latestPayment.date}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-400 font-medium">Payment Mode:</span>
+                                    <span className="font-semibold text-gray-800">{latestPayment.mode}</span>
+                                  </div>
+                                  {latestPayment.paidTo && (
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-400 font-medium">Receiving Account:</span>
+                                      <span className="font-semibold text-gray-800">{latestPayment.paidTo}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Desktop Popover (Anchored) */}
+                          <div
+                            className="hidden sm:block absolute left-0 top-full mt-2 w-80 bg-white rounded-2xl border border-gray-200 shadow-2xl z-40 p-4 space-y-3 animate-in fade-in zoom-in-95 text-xs select-none"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                              <span className="font-serif font-bold text-sm text-gray-900 flex items-center gap-1.5">
+                                <Wallet className="w-4 h-4 text-emerald-600" /> Payment Breakdown
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setShowPaymentBreakdown(false)}
+                                className="p-1 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+
+                            <div className="space-y-2 font-medium">
+                              <div className="flex items-center justify-between py-1 text-gray-700">
+                                <span className="flex items-center gap-1.5">🏠 Room Rent Portion</span>
+                                <span className="font-bold font-mono text-gray-900">
+                                  ₹{rentPortion.toLocaleString("en-IN")}
+                                </span>
+                              </div>
+
+                              {parkingPortion > 0 && (
+                                <div className="flex items-center justify-between py-1 text-emerald-900 bg-emerald-50/70 px-2 rounded-lg border border-emerald-200/50">
+                                  <span className="flex items-center gap-1.5 font-bold">🚗 Vehicle Parking Fee</span>
+                                  <span className="font-bold font-mono">
+                                    ₹{parkingPortion.toLocaleString("en-IN")}
+                                  </span>
+                                </div>
+                              )}
+
+                              {depositPortion > 0 && (
+                                <div className="flex items-center justify-between py-1 text-purple-900 bg-purple-50/70 px-2 rounded-lg border border-purple-200/50">
+                                  <span className="flex items-center gap-1.5 font-bold">🛡️ Security Deposit Portion</span>
+                                  <span className="font-bold font-mono">
+                                    ₹{depositPortion.toLocaleString("en-IN")}
+                                  </span>
+                                </div>
+                              )}
+
+                              <div className="pt-2 border-t border-gray-100 flex items-center justify-between font-bold text-gray-900">
+                                <span>Total Amount Received:</span>
+                                <span className="font-mono text-emerald-700 font-extrabold text-sm">
+                                  ₹{displayedPaidAmount.toLocaleString("en-IN")}
+                                </span>
+                              </div>
+                            </div>
+
+                            {latestPayment && (
+                              <div className="p-2.5 bg-gray-50 rounded-xl text-[11px] text-gray-600 space-y-1 border border-gray-100">
+                                <div className="flex justify-between">
+                                  <span className="text-gray-400 font-medium">Receipt #:</span>
+                                  <span className="font-mono font-bold text-gray-800">{latestPayment.receiptNo}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-400 font-medium">Date Paid:</span>
+                                  <span className="font-semibold text-gray-800">{latestPayment.date}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-400 font-medium">Mode:</span>
+                                  <span className="font-semibold text-gray-800">{latestPayment.mode}</span>
+                                </div>
+                                {latestPayment.paidTo && (
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-400 font-medium">Account:</span>
+                                    <span className="font-semibold text-gray-800">{latestPayment.paidTo}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* 2. Outstanding Balance (with Interactive Breakdown Popover) */}
                 <div className="p-5 bg-white rounded-2xl border border-gray-200 shadow-xs relative">
