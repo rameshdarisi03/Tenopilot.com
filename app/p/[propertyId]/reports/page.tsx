@@ -48,7 +48,10 @@ import {
   renderTotalRow,
   autoFitColumnWidths,
   downloadWorkbookInBrowser,
+  TableColumnDef,
+  KpiCardConfig,
 } from "@/lib/excelReportGenerator";
+import { partnerStore } from "@/constants/partnerStore";
 import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
 import { ReceiptRupeeIcon } from "@/constants/businessIconLibrary";
 
@@ -710,8 +713,271 @@ export default function ReportsAnalyticsPage({
   }, [occupants, propertySettings, selectedTimelineFilter, customStartDate, customEndDate, propertyId]);
 
   // -------------------------------------------------------------
-  // 1-CLICK EXPORT HANDLERS (CSV & COLORFUL EXCEL)
+  // 1-CLICK EXPORT HANDLERS (COLORFUL EXCEL .XLSX & CSV)
   // -------------------------------------------------------------
+  const handleExportRentRollExcel = async () => {
+    try {
+      triggerToast("⏳ Generating executive colorful Rent Roll workbook...");
+      const propName = propertySettings.propertyName || "Sunshine PG";
+      const wb = createStyledWorkbook(`TenoPilot OS — ${propName}`);
+
+      // ==========================================
+      // SHEET 1: RENT ROLL (Forest Emerald Theme)
+      // ==========================================
+      const wsRent = wb.addWorksheet("Rent Roll");
+      renderHeroBanner(
+        wsRent,
+        `${propName} — RENT PAYMENT AUDIT ROLL`,
+        `Report Window: ${activeDateBounds.label} • Generated: ${new Date().toLocaleString("en-IN")}`,
+        "K",
+        "FF065F46"
+      );
+
+      const rentRollCols: TableColumnDef[] = [
+        { header: "Room Number", key: "room", width: 14, align: "center" },
+        { header: "Resident Name", key: "name", width: 26 },
+        { header: "Bed Code", key: "bed", width: 14, align: "center" },
+        { header: "Receipt #", key: "receiptNo", width: 18, align: "center" },
+        { header: "Billing Month", key: "cycle", width: 18 },
+        { header: "Payment Date", key: "date", width: 16, align: "center" },
+        { header: "Contact Phone", key: "phone", width: 16, align: "center" },
+        { header: "Payment Mode", key: "mode", width: 16, align: "center" },
+        { header: "Receiving Account / Partner", key: "paidTo", width: 26 },
+        { header: "Amount (₹)", key: "amount", width: 18, align: "right", isCurrency: true },
+        { header: "Status", key: "status", width: 14, align: "center" },
+      ];
+
+      const rentRowsData: any[] = [];
+      const rentAccountsMap: Record<string, { inflow: number; outflow: number }> = {};
+      let totalRentCollected = 0;
+
+      occupants.forEach((occ) => {
+        const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
+        const history = occ.paymentHistory || [];
+
+        if (history.length > 0) {
+          history.forEach((pm) => {
+            if (pm.status === "VOIDED") return;
+            // Strictly exclude security deposit records from rent report!
+            if ((pm.month || "").toLowerCase().includes("deposit") && (!pm.rentAmount || pm.rentAmount === 0)) {
+              return;
+            }
+
+            const rawDate = pm.date || "";
+            let inRange = activeDateBounds.isAllTime;
+            if (!activeDateBounds.isAllTime && rawDate) {
+              let isoDate = "";
+              if (rawDate.match(/^\d{4}-\d{2}-\d{2}/)) {
+                isoDate = rawDate.slice(0, 10);
+              } else {
+                const parsed = new Date(rawDate);
+                if (!isNaN(parsed.getTime())) {
+                  isoDate = parsed.toISOString().slice(0, 10);
+                }
+              }
+              if (isoDate) {
+                inRange = isoDate >= activeDateBounds.startDate && isoDate <= activeDateBounds.endDate;
+              }
+            }
+
+            if (inRange) {
+              const effectiveAmount = pm.rentAmount !== undefined && pm.rentAmount > 0 ? pm.rentAmount : pm.amount;
+              const account = pm.paidTo || "Main Business Account";
+              totalRentCollected += effectiveAmount;
+
+              if (!rentAccountsMap[account]) {
+                rentAccountsMap[account] = { inflow: 0, outflow: 0 };
+              }
+              rentAccountsMap[account].inflow += effectiveAmount;
+
+              rentRowsData.push({
+                room: occ.roomNumber,
+                name: occ.name,
+                bed: occ.bedCode,
+                receiptNo: pm.receiptNo || `REC-${occ.roomNumber}-${occ.bedCode}`,
+                cycle: pm.month || "Current Cycle",
+                date: pm.date || occ.joiningDate || "N/A",
+                phone: occ.phone,
+                mode: pm.mode || "UPI",
+                paidTo: account,
+                amount: effectiveAmount,
+                status: pm.status || "PAID",
+              });
+            }
+          });
+        } else if (stmt.totalPaid > 0 && (selectedTimelineFilter === "THIS_MONTH" || activeDateBounds.isAllTime)) {
+          const account = "Main Business Account";
+          totalRentCollected += stmt.totalPaid;
+          if (!rentAccountsMap[account]) {
+            rentAccountsMap[account] = { inflow: 0, outflow: 0 };
+          }
+          rentAccountsMap[account].inflow += stmt.totalPaid;
+
+          rentRowsData.push({
+            room: occ.roomNumber,
+            name: occ.name,
+            bed: occ.bedCode,
+            receiptNo: `REC-${occ.roomNumber || "0"}-${occ.bedCode || "1"}`,
+            cycle: "Active Cycle",
+            date: occ.joiningDate || "Active",
+            phone: occ.phone,
+            mode: "Direct Transfer",
+            paidTo: account,
+            amount: stmt.totalPaid,
+            status: "PAID",
+          });
+        }
+      });
+
+      renderMetadataCards(
+        wsRent,
+        [
+          { label: "Property", value: propName },
+          { label: "Timeline", value: activeDateBounds.label },
+          { label: "Rent Collected", value: `₹${totalRentCollected.toLocaleString("en-IN")}` },
+          { label: "Receipts Count", value: `${rentRowsData.length}` },
+        ],
+        4
+      );
+
+      renderKpiCardsRow(wsRent, 6, [
+        {
+          label: "Total Rent Inflow",
+          value: `₹${totalRentCollected.toLocaleString("en-IN")}`,
+          subtext: activeDateBounds.label,
+          fillColorHex: "FFD1FAE5",
+          textColorHex: "FF065F46",
+        },
+        {
+          label: "Verified Receipts",
+          value: `${rentRowsData.length}`,
+          subtext: "Logged Payments",
+          fillColorHex: "FFE0E7FF",
+          textColorHex: "FF3730A3",
+        },
+        {
+          label: "Accounts Audited",
+          value: `${Object.keys(rentAccountsMap).length || 1}`,
+          subtext: "Partner Accounts",
+          fillColorHex: "FFFFEDD5",
+          textColorHex: "FF9A3412",
+        },
+        {
+          label: "Net Retained Rent",
+          value: `₹${totalRentCollected.toLocaleString("en-IN")}`,
+          subtext: "100% Realized",
+          fillColorHex: "FFDCFCE7",
+          textColorHex: "FF166534",
+        },
+      ]);
+
+      const lastRentRow = renderStyledTable(wsRent, 11, rentRollCols, rentRowsData, "FF065F46");
+      if (rentRowsData.length > 0) {
+        renderTotalRow(wsRent, lastRentRow + 1, 12, lastRentRow, rentRollCols);
+      }
+      autoFitColumnWidths(wsRent, 12, 10);
+      setupWorksheetView(wsRent, 11);
+
+      // =========================================================================
+      // SHEET 2: PARTNER SETTLEMENT (Strictly the exact 4 columns requested!)
+      // =========================================================================
+      const wsSettlement = wb.addWorksheet("Partner Settlement");
+      renderHeroBanner(
+        wsSettlement,
+        `${propName} — RENT RECONCILIATION BY PARTNER ACCOUNT`,
+        `Report Window: ${activeDateBounds.label} • Inflow & Net Retained Rent Audit`,
+        "D",
+        "FF065F46"
+      );
+
+      const partnerSettlementCols: TableColumnDef[] = [
+        { header: "Account / Partner Name", key: "accountName", width: 34 },
+        { header: "Total Inflow (₹)", key: "totalInflow", width: 22, align: "right", isCurrency: true },
+        { header: "Total Outflow (₹)", key: "totalOutflow", width: 22, align: "right", isCurrency: true },
+        { header: "Net Retained (₹)", key: "netRetained", width: 22, align: "right", isCurrency: true },
+      ];
+
+      const settlementRows = Object.entries(rentAccountsMap).map(([accountName, data]) => ({
+        accountName,
+        totalInflow: data.inflow,
+        totalOutflow: data.outflow,
+        netRetained: data.inflow - data.outflow,
+      }));
+
+      // Fallback if no payments in period: populate configured accounts with 0
+      if (settlementRows.length === 0) {
+        const accounts = partnerStore.getPaymentAccounts(propertyId);
+        accounts.forEach((acc) => {
+          settlementRows.push({
+            accountName: acc.name,
+            totalInflow: 0,
+            totalOutflow: 0,
+            netRetained: 0,
+          });
+        });
+      }
+
+      renderMetadataCards(
+        wsSettlement,
+        [
+          { label: "Property", value: propName },
+          { label: "Timeline", value: activeDateBounds.label },
+          { label: "Total Rent Inflow", value: `₹${totalRentCollected.toLocaleString("en-IN")}` },
+          { label: "Accounts", value: `${settlementRows.length}` },
+        ],
+        4
+      );
+
+      renderKpiCardsRow(wsSettlement, 6, [
+        {
+          label: "Total Rent Inflow",
+          value: `₹${totalRentCollected.toLocaleString("en-IN")}`,
+          subtext: "Collections In",
+          fillColorHex: "FFD1FAE5",
+          textColorHex: "FF065F46",
+        },
+        {
+          label: "Rent Refunds Out",
+          value: "₹0",
+          subtext: "Zero Outflows",
+          fillColorHex: "FFFEE2E2",
+          textColorHex: "FF991B1B",
+        },
+        {
+          label: "Net Retained",
+          value: `₹${totalRentCollected.toLocaleString("en-IN")}`,
+          subtext: "Held in Accounts",
+          fillColorHex: "FFE0E7FF",
+          textColorHex: "FF3730A3",
+        },
+        {
+          label: "Audited Accounts",
+          value: `${settlementRows.length}`,
+          subtext: "Active Destinations",
+          fillColorHex: "FFFFEDD5",
+          textColorHex: "FF9A3412",
+        },
+      ]);
+
+      const lastSettleRow = renderStyledTable(wsSettlement, 11, partnerSettlementCols, settlementRows, "FF065F46");
+      if (settlementRows.length > 0) {
+        renderTotalRow(wsSettlement, lastSettleRow + 1, 12, lastSettleRow, partnerSettlementCols);
+      }
+      autoFitColumnWidths(wsSettlement, 14, 10);
+      setupWorksheetView(wsSettlement, 11);
+
+      const propSafe = propName.replace(/[^a-zA-Z0-9]/g, "_");
+      await downloadWorkbookInBrowser(
+        wb,
+        `Rent_Payment_Report_${propSafe}_${activeDateBounds.startDate}_to_${activeDateBounds.endDate}.xlsx`
+      );
+      triggerToast("🟢 Colorful Rent Payment Report (.xlsx) downloaded successfully!");
+    } catch (err: any) {
+      console.error("Error generating Rent Excel:", err);
+      triggerToast(`⚠️ Failed to generate Excel report: ${err.message}`);
+    }
+  };
+
   const handleExportRentRollCSV = () => {
     const rows: any[] = [];
     const { startDate, endDate, isAllTime } = resolveActiveDateBounds();
@@ -723,6 +989,11 @@ export default function ReportsAnalyticsPage({
       if (history.length > 0) {
         history.forEach((pm) => {
           if (pm.status === "VOIDED") return;
+          // Strictly exclude security deposit records from rent report!
+          if ((pm.month || "").toLowerCase().includes("deposit") && (!pm.rentAmount || pm.rentAmount === 0)) {
+            return;
+          }
+
           const rawDate = pm.date || "";
           let inRange = isAllTime;
           if (!isAllTime && rawDate) {
@@ -732,18 +1003,19 @@ export default function ReportsAnalyticsPage({
           }
 
           if (inRange) {
+            const effectiveAmount = pm.rentAmount !== undefined && pm.rentAmount > 0 ? pm.rentAmount : pm.amount;
             rows.push({
               "Room Number": occ.roomNumber,
               "Resident Name": occ.name,
               "Bed Code": occ.bedCode,
               "Receipt Number": pm.receiptNo || `REC-${occ.roomNumber}-${occ.bedCode}`,
-              "Phone Number": occ.phone,
-              "Payment Date": pm.date || "N/A",
               "Billing Cycle / Month": pm.month || "Current Cycle",
+              "Payment Date": pm.date || "N/A",
+              "Phone Number": occ.phone,
               "Payment Mode": pm.mode || "UPI",
               "Receiving Account / Partner": pm.paidTo || "Main Business Account",
-              "Amount Paid (INR)": pm.amount,
-              "Payment Stream": (pm.month || "").toLowerCase().includes("deposit") ? "Security Deposit" : "Room Rent",
+              "Amount Paid (INR)": effectiveAmount,
+              "Payment Stream": "Room Rent",
               "Collected By": pm.collectedBy?.name || propertySettings.propertyName || "Desk Admin",
               "Status": pm.status || "PAID",
             });
@@ -755,9 +1027,9 @@ export default function ReportsAnalyticsPage({
           "Resident Name": occ.name,
           "Bed Code": occ.bedCode,
           "Receipt Number": `REC-${occ.roomNumber || "0"}-${occ.bedCode || "1"}`,
-          "Phone Number": occ.phone,
           "Billing Cycle / Month": "Active Cycle",
           "Payment Date": occ.joiningDate || "Active",
+          "Phone Number": occ.phone,
           "Payment Mode": "Direct Transfer",
           "Receiving Account / Partner": "Main Business Account",
           "Amount Paid (INR)": stmt.totalPaid,
@@ -781,7 +1053,259 @@ export default function ReportsAnalyticsPage({
     a.download = `Rent_Payment_Report_${propertyId}_${activeDateBounds.startDate}_to_${activeDateBounds.endDate}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    triggerToast("✓ Rent Payment Report downloaded successfully!");
+    triggerToast("✓ Rent Payment Report CSV downloaded!");
+  };
+
+  const handleExportDepositRegisterExcel = async () => {
+    try {
+      triggerToast("⏳ Generating executive colorful Security Deposit workbook...");
+      const propName = propertySettings.propertyName || "Sunshine PG";
+      const wb = createStyledWorkbook(`TenoPilot OS — ${propName}`);
+
+      // =======================================================
+      // SHEET 1: SECURITY DEPOSITS LEDGER (Deep Indigo Theme)
+      // =======================================================
+      const wsDeposit = wb.addWorksheet("Security Deposits");
+      renderHeroBanner(
+        wsDeposit,
+        `${propName} — SECURITY DEPOSITS & ESCROW REGISTER`,
+        `Report Window: ${activeDateBounds.label} • Net Escrow Growth: ₹${depositAnalytics.netEscrowChange.toLocaleString("en-IN")}`,
+        "K",
+        "FF312E81"
+      );
+
+      renderMetadataCards(
+        wsDeposit,
+        [
+          { label: "Window", value: activeDateBounds.label },
+          { label: "Deposits Collected", value: `₹${depositAnalytics.totalCollectedInPeriod.toLocaleString("en-IN")}` },
+          { label: "Move-Out Refunds", value: `₹${depositAnalytics.totalRefundedInPeriod.toLocaleString("en-IN")}` },
+          { label: "Current Escrow Held", value: `₹${depositAnalytics.totalEscrowHeld.toLocaleString("en-IN")}` },
+        ],
+        4
+      );
+
+      renderKpiCardsRow(wsDeposit, 6, [
+        {
+          label: "Deposit Inflow",
+          value: `₹${depositAnalytics.totalCollectedInPeriod.toLocaleString("en-IN")}`,
+          subtext: "Escrow Collected",
+          fillColorHex: "FFD1FAE5",
+          textColorHex: "FF065F46",
+        },
+        {
+          label: "Move-Out Refunds",
+          value: `₹${depositAnalytics.totalRefundedInPeriod.toLocaleString("en-IN")}`,
+          subtext: "Disbursed Outflows",
+          fillColorHex: "FFFEE2E2",
+          textColorHex: "FF991B1B",
+        },
+        {
+          label: "Net Escrow Flow",
+          value: `₹${depositAnalytics.netEscrowChange.toLocaleString("en-IN")}`,
+          subtext: "Growth in Period",
+          fillColorHex: "FFE0E7FF",
+          textColorHex: "FF3730A3",
+        },
+        {
+          label: "Total Escrow Held",
+          value: `₹${depositAnalytics.totalEscrowHeld.toLocaleString("en-IN")}`,
+          subtext: "Active Tenant Custody",
+          fillColorHex: "FFFFEDD5",
+          textColorHex: "FF9A3412",
+        },
+      ]);
+
+      const depositAccountsMap: Record<string, { inflow: number; outflow: number }> = {};
+
+      if (depositAnalytics.transactions.length > 0) {
+        const depositActivityCols: TableColumnDef[] = [
+          { header: "Room Number", key: "room", width: 14, align: "center" },
+          { header: "Resident Name", key: "name", width: 26 },
+          { header: "Bed Code", key: "bed", width: 14, align: "center" },
+          { header: "Receipt / Ref #", key: "receiptNo", width: 18, align: "center" },
+          { header: "Transaction Date", key: "date", width: 16, align: "center" },
+          { header: "Contact Phone", key: "phone", width: 16, align: "center" },
+          { header: "Activity Type", key: "type", width: 16, align: "center" },
+          { header: "Payment Mode", key: "mode", width: 16, align: "center" },
+          { header: "Account (Paid To / From)", key: "paidTo", width: 26 },
+          { header: "Amount (₹)", key: "amount", width: 18, align: "right", isCurrency: true },
+          { header: "Status", key: "status", width: 14, align: "center" },
+        ];
+
+        const depositRows = depositAnalytics.transactions.map((t) => {
+          const account = t.paidTo || "Main Business Account";
+          if (!depositAccountsMap[account]) {
+            depositAccountsMap[account] = { inflow: 0, outflow: 0 };
+          }
+          if (t.type === "COLLECTED") {
+            depositAccountsMap[account].inflow += t.amount;
+          } else if (t.type === "REFUNDED") {
+            depositAccountsMap[account].outflow += t.amount;
+          }
+
+          return {
+            room: t.roomNumber,
+            name: t.occupantName,
+            bed: t.bedCode,
+            receiptNo: t.receiptNo,
+            date: t.date,
+            phone: t.phone,
+            type: t.type,
+            mode: t.mode,
+            paidTo: account,
+            amount: t.amount,
+            status: t.status,
+          };
+        });
+
+        const lastActivityRow = renderStyledTable(wsDeposit, 11, depositActivityCols, depositRows, "FF312E81");
+        renderTotalRow(wsDeposit, lastActivityRow + 1, 12, lastActivityRow, depositActivityCols);
+        autoFitColumnWidths(wsDeposit, 12, 10);
+        setupWorksheetView(wsDeposit, 11);
+      } else {
+        const depositCols: TableColumnDef[] = [
+          { header: "Room Number", key: "room", width: 14, align: "center" },
+          { header: "Resident Name", key: "name", width: 26 },
+          { header: "Bed Code", key: "bed", width: 14, align: "center" },
+          { header: "Receipt / Tenant ID", key: "receiptNo", width: 18, align: "center" },
+          { header: "Check-In Date", key: "joiningDate", width: 16, align: "center" },
+          { header: "Contact Phone", key: "phone", width: 16, align: "center" },
+          { header: "Holding Account / Partner", key: "paidTo", width: 26 },
+          { header: "Deposit Required (₹)", key: "req", width: 18, align: "right", isCurrency: true },
+          { header: "Deposit Held (₹)", key: "paid", width: 18, align: "right", isCurrency: true },
+          { header: "Remaining Due (₹)", key: "rem", width: 16, align: "right", isCurrency: true },
+          { header: "Status", key: "status", width: 14, align: "center" },
+        ];
+
+        const depositRowsData = depositAnalytics.custodyRegister.map((c) => {
+          const account = c.paidTo || "Main Business Account";
+          if (!depositAccountsMap[account]) {
+            depositAccountsMap[account] = { inflow: 0, outflow: 0 };
+          }
+          depositAccountsMap[account].inflow += c.paid;
+
+          return {
+            room: c.occupant.roomNumber,
+            name: c.occupant.name,
+            bed: c.occupant.bedCode,
+            receiptNo: c.occupant.id,
+            joiningDate: c.occupant.joiningDate || "Active",
+            phone: c.occupant.phone,
+            paidTo: account,
+            req: c.req,
+            paid: c.paid,
+            rem: c.rem,
+            status: c.status,
+          };
+        });
+
+        const lastDepRow = renderStyledTable(wsDeposit, 11, depositCols, depositRowsData, "FF312E81");
+        if (depositRowsData.length > 0) {
+          renderTotalRow(wsDeposit, lastDepRow + 1, 12, lastDepRow, depositCols);
+        }
+        autoFitColumnWidths(wsDeposit, 12, 10);
+        setupWorksheetView(wsDeposit, 11);
+      }
+
+      // =========================================================================
+      // SHEET 2: PARTNER SETTLEMENT (Strictly the exact 4 columns requested!)
+      // =========================================================================
+      const wsSettlement = wb.addWorksheet("Partner Settlement");
+      renderHeroBanner(
+        wsSettlement,
+        `${propName} — DEPOSIT CUSTODY & REFUND SETTLEMENT`,
+        `Report Window: ${activeDateBounds.label} • Partner Escrow Custody Audit`,
+        "D",
+        "FF312E81"
+      );
+
+      const partnerSettlementCols: TableColumnDef[] = [
+        { header: "Account / Partner Name", key: "accountName", width: 34 },
+        { header: "Total Inflow (₹)", key: "totalInflow", width: 22, align: "right", isCurrency: true },
+        { header: "Total Outflow (₹)", key: "totalOutflow", width: 22, align: "right", isCurrency: true },
+        { header: "Net Retained (₹)", key: "netRetained", width: 22, align: "right", isCurrency: true },
+      ];
+
+      const settlementRows = Object.entries(depositAccountsMap).map(([accountName, data]) => ({
+        accountName,
+        totalInflow: data.inflow,
+        totalOutflow: data.outflow,
+        netRetained: data.inflow - data.outflow,
+      }));
+
+      // Fallback if no activity: populate configured accounts with 0
+      if (settlementRows.length === 0) {
+        const accounts = partnerStore.getPaymentAccounts(propertyId);
+        accounts.forEach((acc) => {
+          settlementRows.push({
+            accountName: acc.name,
+            totalInflow: 0,
+            totalOutflow: 0,
+            netRetained: 0,
+          });
+        });
+      }
+
+      renderMetadataCards(
+        wsSettlement,
+        [
+          { label: "Property", value: propName },
+          { label: "Timeline", value: activeDateBounds.label },
+          { label: "Total Escrow Inflow", value: `₹${depositAnalytics.totalCollectedInPeriod.toLocaleString("en-IN")}` },
+          { label: "Total Refunds Out", value: `₹${depositAnalytics.totalRefundedInPeriod.toLocaleString("en-IN")}` },
+        ],
+        4
+      );
+
+      renderKpiCardsRow(wsSettlement, 6, [
+        {
+          label: "Total Deposit Inflow",
+          value: `₹${depositAnalytics.totalCollectedInPeriod.toLocaleString("en-IN")}`,
+          subtext: "Escrow Collected",
+          fillColorHex: "FFD1FAE5",
+          textColorHex: "FF065F46",
+        },
+        {
+          label: "Deposit Refunds Out",
+          value: `₹${depositAnalytics.totalRefundedInPeriod.toLocaleString("en-IN")}`,
+          subtext: "Move-Out Settlements",
+          fillColorHex: "FFFEE2E2",
+          textColorHex: "FF991B1B",
+        },
+        {
+          label: "Net Escrow Held",
+          value: `₹${(depositAnalytics.totalCollectedInPeriod - depositAnalytics.totalRefundedInPeriod).toLocaleString("en-IN")}`,
+          subtext: "Retained Escrow",
+          fillColorHex: "FFE0E7FF",
+          textColorHex: "FF3730A3",
+        },
+        {
+          label: "Audited Accounts",
+          value: `${settlementRows.length}`,
+          subtext: "Partner Accounts",
+          fillColorHex: "FFFFEDD5",
+          textColorHex: "FF9A3412",
+        },
+      ]);
+
+      const lastSettleRow = renderStyledTable(wsSettlement, 11, partnerSettlementCols, settlementRows, "FF312E81");
+      if (settlementRows.length > 0) {
+        renderTotalRow(wsSettlement, lastSettleRow + 1, 12, lastSettleRow, partnerSettlementCols);
+      }
+      autoFitColumnWidths(wsSettlement, 14, 10);
+      setupWorksheetView(wsSettlement, 11);
+
+      const propSafe = propName.replace(/[^a-zA-Z0-9]/g, "_");
+      await downloadWorkbookInBrowser(
+        wb,
+        `Security_Deposit_Report_${propSafe}_${activeDateBounds.startDate}_to_${activeDateBounds.endDate}.xlsx`
+      );
+      triggerToast("🟣 Colorful Security Deposit Report (.xlsx) downloaded successfully!");
+    } catch (err: any) {
+      console.error("Error generating Deposit Excel:", err);
+      triggerToast(`⚠️ Failed to generate Excel report: ${err.message}`);
+    }
   };
 
   const handleExportDepositRegisterCSV = () => {
@@ -1304,6 +1828,124 @@ export default function ReportsAnalyticsPage({
       autoFitColumnWidths(wsExp);
       setupWorksheetView(wsExp, 5);
 
+      // =========================================================================
+      // SHEET 7: MASTER PARTNER & ACCOUNT SETTLEMENT (Strictly the exact 4 columns!)
+      // =========================================================================
+      const wsSettlement = wb.addWorksheet("Partner Settlement");
+      renderHeroBanner(
+        wsSettlement,
+        `${propertySettings.propertyName || "Sunshine PG"} — MASTER PARTNER & ACCOUNT SETTLEMENT`,
+        `Report Window: ${activeDateBounds.label} • All Collections vs Disbursements Audit`,
+        "D",
+        "FF1E293B"
+      );
+
+      const masterPartnerCols: TableColumnDef[] = [
+        { header: "Account / Partner Name", key: "accountName", width: 34 },
+        { header: "Total Inflow (₹)", key: "totalInflow", width: 22, align: "right", isCurrency: true },
+        { header: "Total Outflow (₹)", key: "totalOutflow", width: 22, align: "right", isCurrency: true },
+        { header: "Net Retained (₹)", key: "netRetained", width: 22, align: "right", isCurrency: true },
+      ];
+
+      const masterAccountsMap: Record<string, { inflow: number; outflow: number }> = {};
+
+      // 1. Inflows from Rent Roll
+      rentRowsData.forEach((r) => {
+        const acc = r.paidTo || "Main Business Account";
+        if (!masterAccountsMap[acc]) masterAccountsMap[acc] = { inflow: 0, outflow: 0 };
+        masterAccountsMap[acc].inflow += Number(r.amount) || 0;
+      });
+
+      // 2. Inflows & Outflows from Deposits
+      depositAnalytics.transactions.forEach((t) => {
+        const acc = t.paidTo || "Main Business Account";
+        if (!masterAccountsMap[acc]) masterAccountsMap[acc] = { inflow: 0, outflow: 0 };
+        if (t.type === "COLLECTED") {
+          masterAccountsMap[acc].inflow += Number(t.amount) || 0;
+        } else if (t.type === "REFUNDED") {
+          masterAccountsMap[acc].outflow += Number(t.amount) || 0;
+        }
+      });
+
+      // 3. Outflows from Operational Expenses
+      expenses.forEach((exp) => {
+        const acc = exp.paidFrom || "Main Business Account";
+        if (!masterAccountsMap[acc]) masterAccountsMap[acc] = { inflow: 0, outflow: 0 };
+        masterAccountsMap[acc].outflow += Number(exp.amount) || 0;
+      });
+
+      const masterSettlementRows = Object.entries(masterAccountsMap).map(([accountName, data]) => ({
+        accountName,
+        totalInflow: data.inflow,
+        totalOutflow: data.outflow,
+        netRetained: data.inflow - data.outflow,
+      }));
+
+      // Fallback if empty: list configured accounts
+      if (masterSettlementRows.length === 0) {
+        const accounts = partnerStore.getPaymentAccounts(propertyId);
+        accounts.forEach((acc) => {
+          masterSettlementRows.push({
+            accountName: acc.name,
+            totalInflow: 0,
+            totalOutflow: 0,
+            netRetained: 0,
+          });
+        });
+      }
+
+      const totalMasterInflow = masterSettlementRows.reduce((a, b) => a + b.totalInflow, 0);
+      const totalMasterOutflow = masterSettlementRows.reduce((a, b) => a + b.totalOutflow, 0);
+
+      renderMetadataCards(
+        wsSettlement,
+        [
+          { label: "Property", value: propertySettings.propertyName || "Sunshine PG" },
+          { label: "Timeline", value: activeDateBounds.label },
+          { label: "Total Inflows", value: `₹${totalMasterInflow.toLocaleString("en-IN")}` },
+          { label: "Total Outflows", value: `₹${totalMasterOutflow.toLocaleString("en-IN")}` },
+        ],
+        4
+      );
+
+      renderKpiCardsRow(wsSettlement, 6, [
+        {
+          label: "Total Inflow (Rent+Dep)",
+          value: `₹${totalMasterInflow.toLocaleString("en-IN")}`,
+          subtext: "All Incoming Cash",
+          fillColorHex: "FFD1FAE5",
+          textColorHex: "FF065F46",
+        },
+        {
+          label: "Total Outflow (Refunds+Bills)",
+          value: `₹${totalMasterOutflow.toLocaleString("en-IN")}`,
+          subtext: "All Disbursed Cash",
+          fillColorHex: "FFFEE2E2",
+          textColorHex: "FF991B1B",
+        },
+        {
+          label: "Net Retained Cash",
+          value: `₹${(totalMasterInflow - totalMasterOutflow).toLocaleString("en-IN")}`,
+          subtext: "Net Cash Retained",
+          fillColorHex: "FFE0E7FF",
+          textColorHex: "FF3730A3",
+        },
+        {
+          label: "Audited Accounts",
+          value: `${masterSettlementRows.length}`,
+          subtext: "Partner Accounts",
+          fillColorHex: "FFFFEDD5",
+          textColorHex: "FF9A3412",
+        },
+      ]);
+
+      const lastMasterSettleRow = renderStyledTable(wsSettlement, 11, masterPartnerCols, masterSettlementRows, "FF1E293B");
+      if (masterSettlementRows.length > 0) {
+        renderTotalRow(wsSettlement, lastMasterSettleRow + 1, 12, lastMasterSettleRow, masterPartnerCols);
+      }
+      autoFitColumnWidths(wsSettlement, 14, 10);
+      setupWorksheetView(wsSettlement, 11);
+
       // Trigger Client-Side Download
       await downloadWorkbookInBrowser(
         wb,
@@ -1526,23 +2168,37 @@ export default function ReportsAnalyticsPage({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                   {/* Export Box 1: Rent Payment Report */}
-                  <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-gray-50 border border-gray-200 flex flex-col justify-between space-y-3 sm:space-y-4 hover:border-[#c2652a]/60 hover:bg-orange-50/20 transition-all group">
+                  <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-gray-50 border border-gray-200 flex flex-col justify-between space-y-3 sm:space-y-4 hover:border-emerald-500/60 hover:bg-emerald-50/20 transition-all group">
                     <div className="space-y-1.5 sm:space-y-2">
-                      <div className="w-9 sm:w-10 h-9 sm:h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
-                        <FileSpreadsheet className="w-4 sm:w-5 h-4 sm:h-5" />
+                      <div className="flex items-center justify-between">
+                        <div className="w-9 sm:w-10 h-9 sm:h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                          <FileSpreadsheet className="w-4 sm:w-5 h-4 sm:h-5" />
+                        </div>
+                        <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full">
+                          2 TABS • COLORED
+                        </span>
                       </div>
-                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Rent Payment Report (.csv)</h4>
+                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Rent Payment Report (.xlsx)</h4>
                       <p className="text-[11px] sm:text-xs text-gray-500 leading-relaxed">
-                        Itemized rent payments, receipts, payment modes, and resident details for {activeDateBounds.label}.
+                        Itemized rent payments, receipts, payment modes, and 4-column partner settlement for {activeDateBounds.label}.
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleExportRentRollCSV}
-                      className="w-full py-2.5 px-4 rounded-xl bg-white border border-gray-300 group-hover:border-[#c2652a] group-hover:bg-[#c2652a] group-hover:text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs min-h-[42px] active:scale-95"
-                    >
-                      <Download className="w-4 h-4" /> Download Rent Report
-                    </button>
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={handleExportRentRollExcel}
+                        className="w-full py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs min-h-[42px] active:scale-95"
+                      >
+                        <FileSpreadsheet className="w-4 h-4" /> Download Colorful Excel (.xlsx)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleExportRentRollCSV}
+                        className="w-full text-[11px] text-gray-500 hover:text-gray-800 font-semibold underline text-center cursor-pointer"
+                      >
+                        Download plain CSV (.csv)
+                      </button>
+                    </div>
                   </div>
 
                   {/* Export Box 2: Defaulters & Overdue Aging Report */}
@@ -1628,34 +2284,37 @@ export default function ReportsAnalyticsPage({
                   </div>
 
                   {/* Export Box 5: Security Deposit Activity & Escrow Report */}
-                  <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-gray-50 border border-gray-200 flex flex-col justify-between space-y-3 sm:space-y-4 hover:border-[#c2652a]/60 hover:bg-orange-50/20 transition-all group">
+                  <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-gray-50 border border-gray-200 flex flex-col justify-between space-y-3 sm:space-y-4 hover:border-indigo-500/60 hover:bg-indigo-50/20 transition-all group">
                     <div className="space-y-1.5 sm:space-y-2">
                       <div className="flex items-center justify-between">
                         <div className="w-9 sm:w-10 h-9 sm:h-10 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-bold">
                           <ShieldCheck className="w-4 sm:w-5 h-4 sm:h-5" />
                         </div>
-                        {depositAnalytics.transactions.length > 0 ? (
-                          <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full">
-                            {depositAnalytics.transactions.length} in Window
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-extrabold text-purple-800 bg-purple-100 border border-purple-300 px-2.5 py-0.5 rounded-full">
-                            ₹{depositAnalytics.totalEscrowHeld.toLocaleString("en-IN")} Escrow Held
-                          </span>
-                        )}
+                        <span className="text-[10px] font-extrabold text-purple-800 bg-purple-100 border border-purple-300 px-2.5 py-0.5 rounded-full">
+                          2 TABS • COLORED
+                        </span>
                       </div>
-                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Security Deposit Activity (.csv)</h4>
+                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Security Deposit Report (.xlsx)</h4>
                       <p className="text-[11px] sm:text-xs text-gray-500 leading-relaxed">
-                        Collections, move-out refunds, and escrow balances for {activeDateBounds.label}.
+                        Collections, move-out refunds, escrow custody, and 4-column partner settlement for {activeDateBounds.label}.
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleExportDepositRegisterCSV}
-                      className="w-full py-2.5 px-4 rounded-xl bg-white border border-gray-300 group-hover:border-[#c2652a] group-hover:bg-[#c2652a] group-hover:text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs min-h-[42px] active:scale-95"
-                    >
-                      <Download className="w-4 h-4" /> Download Deposit Report
-                    </button>
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={handleExportDepositRegisterExcel}
+                        className="w-full py-2.5 px-4 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs min-h-[42px] active:scale-95"
+                      >
+                        <FileSpreadsheet className="w-4 h-4" /> Download Colorful Excel (.xlsx)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleExportDepositRegisterCSV}
+                        className="w-full text-[11px] text-gray-500 hover:text-gray-800 font-semibold underline text-center cursor-pointer"
+                      >
+                        Download plain CSV (.csv)
+                      </button>
+                    </div>
                   </div>
 
                   {/* Export Box 6: Master Colorful CA Pack (ExcelJS) */}
@@ -1666,12 +2325,12 @@ export default function ReportsAnalyticsPage({
                           <FileSpreadsheet className="w-4 sm:w-5 h-4 sm:h-5" />
                         </div>
                         <span className="text-[10px] font-extrabold text-emerald-300 bg-emerald-950/80 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
-                          6 TABS • COLORED
+                          7 TABS • COLORED
                         </span>
                       </div>
                       <h4 className="font-bold text-xs sm:text-sm text-white">Full CA Accounts Pack (.xlsx)</h4>
                       <p className="text-[11px] sm:text-xs text-gray-300 leading-relaxed">
-                        Presentation-ready workbook with executive KPI banners, rent roll, defaulters, expenses, and deposit escrow.
+                        Presentation-ready workbook with executive KPI banners, rent roll, partner settlements, defaulters, expenses, and deposit escrow.
                       </p>
                     </div>
                     <button
@@ -1679,7 +2338,7 @@ export default function ReportsAnalyticsPage({
                       onClick={handleExportFullExcelWorkbook}
                       className="w-full py-2.5 px-4 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs min-h-[42px] active:scale-95"
                     >
-                      <Download className="w-4 h-4" /> Download Colorful Excel (.xlsx)
+                      <Download className="w-4 h-4" /> Download Full CA Pack (7 Tabs .xlsx)
                     </button>
                   </div>
                 </div>
