@@ -284,18 +284,54 @@ export function renderTotalRow(
 }
 
 /**
- * Auto-Fit Columns so no text is truncated or clipped with ###
+ * Dynamic Context-Aware Column Sizing Algorithm
+ * Automatically expands columns based on header and cell content length (e.g. Name column gets wider),
+ * while safely ignoring top merged hero banners and KPI scorecard rows.
  */
-export function autoFitColumnWidths(ws: ExcelJS.Worksheet, minWidth: number = 14): void {
+export function autoFitColumnWidths(
+  ws: ExcelJS.Worksheet,
+  minWidth: number = 10,
+  startRowCheck: number = 5
+): void {
   ws.columns.forEach((column) => {
     let maxLen = minWidth;
-    column.eachCell?.({ includeEmpty: false }, (cell) => {
-      const valStr = cell.value ? cell.value.toString() : "";
-      if (valStr.length > maxLen && !cell.isMerged) {
-        maxLen = Math.min(valStr.length + 3, 40);
+
+    column.eachCell?.({ includeEmpty: false }, (cell, rowNumber) => {
+      // Skip top hero banner and KPI card rows so they don't distort column width
+      if (rowNumber < startRowCheck || cell.isMerged) {
+        return;
+      }
+
+      let cellText = "";
+      if (cell.value !== null && cell.value !== undefined) {
+        if (typeof cell.value === "object") {
+          if ("result" in cell.value && cell.value.result !== undefined) {
+            cellText = String(cell.value.result);
+          } else if ("formula" in cell.value) {
+            cellText = "₹99,99,999"; // estimate length for totals formula
+          } else if (cell.value instanceof Date) {
+            cellText = cell.value.toISOString().slice(0, 10);
+          } else {
+            cellText = String(cell.value);
+          }
+        } else {
+          cellText = String(cell.value);
+        }
+      }
+
+      // If formatted as currency, factor in currency symbol and comma separators
+      let estimatedLength = cellText.length;
+      if (cell.numFmt && cell.numFmt.includes("₹")) {
+        estimatedLength += 4;
+      }
+
+      if (estimatedLength > maxLen) {
+        maxLen = estimatedLength;
       }
     });
-    column.width = maxLen;
+
+    // Provide comfortable reading padding (+4 characters) and cap max width at 52
+    column.width = Math.min(Math.max(maxLen + 4, minWidth), 52);
   });
 }
 

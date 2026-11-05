@@ -2230,10 +2230,10 @@ export default function TenantsDirectoryPage({
     }
 
     const headers = [
-      "Tenant ID",
-      "Resident Name",
       "Room Number",
       "Bed Code",
+      "Receipt / Tenant ID",
+      "Resident Name",
       "Phone Number",
       "Email Address",
       "Stay Type",
@@ -2250,10 +2250,10 @@ export default function TenantsDirectoryPage({
     ];
 
     const rows = targetOccupants.map((o) => [
-      o.id,
-      `"${(o.name || "").replace(/"/g, '""')}"`,
       o.roomNumber || "",
       o.bedCode || "",
+      o.id,
+      `"${(o.name || "").replace(/"/g, '""')}"`,
       `"${o.phone || ""}"`,
       `"${o.email || ""}"`,
       o.stayType,

@@ -728,13 +728,13 @@ export default function ReportsAnalyticsPage({
 
           if (inRange) {
             rows.push({
-              "Receipt Number": pm.receiptNo || `REC-${occ.roomNumber}-${occ.bedCode}`,
-              "Tenant Name": occ.name,
               "Room Number": occ.roomNumber,
               "Bed Code": occ.bedCode,
+              "Receipt Number": pm.receiptNo || `REC-${occ.roomNumber}-${occ.bedCode}`,
+              "Resident Name": occ.name,
               "Phone Number": occ.phone,
-              "Billing Cycle / Month": pm.month || "Current Cycle",
               "Payment Date": pm.date || "N/A",
+              "Billing Cycle / Month": pm.month || "Current Cycle",
               "Amount Paid (INR)": pm.amount,
               "Payment Stream": (pm.month || "").toLowerCase().includes("deposit") ? "Security Deposit" : "Room Rent",
               "Payment Mode": pm.mode || "UPI",
@@ -745,10 +745,10 @@ export default function ReportsAnalyticsPage({
         });
       } else if (stmt.totalPaid > 0) {
         rows.push({
-          "Receipt Number": `REC-${occ.roomNumber || "0"}-${occ.bedCode || "1"}`,
-          "Tenant Name": occ.name,
           "Room Number": occ.roomNumber,
           "Bed Code": occ.bedCode,
+          "Receipt Number": `REC-${occ.roomNumber || "0"}-${occ.bedCode || "1"}`,
+          "Resident Name": occ.name,
           "Phone Number": occ.phone,
           "Billing Cycle / Month": "Active Cycle",
           "Payment Date": occ.joiningDate || "Active",
@@ -783,14 +783,15 @@ export default function ReportsAnalyticsPage({
     if (depositAnalytics.transactions.length > 0) {
       // Timeline-filtered deposit activity
       const rows = depositAnalytics.transactions.map((t) => ({
+        "Room Number": t.roomNumber,
+        "Bed Code": t.bedCode,
         "Receipt / Ref #": t.receiptNo,
-        "Transaction Date": t.date,
         "Resident Name": t.occupantName,
-        "Room Location": `Room ${t.roomNumber} (${t.bedCode})`,
         "Contact Phone": t.phone,
+        "Transaction Date": t.date,
         "Activity Type": t.type,
-        "Amount (INR)": t.amount,
         "Payment Mode": t.mode,
+        "Amount (INR)": t.amount,
         "Account / Channel": t.paidTo,
         "Status": t.status,
       }));
@@ -807,15 +808,16 @@ export default function ReportsAnalyticsPage({
     } else {
       // Current Escrow Custody Register
       const rows = depositAnalytics.custodyRegister.map((c) => ({
-        "Tenant ID": c.occupant.id,
-        "Tenant Name": c.occupant.name,
-        "Room Location": `Room ${c.occupant.roomNumber} (${c.occupant.bedCode})`,
+        "Room Number": c.occupant.roomNumber,
+        "Bed Code": c.occupant.bedCode,
+        "Receipt / Tenant ID": c.occupant.id,
+        "Resident Name": c.occupant.name,
+        "Contact Phone": c.occupant.phone,
         "Check-In Date": c.occupant.joiningDate || "Active",
         "Security Deposit Required (INR)": c.req,
         "Deposit Paid / Held (INR)": c.paid,
         "Remaining Due (INR)": c.rem,
         "Deposit Status": c.status,
-        "Contact Phone": c.occupant.phone,
         "Emergency Phone": c.occupant.emergencyContact?.phone || "N/A",
       }));
 
@@ -838,12 +840,13 @@ export default function ReportsAnalyticsPage({
     }
 
     const rows = defaultersList.map((d) => ({
-      "Tenant Name": d.occupant.name,
       "Room Number": d.occupant.roomNumber,
       "Bed Code": d.occupant.bedCode,
+      "Receipt / Ref #": `DUE-${d.occupant.roomNumber}-${d.occupant.bedCode}`,
+      "Resident Name": d.occupant.name,
       "Phone Number": d.occupant.phone,
       "Monthly Rent (INR)": d.occupant.rentAmount,
-      "Outstanding Dues (INR)": d.statement.netOutstandingBalance,
+      "Overdue Amount (INR)": d.statement.netOutstandingBalance,
       "Days Overdue": d.daysOverdue,
       "Aging Category": d.agingCategory,
       "Target Due Date": d.occupant.dueDate || `Day ${d.occupant.dueDay}`,
@@ -869,9 +872,10 @@ export default function ReportsAnalyticsPage({
     }
 
     const rows = vacatingNoticeList.map((v) => ({
-      "Tenant Name": v.occupant.name,
       "Room Number": v.occupant.roomNumber,
       "Bed Code": v.occupant.bedCode,
+      "Receipt / Ref #": `VAC-${v.occupant.roomNumber}-${v.occupant.bedCode}`,
+      "Resident Name": v.occupant.name,
       "Phone Number": v.occupant.phone,
       "Vacating / Move-Out Date": v.vacatingDate,
       "Monthly Rent (INR)": v.occupant.rentAmount,
@@ -999,12 +1003,12 @@ export default function ReportsAnalyticsPage({
       );
 
       const rentRollCols = [
-        { header: "Receipt #", key: "receiptNo", width: 18 },
-        { header: "Date", key: "date", width: 14, align: "center" as const },
-        { header: "Resident Name", key: "name", width: 24 },
         { header: "Room", key: "room", width: 10, align: "center" as const },
         { header: "Bed", key: "bed", width: 10, align: "center" as const },
+        { header: "Receipt #", key: "receiptNo", width: 18 },
+        { header: "Resident Name", key: "name", width: 26 },
         { header: "Phone", key: "phone", width: 16, align: "center" as const },
+        { header: "Payment Date", key: "date", width: 14, align: "center" as const },
         { header: "Cycle", key: "cycle", width: 16 },
         { header: "Mode", key: "mode", width: 14, align: "center" as const },
         { header: "Amount Paid (INR)", key: "amount", width: 18, align: "right" as const, isCurrency: true },
@@ -1019,12 +1023,12 @@ export default function ReportsAnalyticsPage({
           history.forEach((pm) => {
             if (pm.status === "VOIDED") return;
             rentRowsData.push({
-              receiptNo: pm.receiptNo || `REC-${occ.roomNumber}-${occ.bedCode}`,
-              date: pm.date || occ.joiningDate || "N/A",
-              name: occ.name,
               room: occ.roomNumber,
               bed: occ.bedCode,
+              receiptNo: pm.receiptNo || `REC-${occ.roomNumber}-${occ.bedCode}`,
+              name: occ.name,
               phone: occ.phone,
+              date: pm.date || occ.joiningDate || "N/A",
               cycle: pm.month || "Current Cycle",
               mode: pm.mode || "UPI",
               amount: pm.amount,
@@ -1033,12 +1037,12 @@ export default function ReportsAnalyticsPage({
           });
         } else if (stmt.totalPaid > 0) {
           rentRowsData.push({
-            receiptNo: `REC-${occ.roomNumber || "0"}-${occ.bedCode || "1"}`,
-            date: occ.joiningDate || "Active",
-            name: occ.name,
             room: occ.roomNumber,
             bed: occ.bedCode,
+            receiptNo: `REC-${occ.roomNumber || "0"}-${occ.bedCode || "1"}`,
+            name: occ.name,
             phone: occ.phone,
+            date: occ.joiningDate || "Active",
             cycle: "Active Cycle",
             mode: "Direct Transfer",
             amount: stmt.totalPaid,
@@ -1062,14 +1066,15 @@ export default function ReportsAnalyticsPage({
         wsDefaulters,
         `${propertySettings.propertyName || "Sunshine PG"} — RENT OVERDUE & DEFAULTERS AGING`,
         `Immediate Attention Required • Generated: ${new Date().toLocaleString("en-IN")}`,
-        "I",
+        "J",
         "FF991B1B"
       );
 
       const defaulterCols = [
-        { header: "Resident Name", key: "name", width: 24 },
         { header: "Room", key: "room", width: 10, align: "center" as const },
         { header: "Bed", key: "bed", width: 10, align: "center" as const },
+        { header: "Receipt / Ref #", key: "receiptNo", width: 18 },
+        { header: "Resident Name", key: "name", width: 26 },
         { header: "Phone Number", key: "phone", width: 16, align: "center" as const },
         { header: "Monthly Rent", key: "rentAmount", width: 16, align: "right" as const, isCurrency: true },
         { header: "Overdue Amount", key: "outstanding", width: 18, align: "right" as const, isCurrency: true },
@@ -1079,9 +1084,10 @@ export default function ReportsAnalyticsPage({
       ];
 
       const defaulterRowsData = defaultersList.map((d) => ({
-        name: d.occupant.name,
         room: d.occupant.roomNumber,
         bed: d.occupant.bedCode,
+        receiptNo: `DUE-${d.occupant.roomNumber}-${d.occupant.bedCode}`,
+        name: d.occupant.name,
         phone: d.occupant.phone,
         rentAmount: d.occupant.rentAmount,
         outstanding: d.statement.netOutstandingBalance,
@@ -1105,14 +1111,15 @@ export default function ReportsAnalyticsPage({
         wsNotice,
         `${propertySettings.propertyName || "Sunshine PG"} — VACATING & NOTICE PERIOD SCHEDULE`,
         `Upcoming Move-Outs & Security Deposit Refund Estimations`,
-        "I",
+        "J",
         "FFC2652A"
       );
 
       const noticeCols = [
-        { header: "Resident Name", key: "name", width: 24 },
         { header: "Room", key: "room", width: 10, align: "center" as const },
         { header: "Bed", key: "bed", width: 10, align: "center" as const },
+        { header: "Receipt / Ref #", key: "receiptNo", width: 18 },
+        { header: "Resident Name", key: "name", width: 26 },
         { header: "Phone Number", key: "phone", width: 16, align: "center" as const },
         { header: "Vacating Date", key: "vacatingDate", width: 16, align: "center" as const },
         { header: "Monthly Rent", key: "rentAmount", width: 16, align: "right" as const, isCurrency: true },
@@ -1122,9 +1129,10 @@ export default function ReportsAnalyticsPage({
       ];
 
       const noticeRowsData = vacatingNoticeList.map((v) => ({
-        name: v.occupant.name,
         room: v.occupant.roomNumber,
         bed: v.occupant.bedCode,
+        receiptNo: `VAC-${v.occupant.roomNumber}-${v.occupant.bedCode}`,
+        name: v.occupant.name,
         phone: v.occupant.phone,
         vacatingDate: v.vacatingDate,
         rentAmount: v.occupant.rentAmount,
@@ -1135,7 +1143,7 @@ export default function ReportsAnalyticsPage({
 
       const lastNoticeRow = renderStyledTable(wsNotice, 5, noticeCols, noticeRowsData, "FFC2652A");
       if (noticeRowsData.length > 0) {
-        renderTotalRow(wsNotice, lastNoticeRow + 1, 6, lastNoticeRow, noticeCols);
+        renderTotalRow(wsNotice, lastNoticeRow + 1, 7, lastNoticeRow, noticeCols);
       }
       autoFitColumnWidths(wsNotice);
       setupWorksheetView(wsNotice, 5);
@@ -1165,11 +1173,11 @@ export default function ReportsAnalyticsPage({
 
       if (depositAnalytics.transactions.length > 0) {
         const depositActivityCols = [
-          { header: "Receipt / Ref #", key: "receiptNo", width: 18 },
-          { header: "Date", key: "date", width: 14, align: "center" as const },
-          { header: "Resident Name", key: "name", width: 24 },
           { header: "Room", key: "room", width: 10, align: "center" as const },
           { header: "Bed", key: "bed", width: 10, align: "center" as const },
+          { header: "Receipt / Ref #", key: "receiptNo", width: 18 },
+          { header: "Resident Name", key: "name", width: 26 },
+          { header: "Date", key: "date", width: 14, align: "center" as const },
           { header: "Phone Number", key: "phone", width: 16, align: "center" as const },
           { header: "Activity Type", key: "type", width: 16, align: "center" as const },
           { header: "Payment Mode", key: "mode", width: 14, align: "center" as const },
@@ -1178,11 +1186,11 @@ export default function ReportsAnalyticsPage({
         ];
 
         const depositActivityRows = depositAnalytics.transactions.map((t) => ({
-          receiptNo: t.receiptNo,
-          date: t.date,
-          name: t.occupantName,
           room: t.roomNumber,
           bed: t.bedCode,
+          receiptNo: t.receiptNo,
+          name: t.occupantName,
+          date: t.date,
           phone: t.phone,
           type: t.type,
           mode: t.mode,
@@ -1191,11 +1199,13 @@ export default function ReportsAnalyticsPage({
         }));
 
         const lastActivityRow = renderStyledTable(wsDeposits, 6, depositActivityCols, depositActivityRows, "FF312E81");
-        renderTotalRow(wsDeposits, lastActivityRow + 1, 7, lastActivityRow, depositActivityCols);
+        renderTotalRow(wsDeposits, lastActivityRow + 1, 9, lastActivityRow, depositActivityCols);
       } else {
         const depositCols = [
-          { header: "Resident Name", key: "name", width: 24 },
-          { header: "Room & Bed", key: "roomBed", width: 14, align: "center" as const },
+          { header: "Room", key: "room", width: 10, align: "center" as const },
+          { header: "Bed", key: "bed", width: 10, align: "center" as const },
+          { header: "Receipt / Ref #", key: "receiptNo", width: 18 },
+          { header: "Resident Name", key: "name", width: 26 },
           { header: "Contact Phone", key: "phone", width: 16, align: "center" as const },
           { header: "Check-In Date", key: "joiningDate", width: 14, align: "center" as const },
           { header: "Deposit Required", key: "req", width: 18, align: "right" as const, isCurrency: true },
@@ -1205,8 +1215,10 @@ export default function ReportsAnalyticsPage({
         ];
 
         const depositRowsData = depositAnalytics.custodyRegister.map((c) => ({
+          room: c.occupant.roomNumber,
+          bed: c.occupant.bedCode,
+          receiptNo: c.occupant.id,
           name: c.occupant.name,
-          roomBed: `${c.occupant.roomNumber} (${c.occupant.bedCode})`,
           phone: c.occupant.phone,
           joiningDate: c.occupant.joiningDate || "Active",
           req: c.req,
