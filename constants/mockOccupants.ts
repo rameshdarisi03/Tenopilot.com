@@ -558,13 +558,19 @@ export const occupantStore = {
       try {
         const savedKey = `tenopilot_occupants_${propertyId}`;
         localStorage.setItem(savedKey, JSON.stringify(newList));
-        // Asynchronously sync to Firebase Cloud Firestore collection: properties/{propertyId}/occupants
-        newList.forEach((occ) => {
-          saveOccupantToFirestore(propertyId, occ);
-        });
       } catch (e) {
-        console.warn("Failed to save occupants store:", e);
+        console.warn("Failed to save occupants store to localStorage:", e);
       }
+    }
+    // Unconditionally sync each occupant to Cloud Firestore (SSOT)
+    if (propertyId && Array.isArray(newList)) {
+      newList.forEach((occ) => {
+        if (occ?.id) {
+          saveOccupantToFirestore(propertyId, occ).catch((err) => {
+            console.warn("Firestore sync error for occupant:", occ.id, err);
+          });
+        }
+      });
     }
     notifyOccupantListeners();
   },
@@ -572,7 +578,24 @@ export const occupantStore = {
   updateOccupant(updatedOcc: Occupant, propertyId: string = "sunshine-pg") {
     const list = this.getOccupants(propertyId);
     const updatedList = list.map((o) => (o.id === updatedOcc.id ? updatedOcc : o));
-    this.updateOccupants(updatedList, propertyId);
+    if (propertyId) {
+      PROPERTY_OCCUPANTS_MAP.set(propertyId, updatedList);
+    }
+    if (typeof window !== "undefined" && propertyId) {
+      try {
+        const savedKey = `tenopilot_occupants_${propertyId}`;
+        localStorage.setItem(savedKey, JSON.stringify(updatedList));
+      } catch (e) {
+        console.warn("Failed to cache updated occupant to localStorage:", e);
+      }
+    }
+    // SSOT Cloud Firestore guarantee: Always persist the targeted occupant directly to Firestore
+    if (propertyId && updatedOcc?.id) {
+      saveOccupantToFirestore(propertyId, updatedOcc).catch((err) => {
+        console.warn("Cloud Firestore SSOT update failed for occupant:", updatedOcc.id, err);
+      });
+    }
+    notifyOccupantListeners();
   },
 
   resetOccupantsStore() {
