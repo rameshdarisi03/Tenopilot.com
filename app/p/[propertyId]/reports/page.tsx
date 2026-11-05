@@ -637,7 +637,7 @@ export default function ReportsAnalyticsPage({
             type: "REFUNDED",
             amount: occ.checkoutSettlement.netRefunded,
             mode: occ.checkoutSettlement.paymentChannel || "Bank Refund",
-            paidTo: "Resident Account",
+            paidTo: occ.checkoutSettlement.paymentChannel || "Partner Escrow Account",
             status: "REFUNDED",
           });
         }
@@ -666,7 +666,7 @@ export default function ReportsAnalyticsPage({
               type: "REFUNDED",
               amount: log.depositRefunded,
               mode: "Bank Refund",
-              paidTo: "Resident Account",
+              paidTo: "Partner Escrow Account",
               status: "REFUNDED",
             });
           }
@@ -682,12 +682,17 @@ export default function ReportsAnalyticsPage({
         const req = stmt.securityDepositRequired || 0;
         const paid = stmt.totalDepositPaid || (stmt.isDepositCleared ? req : 0);
         const rem = stmt.remainingDepositDue !== undefined ? stmt.remainingDepositDue : Math.max(0, req - paid);
+        const depPayment = (occ.paymentHistory || []).find(
+          (pm) => (pm.month || "").toLowerCase().includes("deposit") || (pm.receiptNo || "").toLowerCase().includes("dep")
+        );
+        const paidTo = depPayment?.paidTo || "Main Business Account";
         return {
           occupant: occ,
           statement: stmt,
           req,
           paid,
           rem,
+          paidTo,
           status: stmt.isDepositCleared ? "PAID" : "PENDING",
         };
       });
@@ -735,15 +740,16 @@ export default function ReportsAnalyticsPage({
               "Phone Number": occ.phone,
               "Payment Date": pm.date || "N/A",
               "Billing Cycle / Month": pm.month || "Current Cycle",
+              "Payment Mode": pm.mode || "UPI",
+              "Receiving Account / Partner": pm.paidTo || "Main Business Account",
               "Amount Paid (INR)": pm.amount,
               "Payment Stream": (pm.month || "").toLowerCase().includes("deposit") ? "Security Deposit" : "Room Rent",
-              "Payment Mode": pm.mode || "UPI",
               "Collected By": pm.collectedBy?.name || propertySettings.propertyName || "Desk Admin",
               "Status": pm.status || "PAID",
             });
           }
         });
-      } else if (stmt.totalPaid > 0) {
+      } else if (stmt.totalPaid > 0 && (selectedTimelineFilter === "THIS_MONTH" || isAllTime)) {
         rows.push({
           "Room Number": occ.roomNumber,
           "Resident Name": occ.name,
@@ -752,9 +758,10 @@ export default function ReportsAnalyticsPage({
           "Phone Number": occ.phone,
           "Billing Cycle / Month": "Active Cycle",
           "Payment Date": occ.joiningDate || "Active",
+          "Payment Mode": "Direct Transfer",
+          "Receiving Account / Partner": "Main Business Account",
           "Amount Paid (INR)": stmt.totalPaid,
           "Payment Stream": "Room Rent",
-          "Payment Mode": "Direct Transfer",
           "Collected By": propertySettings.propertyName || "Desk Admin",
           "Status": "PAID",
         });
@@ -787,12 +794,12 @@ export default function ReportsAnalyticsPage({
         "Resident Name": t.occupantName,
         "Bed Code": t.bedCode,
         "Receipt / Ref #": t.receiptNo,
-        "Contact Phone": t.phone,
         "Transaction Date": t.date,
+        "Contact Phone": t.phone,
         "Activity Type": t.type,
         "Payment Mode": t.mode,
+        "Account (Paid To / From)": t.paidTo,
         "Amount (INR)": t.amount,
-        "Account / Channel": t.paidTo,
         "Status": t.status,
       }));
 
@@ -814,6 +821,7 @@ export default function ReportsAnalyticsPage({
         "Receipt / Tenant ID": c.occupant.id,
         "Contact Phone": c.occupant.phone,
         "Check-In Date": c.occupant.joiningDate || "Active",
+        "Holding Account / Partner": c.paidTo,
         "Security Deposit Required (INR)": c.req,
         "Deposit Paid / Held (INR)": c.paid,
         "Remaining Due (INR)": c.rem,
@@ -998,7 +1006,7 @@ export default function ReportsAnalyticsPage({
         wsRent,
         `${propertySettings.propertyName || "Sunshine PG"} — RENT ROLL & COLLECTIONS LEDGER`,
         `Report Window: ${activeDateBounds.label}`,
-        "J",
+        "K",
         "FF065F46"
       );
 
@@ -1011,6 +1019,7 @@ export default function ReportsAnalyticsPage({
         { header: "Payment Date", key: "date", width: 14, align: "center" as const },
         { header: "Cycle", key: "cycle", width: 16 },
         { header: "Mode", key: "mode", width: 14, align: "center" as const },
+        { header: "Receiving Account / Partner", key: "paidTo", width: 24 },
         { header: "Amount Paid (INR)", key: "amount", width: 18, align: "right" as const, isCurrency: true },
         { header: "Status", key: "status", width: 14, align: "center" as const },
       ];
@@ -1022,20 +1031,40 @@ export default function ReportsAnalyticsPage({
         if (history.length > 0) {
           history.forEach((pm) => {
             if (pm.status === "VOIDED") return;
-            rentRowsData.push({
-              room: occ.roomNumber,
-              name: occ.name,
-              bed: occ.bedCode,
-              receiptNo: pm.receiptNo || `REC-${occ.roomNumber}-${occ.bedCode}`,
-              phone: occ.phone,
-              date: pm.date || occ.joiningDate || "N/A",
-              cycle: pm.month || "Current Cycle",
-              mode: pm.mode || "UPI",
-              amount: pm.amount,
-              status: pm.status || "PAID",
-            });
+            const rawDate = pm.date || "";
+            let inRange = activeDateBounds.isAllTime;
+            if (!activeDateBounds.isAllTime && rawDate) {
+              let isoDate = "";
+              if (rawDate.match(/^\d{4}-\d{2}-\d{2}/)) {
+                isoDate = rawDate.slice(0, 10);
+              } else {
+                const parsed = new Date(rawDate);
+                if (!isNaN(parsed.getTime())) {
+                  isoDate = parsed.toISOString().slice(0, 10);
+                }
+              }
+              if (isoDate) {
+                inRange = isoDate >= activeDateBounds.startDate && isoDate <= activeDateBounds.endDate;
+              }
+            }
+
+            if (inRange) {
+              rentRowsData.push({
+                room: occ.roomNumber,
+                name: occ.name,
+                bed: occ.bedCode,
+                receiptNo: pm.receiptNo || `REC-${occ.roomNumber}-${occ.bedCode}`,
+                phone: occ.phone,
+                date: pm.date || occ.joiningDate || "N/A",
+                cycle: pm.month || "Current Cycle",
+                mode: pm.mode || "UPI",
+                paidTo: pm.paidTo || "Main Business Account",
+                amount: pm.amount,
+                status: pm.status || "PAID",
+              });
+            }
           });
-        } else if (stmt.totalPaid > 0) {
+        } else if (stmt.totalPaid > 0 && (selectedTimelineFilter === "THIS_MONTH" || activeDateBounds.isAllTime)) {
           rentRowsData.push({
             room: occ.roomNumber,
             name: occ.name,
@@ -1045,6 +1074,7 @@ export default function ReportsAnalyticsPage({
             date: occ.joiningDate || "Active",
             cycle: "Active Cycle",
             mode: "Direct Transfer",
+            paidTo: "Main Business Account",
             amount: stmt.totalPaid,
             status: "PAID",
           });
@@ -1053,7 +1083,7 @@ export default function ReportsAnalyticsPage({
 
       const lastRentRow = renderStyledTable(wsRent, 5, rentRollCols, rentRowsData, "FF065F46");
       if (rentRowsData.length > 0) {
-        renderTotalRow(wsRent, lastRentRow + 1, 9, lastRentRow, rentRollCols);
+        renderTotalRow(wsRent, lastRentRow + 1, 10, lastRentRow, rentRollCols);
       }
       autoFitColumnWidths(wsRent);
       setupWorksheetView(wsRent, 5);
@@ -1156,7 +1186,7 @@ export default function ReportsAnalyticsPage({
         wsDeposits,
         `${propertySettings.propertyName || "Sunshine PG"} — SECURITY DEPOSITS & ESCROW AUDIT`,
         `Report Window: ${activeDateBounds.label} • Net Escrow Flow: ₹${depositAnalytics.netEscrowChange.toLocaleString("en-IN")}`,
-        "J",
+        "K",
         "FF312E81"
       );
 
@@ -1181,6 +1211,7 @@ export default function ReportsAnalyticsPage({
           { header: "Phone Number", key: "phone", width: 16, align: "center" as const },
           { header: "Activity Type", key: "type", width: 16, align: "center" as const },
           { header: "Payment Mode", key: "mode", width: 14, align: "center" as const },
+          { header: "Account (Paid To / From)", key: "paidTo", width: 24 },
           { header: "Amount (INR)", key: "amount", width: 18, align: "right" as const, isCurrency: true },
           { header: "Status", key: "status", width: 14, align: "center" as const },
         ];
@@ -1194,12 +1225,13 @@ export default function ReportsAnalyticsPage({
           phone: t.phone,
           type: t.type,
           mode: t.mode,
+          paidTo: t.paidTo,
           amount: t.amount,
           status: t.status,
         }));
 
         const lastActivityRow = renderStyledTable(wsDeposits, 6, depositActivityCols, depositActivityRows, "FF312E81");
-        renderTotalRow(wsDeposits, lastActivityRow + 1, 9, lastActivityRow, depositActivityCols);
+        renderTotalRow(wsDeposits, lastActivityRow + 1, 10, lastActivityRow, depositActivityCols);
       } else {
         const depositCols = [
           { header: "Room", key: "room", width: 10, align: "center" as const },
@@ -1208,6 +1240,7 @@ export default function ReportsAnalyticsPage({
           { header: "Receipt / Ref #", key: "receiptNo", width: 18 },
           { header: "Contact Phone", key: "phone", width: 16, align: "center" as const },
           { header: "Check-In Date", key: "joiningDate", width: 14, align: "center" as const },
+          { header: "Holding Account / Partner", key: "paidTo", width: 24 },
           { header: "Deposit Required", key: "req", width: 18, align: "right" as const, isCurrency: true },
           { header: "Deposit Paid / Held", key: "paid", width: 18, align: "right" as const, isCurrency: true },
           { header: "Remaining Due", key: "rem", width: 16, align: "right" as const, isCurrency: true },
@@ -1221,6 +1254,7 @@ export default function ReportsAnalyticsPage({
           receiptNo: c.occupant.id,
           phone: c.occupant.phone,
           joiningDate: c.occupant.joiningDate || "Active",
+          paidTo: c.paidTo,
           req: c.req,
           paid: c.paid,
           rem: c.rem,
@@ -1229,7 +1263,7 @@ export default function ReportsAnalyticsPage({
 
         const lastDepRow = renderStyledTable(wsDeposits, 6, depositCols, depositRowsData, "FF312E81");
         if (depositRowsData.length > 0) {
-          renderTotalRow(wsDeposits, lastDepRow + 1, 7, lastDepRow, depositCols);
+          renderTotalRow(wsDeposits, lastDepRow + 1, 8, lastDepRow, depositCols);
         }
       }
       autoFitColumnWidths(wsDeposits);
