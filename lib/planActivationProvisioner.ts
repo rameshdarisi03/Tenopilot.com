@@ -220,7 +220,39 @@ export async function executePlanActivationPipeline(
 
   const expiryIso = calculateStackedExpiry(currentExpiryIso, Number(durationDays) || 30);
 
-  // 🎁 4. Calculate Credits to Provision based on Plan
+  // 🎁 4. Authoritatively Fetch Founder Master Controls for Credit Entitlements
+  let proWhatsAppCredits = 1000;
+  let emailMultiplier = 3;
+  let trialWhatsAppCredits = 25;
+  let trialEmailCredits = 75;
+  let rolloverMonths = 4;
+
+  try {
+    const cfgSnap = await getDoc(doc(db, "platform_admin", "config", "settings", "master_controls"));
+    if (cfgSnap.exists()) {
+      const cfgData = cfgSnap.data();
+      if (typeof cfgData.proWhatsAppCredits === "number" && cfgData.proWhatsAppCredits >= 0) {
+        proWhatsAppCredits = cfgData.proWhatsAppCredits;
+      }
+      if (typeof cfgData.emailMultiplier === "number" && cfgData.emailMultiplier >= 1) {
+        emailMultiplier = cfgData.emailMultiplier;
+      }
+      if (typeof cfgData.trialWhatsAppCredits === "number" && cfgData.trialWhatsAppCredits >= 0) {
+        trialWhatsAppCredits = cfgData.trialWhatsAppCredits;
+      }
+      if (typeof cfgData.trialEmailCredits === "number" && cfgData.trialEmailCredits >= 0) {
+        trialEmailCredits = cfgData.trialEmailCredits;
+      } else {
+        trialEmailCredits = trialWhatsAppCredits * emailMultiplier;
+      }
+      if (typeof cfgData.creditRolloverMonths === "number" && cfgData.creditRolloverMonths >= 1) {
+        rolloverMonths = cfgData.creditRolloverMonths;
+      }
+    }
+  } catch (e) {
+    console.warn("Notice reading Founder Master Controls in executePlanActivationPipeline:", e);
+  }
+
   let waCreditsToAdd = 0;
   let emailCreditsToAdd = 0;
 
@@ -237,36 +269,27 @@ export async function executePlanActivationPipeline(
     waCreditsToAdd = Number(customCredits?.whatsapp) || 0;
     emailCreditsToAdd = Number(customCredits?.email) || 0;
   } else if (isTrialExtension) {
-    waCreditsToAdd = 25;
-    emailCreditsToAdd = 50;
+    waCreditsToAdd = trialWhatsAppCredits;
+    emailCreditsToAdd = trialEmailCredits;
   } else {
-    // Pro Plans Credit Allotments
-    let baseProWa = 300;
-    try {
-      const cfgSnap = await getDoc(doc(db, "platform_admin", "config", "settings", "master_controls"));
-      if (cfgSnap.exists() && typeof cfgSnap.data()?.proWhatsAppCredits === "number") {
-        baseProWa = cfgSnap.data().proWhatsAppCredits;
-      }
-    } catch (e) {}
-
+    // Dynamic Pro Plans Credit Allotments scaling directly with Founder Master Controls
+    let multiplierMonths = 1;
     if (plan === "PRO_ANNUAL" || plan === "ANNUAL_VIP" || plan === "VIP_PASS") {
-      waCreditsToAdd = baseProWa * 12; // 3,600 credits
-      emailCreditsToAdd = 12000;
+      multiplierMonths = 12;
     } else if (plan === "PRO_SEMI_ANNUAL") {
-      waCreditsToAdd = baseProWa * 6; // 1,800 credits
-      emailCreditsToAdd = 6000;
+      multiplierMonths = 6;
     } else if (plan === "PRO_QUARTERLY") {
-      waCreditsToAdd = baseProWa * 3; // 900 credits
-      emailCreditsToAdd = 3000;
+      multiplierMonths = 3;
     } else {
       // Default Pro Monthly (30 days)
-      waCreditsToAdd = baseProWa; // 300 credits
-      emailCreditsToAdd = 1000;
+      multiplierMonths = 1;
     }
+
+    waCreditsToAdd = proWhatsAppCredits * multiplierMonths;
+    emailCreditsToAdd = waCreditsToAdd * emailMultiplier;
   }
 
-  // 4-Month Rollover Expiry Date for New Credit Batches
-  const rolloverMonths = 4;
+  // Authoritative Rollover Expiry Date for New Credit Batches from Founder Master Controls
   const batchExpiryIso = new Date(now.getTime() + rolloverMonths * 30 * 24 * 60 * 60 * 1000).toISOString();
 
   const propertyWalletBalances: Record<string, { whatsapp: number; email: number }> = {};
