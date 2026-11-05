@@ -52,6 +52,7 @@ export interface SESSendParams {
     houseRules?: string;
     billingCycle?: string;
     ownerName?: string;
+    signatureUrl?: string;
     complaintId?: string;
     complaintTitle?: string;
     complaintStatus?: string;
@@ -1144,11 +1145,33 @@ export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResul
       const paidDate = p.paidDate || p.dueDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
       const payMode = p.paymentMode || "UPI / Digital Transfer";
 
+      let resolvedAddress = p.propertyAddress || p.bankLabel || "Verified Student & Professional Accommodation";
+      let resolvedPhone = p.managerPhone || "+91 92066 51295";
+      let resolvedOwner = p.ownerName;
+      let resolvedSig = p.signatureUrl;
+
+      if (payload.propertyId) {
+        try {
+          const propSnap = await getDoc(doc(db, "properties", payload.propertyId, "settings", "config"));
+          if (propSnap.exists()) {
+            const pData = propSnap.data();
+            if (pData.propertyAddress) resolvedAddress = pData.propertyAddress;
+            if (pData.managerPhone) resolvedPhone = pData.managerPhone;
+            if (pData.ownerName) resolvedOwner = pData.ownerName;
+            if (pData.signatureUrl) resolvedSig = pData.signatureUrl;
+          }
+        } catch (e) {
+          console.warn("Notice loading property settings for email PDF receipt:", e);
+        }
+      }
+
       const pdfUint8 = await generateReceiptPdfBuffer({
         receiptNo: cleanReceiptNo,
         propertyName: pName,
-        propertyAddress: p.bankLabel || "Verified Student & Professional Accommodation",
-        managerPhone: p.managerPhone || "+91 92066 51295",
+        propertyAddress: resolvedAddress,
+        managerPhone: resolvedPhone,
+        ownerName: resolvedOwner,
+        signatureUrl: resolvedSig,
         residentName: payload.recipientName || "Resident",
         roomNumber: p.roomNumber || "N/A",
         bedCode: p.bedCode || "Standard Bed",

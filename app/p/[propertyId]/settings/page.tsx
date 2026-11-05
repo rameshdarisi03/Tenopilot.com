@@ -1363,6 +1363,101 @@ export default function PropertySettingsPage({
                         Printed on tenant receipts and shared with occupants as the on-site manager contact.
                       </p>
                     </div>
+
+                    {/* Management Handwritten Signature & Official Stamp Upload */}
+                    <div className="pt-2 border-t border-gray-100">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold text-gray-800">
+                          ✍️ Management Signature / Official Seal (Attested on Receipts)
+                        </label>
+                        {settings.signatureUrl && (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                            ✓ Signature Active
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-gray-500 mb-2.5 leading-relaxed">
+                        Upload a photo of your signature signed on white paper (or official management stamp). This will be automatically attested in Box 4 on all rent receipts, settlement vouchers, and agreements for HRA tax compliance.
+                      </p>
+
+                      {settings.signatureUrl ? (
+                        <div className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                          <div className="h-16 w-36 bg-white rounded-xl border border-slate-300 flex items-center justify-center p-1.5 overflow-hidden shadow-2xs">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={settings.signatureUrl}
+                              alt="Owner Signature"
+                              className="max-h-full max-w-full object-contain"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <label className="px-3 py-1.5 text-xs font-bold text-gray-700 bg-white hover:bg-gray-100 border border-gray-300 rounded-xl cursor-pointer text-center shadow-2xs transition-all">
+                              Change Image
+                              <input
+                                type="file"
+                                accept="image/png,image/jpeg,image/webp"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  if (file.size > 2 * 1024 * 1024) {
+                                    alert("Please upload a signature smaller than 2 MB.");
+                                    return;
+                                  }
+                                  const reader = new FileReader();
+                                  reader.onload = () => {
+                                    setSettings({ ...settings, signatureUrl: reader.result as string });
+                                    triggerToast("Signature updated! Click 'Save Settings' to persist.");
+                                  };
+                                  reader.readAsDataURL(file);
+                                }}
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSettings({ ...settings, signatureUrl: undefined });
+                                triggerToast("Signature removed. System will use digital signature fallback.");
+                              }}
+                              className="px-3 py-1.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl cursor-pointer transition-all"
+                            >
+                              Remove Signature
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <label className="flex flex-col items-center justify-center p-4 rounded-2xl border-2 border-dashed border-gray-300 hover:border-[#c2652a] bg-gray-50/70 hover:bg-orange-50/30 cursor-pointer transition-all">
+                          <div className="w-10 h-10 rounded-full bg-orange-100/80 text-[#c2652a] flex items-center justify-center font-bold text-lg mb-1.5">
+                            ✍️
+                          </div>
+                          <span className="text-xs font-bold text-gray-800">
+                            Upload Signature or Seal Image
+                          </span>
+                          <span className="text-[10px] text-gray-500 mt-0.5">
+                            PNG, JPG or WebP (max 2 MB) • Clean white background recommended
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              if (file.size > 2 * 1024 * 1024) {
+                                alert("Please upload a signature smaller than 2 MB.");
+                                return;
+                              }
+                              const reader = new FileReader();
+                              reader.onload = () => {
+                                setSettings({ ...settings, signatureUrl: reader.result as string });
+                                triggerToast("Signature loaded! Click 'Save Settings' below to persist.");
+                              };
+                              reader.readAsDataURL(file);
+                            }}
+                          />
+                        </label>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

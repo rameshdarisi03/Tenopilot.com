@@ -5,6 +5,9 @@ export interface ReceiptPdfData {
   propertyName: string;
   propertyAddress?: string;
   managerPhone?: string;
+  ownerName?: string;
+  signatureUrl?: string;
+  joiningDate?: string;
   residentName: string;
   roomNumber: string;
   bedCode: string;
@@ -382,776 +385,559 @@ export async function generateRentalAgreementPdfBuffer(data: RentalAgreementPdfD
  */
 export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([595.28, 841.89]); // A4 dimensions in points (pt)
-  const { width, height } = page.getSize();
+  const width = 595.28;
+  const height = 841.89; // Standard A4 dimensions
+  const page = pdfDoc.addPage([width, height]);
 
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontMono = await pdfDoc.embedFont(StandardFonts.CourierBold);
+  const fontOblique = await pdfDoc.embedFont(StandardFonts.TimesRomanBoldItalic);
 
-  // Modern Accent Colors
-  const indigoPrimary = rgb(0.25, 0.32, 0.71); // #4052b5
-  const slateDark = rgb(0.06, 0.09, 0.16); // #0f172a
-  const slateMuted = rgb(0.39, 0.45, 0.55); // #64748b
-  const slateBg = rgb(0.96, 0.97, 0.98); // #f8fafc
-  const emeraldGreen = rgb(0.02, 0.59, 0.41); // #059669
-  const borderLight = rgb(0.88, 0.91, 0.94); // #e2e8f0
+  // Classic Navy & Slate Color Palette
+  const navyDeep = rgb(0.08, 0.16, 0.32);     // #142952
+  const slateDark = rgb(0.12, 0.14, 0.18);    // #1f242e
+  const slateMuted = rgb(0.42, 0.46, 0.54);   // #6b758a
+  const gridBorder = rgb(0.20, 0.28, 0.42);   // #33476b
+  const emeraldBg = rgb(0.93, 0.98, 0.95);    // #eefaf2
+  const emeraldDark = rgb(0.04, 0.48, 0.32);  // #0a7a52
 
-  // 1. Top Colorful Header Strip
-  page.drawRectangle({
-    x: 0,
-    y: height - 12,
-    width: width,
-    height: 12,
-    color: indigoPrimary,
-  });
+  // Authentic Voucher Frame Boundaries
+  const frameX = 46;
+  const frameY = 50;
+  const frameW = width - frameX - 38;
+  const frameH = height - frameY - 45;
 
-  // 2. Property Header Banner
-  const pName = data.propertyName || "TenoPilot PG & Coliving";
-  page.drawText(pName.toUpperCase(), {
-    x: 40,
-    y: height - 55,
-    size: 20,
-    font: fontBold,
-    color: slateDark,
-  });
-
-  const pAddress = data.propertyAddress || "Premium Student & Professional Accommodation";
-  page.drawText(pAddress.slice(0, 65), {
-    x: 40,
-    y: height - 72,
-    size: 10,
-    font: fontRegular,
-    color: slateMuted,
-  });
-
-  const managerContact = `Desk: ${data.managerPhone || "+91 92066 51295"}`;
-  page.drawText(managerContact, {
-    x: 40,
-    y: height - 86,
-    size: 9,
-    font: fontRegular,
-    color: slateMuted,
-  });
-
-  // Right Header: Receipt Type & Details
-  const receiptTypeTitle = data.isSettlement
-    ? "SETTLEMENT & NO-DUES RECEIPT"
-    : data.isDeposit
-    ? "SECURITY DEPOSIT RECEIPT"
-    : "RENT PAYMENT RECEIPT";
-  const titleWidth = fontBold.widthOfTextAtSize(receiptTypeTitle, 11);
-  page.drawText(receiptTypeTitle, {
-    x: width - 40 - titleWidth,
-    y: height - 55,
-    size: 11,
-    font: fontBold,
-    color: emeraldGreen,
-  });
-
-  const receiptNoStr = `Receipt No: ${data.receiptNo}`;
-  const rNoWidth = fontMono.widthOfTextAtSize(receiptNoStr, 10);
-  page.drawText(receiptNoStr, {
-    x: width - 40 - rNoWidth,
-    y: height - 72,
-    size: 10,
-    font: fontMono,
-    color: slateDark,
-  });
-
-  const dateStr = `Date: ${data.paidDate}`;
-  const dateWidth = fontRegular.widthOfTextAtSize(dateStr, 9);
-  page.drawText(dateStr, {
-    x: width - 40 - dateWidth,
-    y: height - 86,
-    size: 9,
-    font: fontRegular,
-    color: slateMuted,
-  });
-
-  // Divider Line
-  page.drawLine({
-    start: { x: 40, y: height - 105 },
-    end: { x: width - 40, y: height - 105 },
-    thickness: 1,
-    color: borderLight,
-  });
-
-  // 3. Resident & Stay Info Card Box
-  const cardY = height - 215;
-  page.drawRectangle({
-    x: 40,
-    y: cardY,
-    width: width - 80,
-    height: 95,
-    color: slateBg,
-    borderColor: borderLight,
-    borderWidth: 1,
-  });
-
-  // Left Column: Resident
-  page.drawText("RESIDENT DETAILS", {
-    x: 55,
-    y: cardY + 75,
-    size: 8,
-    font: fontBold,
-    color: slateMuted,
-  });
-  page.drawText(data.residentName, {
-    x: 55,
-    y: cardY + 56,
-    size: 14,
-    font: fontBold,
-    color: slateDark,
-  });
-  page.drawText(`Room: Room ${data.roomNumber} (Bed ${data.bedCode})`, {
-    x: 55,
-    y: cardY + 38,
-    size: 10,
-    font: fontRegular,
-    color: slateDark,
-  });
-  page.drawText(`Billing Period: ${data.month || "Current Cycle"}`, {
-    x: 55,
-    y: cardY + 20,
-    size: 9,
-    font: fontRegular,
-    color: slateMuted,
-  });
-
-  // Right Column: Payment & Channel
-  const rightColX = width / 2 + 10;
-  page.drawText("PAYMENT METHOD & CHANNEL", {
-    x: rightColX,
-    y: cardY + 75,
-    size: 8,
-    font: fontBold,
-    color: slateMuted,
-  });
-  page.drawText(`Payment Mode: ${data.paymentMode || "UPI / Digital Transfer"}`, {
-    x: rightColX,
-    y: cardY + 56,
-    size: 10,
-    font: fontBold,
-    color: slateDark,
-  });
-  page.drawText(`Settled To: ${data.paidTo || "Main Business Pool"}`, {
-    x: rightColX,
-    y: cardY + 38,
-    size: 10,
-    font: fontRegular,
-    color: slateDark,
-  });
-  page.drawText("Ledger Status: Verified & Recorded in Cloud SSOT", {
-    x: rightColX,
-    y: cardY + 20,
-    size: 9,
-    font: fontBold,
-    color: emeraldGreen,
-  });
-
-  // 4. Financial Charges Breakdown Table
-  const tableY = cardY - 35;
-  // Table Header
-  page.drawRectangle({
-    x: 40,
-    y: tableY - 24,
-    width: width - 80,
-    height: 24,
-    color: slateDark,
-  });
-  page.drawText(data.isSettlement ? "SETTLEMENT LEDGER DESCRIPTION" : "ITEM DESCRIPTION", {
-    x: 55,
-    y: tableY - 16,
-    size: 9,
-    font: fontBold,
-    color: rgb(1, 1, 1),
-  });
-  const amtHeader = "AMOUNT (INR)";
-  const amtHeaderWidth = fontBold.widthOfTextAtSize(amtHeader, 9);
-  page.drawText(amtHeader, {
-    x: width - 55 - amtHeaderWidth,
-    y: tableY - 16,
-    size: 9,
-    font: fontBold,
-    color: rgb(1, 1, 1),
-  });
-
-  let declarationBoxY = 0;
-
-  if (data.isSettlement) {
-    const s = data.settlementDetails || {};
-    const initDeposit = s.initialDeposit ?? Number(data.amount || 0);
-    const unpaidDeposit = s.unpaidDeposit || 0;
-    const unpaidRent = s.unpaidRent || 0;
-    const repairs = s.repairs || 0;
-    const maintenance = s.maintenance || 0;
-    const totalDeductions = s.totalDeductions ?? (unpaidDeposit + unpaidRent + repairs + maintenance);
-    const isDeficit = totalDeductions > initDeposit;
-    const netDeficit = s.netDeficit ?? (isDeficit ? totalDeductions - initDeposit : 0);
-    const netRefunded = s.netRefunded ?? (isDeficit ? 0 : Math.max(0, initDeposit - totalDeductions));
-
-    // Row 1: Initial Deposit Intake
-    const r1Y = tableY - 55;
-    page.drawText("Initial Security Deposit Intake (Received upon move-in)", {
-      x: 55,
-      y: r1Y,
-      size: 10,
-      font: fontBold,
-      color: slateDark,
-    });
-    page.drawText("Full refundable security deposit collateral registered in ledger", {
-      x: 55,
-      y: r1Y - 14,
-      size: 8,
-      font: fontRegular,
-      color: slateMuted,
-    });
-    const initDepStr = `INR ${initDeposit.toLocaleString("en-IN")}`;
-    const initDepWidth = fontBold.widthOfTextAtSize(initDepStr, 11);
-    page.drawText(initDepStr, {
-      x: width - 55 - initDepWidth,
-      y: r1Y,
-      size: 11,
-      font: fontBold,
-      color: slateDark,
-    });
-
+  // 1. Classic Perforated Voucher Stub Guide on Left Margin
+  const stubX = frameX - 15;
+  for (let y = frameY + 10; y < frameY + frameH - 10; y += 12) {
     page.drawLine({
-      start: { x: 40, y: r1Y - 24 },
-      end: { x: width - 40, y: r1Y - 24 },
+      start: { x: stubX, y },
+      end: { x: stubX, y: y + 6 },
       thickness: 1,
-      color: borderLight,
-    });
-
-    // Row 2: Deductions Breakdown
-    const r2Y = r1Y - 48;
-    if (totalDeductions > 0) {
-      const parts = [];
-      if (unpaidDeposit > 0) parts.push(`Unpaid Deposit: INR ${unpaidDeposit.toLocaleString("en-IN")}`);
-      if (unpaidRent > 0) parts.push(`Unpaid Rent: INR ${unpaidRent.toLocaleString("en-IN")}`);
-      if (repairs > 0) parts.push(`Repairs: INR ${repairs.toLocaleString("en-IN")}`);
-      if (maintenance > 0) parts.push(`Maintenance: INR ${maintenance.toLocaleString("en-IN")}`);
-      const deductionDesc = parts.length > 0 ? parts.join(" • ") : "Itemized checkout deductions";
-
-      page.drawText("Move-Out Deductions & Adjustments Applied", {
-        x: 55,
-        y: r2Y,
-        size: 10,
-        font: fontBold,
-        color: rgb(0.75, 0.15, 0.15),
-      });
-      page.drawText(deductionDesc.slice(0, 85), {
-        x: 55,
-        y: r2Y - 14,
-        size: 8,
-        font: fontRegular,
-        color: slateMuted,
-      });
-      const dedStr = `-INR ${totalDeductions.toLocaleString("en-IN")}`;
-      const dedWidth = fontBold.widthOfTextAtSize(dedStr, 11);
-      page.drawText(dedStr, {
-        x: width - 55 - dedWidth,
-        y: r2Y,
-        size: 11,
-        font: fontBold,
-        color: rgb(0.75, 0.15, 0.15),
-      });
-    } else {
-      page.drawText("Move-Out Deductions & Adjustments", {
-        x: 55,
-        y: r2Y,
-        size: 10,
-        font: fontBold,
-        color: emeraldGreen,
-      });
-      page.drawText("Zero deductions applied. 100% full security deposit cleared & returned.", {
-        x: 55,
-        y: r2Y - 14,
-        size: 8,
-        font: fontRegular,
-        color: slateMuted,
-      });
-      const zeroStr = "INR 0 (None)";
-      const zeroWidth = fontBold.widthOfTextAtSize(zeroStr, 11);
-      page.drawText(zeroStr, {
-        x: width - 55 - zeroWidth,
-        y: r2Y,
-        size: 11,
-        font: fontBold,
-        color: emeraldGreen,
-      });
-    }
-
-    page.drawLine({
-      start: { x: 40, y: r2Y - 24 },
-      end: { x: width - 40, y: r2Y - 24 },
-      thickness: 1,
-      color: borderLight,
-    });
-
-    // Total Paid / Net Refund or Deficit Row
-    const totalY = r2Y - 56;
-    if (isDeficit) {
-      page.drawRectangle({
-        x: 40,
-        y: totalY,
-        width: width - 80,
-        height: 32,
-        color: rgb(0.99, 0.93, 0.93), // light rose
-        borderColor: rgb(0.95, 0.65, 0.65),
-        borderWidth: 1,
-      });
-      page.drawText("NET DEFICIT COLLECTED ON DEPARTURE", {
-        x: 55,
-        y: totalY + 11,
-        size: 9,
-        font: fontBold,
-        color: rgb(0.75, 0.15, 0.15),
-      });
-      const grandTotalStr = `INR ${Number(netDeficit).toLocaleString("en-IN")}`;
-      const grandTotalWidth = fontBold.widthOfTextAtSize(grandTotalStr, 13);
-      page.drawText(grandTotalStr, {
-        x: width - 55 - grandTotalWidth,
-        y: totalY + 10,
-        size: 13,
-        font: fontBold,
-        color: rgb(0.75, 0.15, 0.15),
-      });
-    } else {
-      page.drawRectangle({
-        x: 40,
-        y: totalY,
-        width: width - 80,
-        height: 32,
-        color: rgb(0.93, 0.98, 0.95), // light emerald
-        borderColor: rgb(0.65, 0.89, 0.75),
-        borderWidth: 1,
-      });
-      page.drawText("NET DEPOSIT AMOUNT REFUNDED & CLEARED", {
-        x: 55,
-        y: totalY + 11,
-        size: 9,
-        font: fontBold,
-        color: emeraldGreen,
-      });
-      const grandTotalStr = `INR ${Number(netRefunded).toLocaleString("en-IN")}`;
-      const grandTotalWidth = fontBold.widthOfTextAtSize(grandTotalStr, 13);
-      page.drawText(grandTotalStr, {
-        x: width - 55 - grandTotalWidth,
-        y: totalY + 10,
-        size: 13,
-        font: fontBold,
-        color: emeraldGreen,
-      });
-    }
-
-    // 5. No Dues Clearance Declaration Box
-    declarationBoxY = totalY - 70;
-    const hraBoxY = declarationBoxY;
-    page.drawRectangle({
-      x: 40,
-      y: hraBoxY,
-      width: width - 80,
-      height: 55,
-      color: rgb(0.94, 0.96, 1.0),
-      borderColor: rgb(0.78, 0.85, 0.98),
-      borderWidth: 1,
-    });
-    page.drawText("OFFICIAL MOVE-OUT & NO-DUES CLEARANCE CERTIFICATE", {
-      x: 55,
-      y: hraBoxY + 38,
-      size: 8,
-      font: fontBold,
-      color: rgb(0.12, 0.23, 0.54),
-    });
-    page.drawText("This official electronic document certifies that room keys and property inventory have been handed over,", {
-      x: 55,
-      y: hraBoxY + 24,
-      size: 7.5,
-      font: fontRegular,
-      color: rgb(0.18, 0.31, 0.65),
-    });
-    page.drawText("all financial obligations are settled, and no further dues remain outstanding for either party. Verified via TenoPilot.", {
-      x: 55,
-      y: hraBoxY + 12,
-      size: 7.5,
-      font: fontRegular,
-      color: rgb(0.18, 0.31, 0.65),
-    });
-  } else if (data.rentAmount !== undefined && data.depositAmount !== undefined && data.rentAmount > 0 && data.depositAmount > 0) {
-    // Combined Payment Breakup: Rent Portion + Deposit Portion
-    // Row 1: Rent Portion
-    const row1Y = tableY - 55;
-    page.drawText(`Monthly Accommodation & Room Rent (${(data.month || "Current Cycle").replace(/\s*\+\s*Security Deposit/i, "")})`, {
-      x: 55,
-      y: row1Y,
-      size: 10,
-      font: fontBold,
-      color: slateDark,
-    });
-    page.drawText("Includes room tariff, electricity, high-speed WiFi, housekeeping & amenities", {
-      x: 55,
-      y: row1Y - 14,
-      size: 8,
-      font: fontRegular,
-      color: slateMuted,
-    });
-    const rentStr = `INR ${Number(data.rentAmount).toLocaleString("en-IN")}`;
-    const rentWidth = fontBold.widthOfTextAtSize(rentStr, 11);
-    page.drawText(rentStr, {
-      x: width - 55 - rentWidth,
-      y: row1Y,
-      size: 11,
-      font: fontBold,
-      color: slateDark,
-    });
-
-    page.drawLine({
-      start: { x: 40, y: row1Y - 24 },
-      end: { x: width - 40, y: row1Y - 24 },
-      thickness: 1,
-      color: borderLight,
-    });
-
-    // Row 2: Security Deposit Portion
-    const row2Y = row1Y - 48;
-    page.drawText("Refundable Security Deposit (Lease Collateral)", {
-      x: 55,
-      y: row2Y,
-      size: 10,
-      font: fontBold,
-      color: rgb(0.35, 0.18, 0.55),
-    });
-    page.drawText("Collateral security deposit held per signed agreement terms (Refundable)", {
-      x: 55,
-      y: row2Y - 14,
-      size: 8,
-      font: fontRegular,
-      color: slateMuted,
-    });
-    const depStr = `INR ${Number(data.depositAmount).toLocaleString("en-IN")}`;
-    const depWidth = fontBold.widthOfTextAtSize(depStr, 11);
-    page.drawText(depStr, {
-      x: width - 55 - depWidth,
-      y: row2Y,
-      size: 11,
-      font: fontBold,
-      color: rgb(0.35, 0.18, 0.55),
-    });
-
-    page.drawLine({
-      start: { x: 40, y: row2Y - 24 },
-      end: { x: width - 40, y: row2Y - 24 },
-      thickness: 1,
-      color: borderLight,
-    });
-
-    let nextCombinedY = row2Y - 48;
-    if (data.parkingAmount !== undefined && data.parkingAmount > 0) {
-      // Row 3: Parking Charges Portion
-      page.drawText("Vehicle Parking Charges (Designated Parking Slot)", {
-        x: 55,
-        y: nextCombinedY,
-        size: 10,
-        font: fontBold,
-        color: rgb(0.18, 0.45, 0.65),
-      });
-      page.drawText("Reserved parking space access, resident vehicle security & gate pass", {
-        x: 55,
-        y: nextCombinedY - 14,
-        size: 8,
-        font: fontRegular,
-        color: slateMuted,
-      });
-      const parkStr = `INR ${Number(data.parkingAmount).toLocaleString("en-IN")}`;
-      const parkWidth = fontBold.widthOfTextAtSize(parkStr, 11);
-      page.drawText(parkStr, {
-        x: width - 55 - parkWidth,
-        y: nextCombinedY,
-        size: 11,
-        font: fontBold,
-        color: rgb(0.18, 0.45, 0.65),
-      });
-
-      page.drawLine({
-        start: { x: 40, y: nextCombinedY - 24 },
-        end: { x: width - 40, y: nextCombinedY - 24 },
-        thickness: 1,
-        color: borderLight,
-      });
-      nextCombinedY = nextCombinedY - 48;
-    }
-
-    // Total Paid Row
-    const totalY = nextCombinedY - 8;
-    page.drawRectangle({
-      x: 40,
-      y: totalY,
-      width: width - 80,
-      height: 32,
-      color: rgb(0.93, 0.98, 0.95), // light emerald
-      borderColor: rgb(0.65, 0.89, 0.75),
-      borderWidth: 1,
-    });
-    page.drawText("TOTAL AMOUNT PAID & CLEARED", {
-      x: 55,
-      y: totalY + 11,
-      size: 9,
-      font: fontBold,
-      color: emeraldGreen,
-    });
-    const grandTotalStr = `INR ${Number(data.amount || 0).toLocaleString("en-IN")}`;
-    const grandTotalWidth = fontBold.widthOfTextAtSize(grandTotalStr, 13);
-    page.drawText(grandTotalStr, {
-      x: width - 55 - grandTotalWidth,
-      y: totalY + 10,
-      size: 13,
-      font: fontBold,
-      color: emeraldGreen,
-    });
-
-    // Income Tax Declaration Box
-    declarationBoxY = totalY - 75;
-    const hraBoxY = declarationBoxY;
-    page.drawRectangle({
-      x: 40,
-      y: hraBoxY,
-      width: width - 80,
-      height: 55,
-      color: rgb(0.94, 0.96, 1.0),
-      borderColor: rgb(0.78, 0.85, 0.98),
-      borderWidth: 1,
-    });
-    page.drawText("INCOME TAX HRA EXEMPTION & SALARY REIMBURSEMENT DECLARATION", {
-      x: 55,
-      y: hraBoxY + 38,
-      size: 8,
-      font: fontBold,
-      color: rgb(0.12, 0.23, 0.54),
-    });
-    page.drawText("This official electronic document certifies receipt of accommodation dues for the period stated above", {
-      x: 55,
-      y: hraBoxY + 24,
-      size: 7.5,
-      font: fontRegular,
-      color: rgb(0.18, 0.31, 0.65),
-    });
-    page.drawText("under Section 10(13A) of the Income Tax Act, 1961. Issued and tamper-verified via TenoPilot Cloud Ledger.", {
-      x: 55,
-      y: hraBoxY + 12,
-      size: 7.5,
-      font: fontRegular,
-      color: rgb(0.18, 0.31, 0.65),
-    });
-  } else {
-    // Single Charge Row (Rent Only or Deposit Only) + Optional Parking Charges
-    const hasParking = data.parkingAmount !== undefined && data.parkingAmount > 0;
-    const baseRentAmount = hasParking
-      ? data.rentAmount !== undefined
-        ? data.rentAmount
-        : Math.max(0, (data.amount || 0) - (data.parkingAmount || 0))
-      : (data.amount || 0);
-
-    const row1Y = tableY - 55;
-    const itemDesc = data.isDeposit
-      ? "Refundable Security Deposit (Lease Guarantee)"
-      : `Monthly Accommodation & Room Rent (${data.month || "Current Cycle"})`;
-    page.drawText(itemDesc, {
-      x: 55,
-      y: row1Y,
-      size: 10,
-      font: fontBold,
-      color: slateDark,
-    });
-    page.drawText("Includes room tariff, electricity, high-speed WiFi, housekeeping & amenities", {
-      x: 55,
-      y: row1Y - 14,
-      size: 8,
-      font: fontRegular,
-      color: slateMuted,
-    });
-
-    const formattedAmount = `INR ${Number(baseRentAmount).toLocaleString("en-IN")}`;
-    const amtWidth = fontBold.widthOfTextAtSize(formattedAmount, 11);
-    page.drawText(formattedAmount, {
-      x: width - 55 - amtWidth,
-      y: row1Y,
-      size: 11,
-      font: fontBold,
-      color: slateDark,
-    });
-
-    // Table Line
-    page.drawLine({
-      start: { x: 40, y: row1Y - 24 },
-      end: { x: width - 40, y: row1Y - 24 },
-      thickness: 1,
-      color: borderLight,
-    });
-
-    let nextSingleY = row1Y - 48;
-    if (hasParking) {
-      page.drawText("Vehicle Parking Charges (Designated Parking Slot)", {
-        x: 55,
-        y: nextSingleY,
-        size: 10,
-        font: fontBold,
-        color: rgb(0.18, 0.45, 0.65),
-      });
-      page.drawText("Reserved parking space access, resident vehicle security & gate pass", {
-        x: 55,
-        y: nextSingleY - 14,
-        size: 8,
-        font: fontRegular,
-        color: slateMuted,
-      });
-      const parkStr = `INR ${Number(data.parkingAmount).toLocaleString("en-IN")}`;
-      const parkWidth = fontBold.widthOfTextAtSize(parkStr, 11);
-      page.drawText(parkStr, {
-        x: width - 55 - parkWidth,
-        y: nextSingleY,
-        size: 11,
-        font: fontBold,
-        color: rgb(0.18, 0.45, 0.65),
-      });
-
-      page.drawLine({
-        start: { x: 40, y: nextSingleY - 24 },
-        end: { x: width - 40, y: nextSingleY - 24 },
-        thickness: 1,
-        color: borderLight,
-      });
-      nextSingleY = nextSingleY - 48;
-    }
-
-    // Total Paid Row
-    const totalY = nextSingleY - 8;
-    page.drawRectangle({
-      x: 40,
-      y: totalY,
-      width: width - 80,
-      height: 32,
-      color: rgb(0.93, 0.98, 0.95), // light emerald
-      borderColor: rgb(0.65, 0.89, 0.75),
-      borderWidth: 1,
-    });
-    page.drawText("TOTAL AMOUNT PAID & CLEARED", {
-      x: 55,
-      y: totalY + 11,
-      size: 9,
-      font: fontBold,
-      color: emeraldGreen,
-    });
-    const grandTotalStr = `INR ${Number(data.amount || 0).toLocaleString("en-IN")}`;
-    const grandTotalWidth = fontBold.widthOfTextAtSize(grandTotalStr, 13);
-    page.drawText(grandTotalStr, {
-      x: width - 55 - grandTotalWidth,
-      y: totalY + 10,
-      size: 13,
-      font: fontBold,
-      color: emeraldGreen,
-    });
-
-    // 5. Income Tax HRA Exemption Declaration Box
-    declarationBoxY = totalY - 75;
-    const hraBoxY = declarationBoxY;
-    page.drawRectangle({
-      x: 40,
-      y: hraBoxY,
-      width: width - 80,
-      height: 55,
-      color: rgb(0.94, 0.96, 1.0),
-      borderColor: rgb(0.78, 0.85, 0.98),
-      borderWidth: 1,
-    });
-    page.drawText("INCOME TAX HRA EXEMPTION & SALARY REIMBURSEMENT DECLARATION", {
-      x: 55,
-      y: hraBoxY + 38,
-      size: 8,
-      font: fontBold,
-      color: rgb(0.12, 0.23, 0.54),
-    });
-    page.drawText("This official electronic document certifies receipt of accommodation dues for the period stated above", {
-      x: 55,
-      y: hraBoxY + 24,
-      size: 7.5,
-      font: fontRegular,
-      color: rgb(0.18, 0.31, 0.65),
-    });
-    page.drawText("under Section 10(13A) of the Income Tax Act, 1961. Issued and tamper-verified via TenoPilot Cloud Ledger.", {
-      x: 55,
-      y: hraBoxY + 12,
-      size: 7.5,
-      font: fontRegular,
-      color: rgb(0.18, 0.31, 0.65),
+      color: rgb(0.78, 0.80, 0.84),
     });
   }
 
-  // 6. Signatures and Seals
-  const sigY = declarationBoxY - 70;
-  page.drawText("DIGITALLY VERIFIED SEAL", {
-    x: 55,
-    y: sigY + 20,
-    size: 8,
-    font: fontBold,
-    color: slateDark,
-  });
-  page.drawText("Cloud Ledger Audit Hash: OK", {
-    x: 55,
-    y: sigY + 8,
-    size: 7.5,
-    font: fontMono,
-    color: emeraldGreen,
+  // 2. Authentic Double Outer Border
+  page.drawRectangle({
+    x: frameX,
+    y: frameY,
+    width: frameW,
+    height: frameH,
+    borderColor: navyDeep,
+    borderWidth: 1.8,
   });
 
-  const sigRightX = width - 180;
-  page.drawLine({
-    start: { x: sigRightX, y: sigY + 15 },
-    end: { x: width - 40, y: sigY + 15 },
-    thickness: 1,
-    color: slateDark,
+  page.drawRectangle({
+    x: frameX + 4,
+    y: frameY + 4,
+    width: frameW - 8,
+    height: frameH - 8,
+    borderColor: navyDeep,
+    borderWidth: 0.8,
   });
-  page.drawText("AUTHORIZED SIGNATORY", {
-    x: sigRightX,
-    y: sigY + 2,
-    size: 8,
-    font: fontBold,
-    color: slateDark,
-  });
+
+  // Vertical tracker starting from top of frame
+  let curY = frameY + frameH - 32;
+
+  // 3. Header Box 1: PG Name (Centered, auto-fitting font scale)
+  const pName = (data.propertyName || "TenoPilot Coliving PG").toUpperCase();
+  let pNameSize = 17.5;
+  while (pNameSize > 11 && fontBold.widthOfTextAtSize(pName, pNameSize) > (frameW - 40)) {
+    pNameSize -= 0.5;
+  }
+  const pNameW = fontBold.widthOfTextAtSize(pName, pNameSize);
   page.drawText(pName, {
-    x: sigRightX,
-    y: sigY - 10,
-    size: 7.5,
-    font: fontRegular,
-    color: slateMuted,
+    x: frameX + (frameW - pNameW) / 2,
+    y: curY,
+    size: pNameSize,
+    font: fontBold,
+    color: navyDeep,
   });
 
-  // 7. Footer
-  page.drawLine({
-    start: { x: 40, y: 35 },
-    end: { x: width - 40, y: 35 },
-    thickness: 0.5,
-    color: borderLight,
+  curY -= 20;
+
+  // 4. Header Box 2: Property Address (Centered, dynamic multi-line wrapping)
+  const rawAddress = data.propertyAddress || "Verified Student & Professional Accommodation";
+  const words = rawAddress.split(" ");
+  const addrLines: string[] = [];
+  let curLine = "";
+  for (const w of words) {
+    if ((curLine + " " + w).trim().length > 64) {
+      addrLines.push(curLine.trim());
+      curLine = w;
+    } else {
+      curLine = curLine ? curLine + " " + w : w;
+    }
+  }
+  if (curLine) addrLines.push(curLine.trim());
+
+  for (const line of addrLines) {
+    const lineW = fontRegular.widthOfTextAtSize(line, 9.5);
+    page.drawText(line, {
+      x: frameX + (frameW - lineW) / 2,
+      y: curY,
+      size: 9.5,
+      font: fontRegular,
+      color: slateDark,
+    });
+    curY -= 14;
+  }
+
+  curY -= 2;
+
+  // 5. Header Box 3: Manager Contact Mobile (Centered)
+  const mobText = `Mob : ${data.managerPhone || "+91 92066 51295"}`;
+  const mobW = fontBold.widthOfTextAtSize(mobText, 10.5);
+  page.drawText(mobText, {
+    x: frameX + (frameW - mobW) / 2,
+    y: curY,
+    size: 10.5,
+    font: fontBold,
+    color: navyDeep,
   });
-  page.drawText(`Ref: ${data.receiptNo} • Digitally verified official receipt • Powered by TenoPilot.com`, {
-    x: 40,
-    y: 22,
+
+  curY -= 20;
+
+  // Horizontal dividing line
+  page.drawLine({
+    start: { x: frameX + 12, y: curY },
+    end: { x: frameX + frameW - 12, y: curY },
+    thickness: 1,
+    color: gridBorder,
+  });
+
+  curY -= 22;
+
+  // 6. Meta Line: Receipt No | Room | Date
+  const rcptStr = `Receipt No.:  ${data.receiptNo}`;
+  page.drawText(rcptStr, {
+    x: frameX + 18,
+    y: curY,
+    size: 10.5,
+    font: fontBold,
+    color: slateDark,
+  });
+
+  const roomDisplay = data.bedCode
+    ? `Room:  ${data.roomNumber} (${data.bedCode})`
+    : `Room:  ${data.roomNumber}`;
+  const roomW = fontBold.widthOfTextAtSize(roomDisplay, 10.5);
+  page.drawText(roomDisplay, {
+    x: frameX + (frameW - roomW) / 2,
+    y: curY,
+    size: 10.5,
+    font: fontBold,
+    color: slateDark,
+  });
+
+  const dateStr = `Date:  ${data.paidDate}`;
+  const dateW = fontBold.widthOfTextAtSize(dateStr, 10.5);
+  page.drawText(dateStr, {
+    x: frameX + frameW - 18 - dateW,
+    y: curY,
+    size: 10.5,
+    font: fontBold,
+    color: slateDark,
+  });
+
+  curY -= 32;
+
+  // 7. Pill Banner: [ GUEST DETAILS / RESIDENT DETAILS / SETTLEMENT DETAILS ]
+  const pillTitle = data.isSettlement
+    ? "SETTLEMENT & NO-DUES DETAILS"
+    : data.isDeposit
+    ? "SECURITY DEPOSIT DETAILS"
+    : "GUEST DETAILS";
+
+  const pillW = Math.max(150, fontBold.widthOfTextAtSize(pillTitle, 10) + 36);
+  const pillH = 22;
+  const pillX = frameX + (frameW - pillW) / 2;
+  page.drawRectangle({
+    x: pillX,
+    y: curY - 4,
+    width: pillW,
+    height: pillH,
+    color: navyDeep,
+  });
+
+  const pTitleW = fontBold.widthOfTextAtSize(pillTitle, 10);
+  page.drawText(pillTitle, {
+    x: pillX + (pillW - pTitleW) / 2,
+    y: curY + 3,
+    size: 10,
+    font: fontBold,
+    color: rgb(1, 1, 1),
+  });
+
+  curY -= 36;
+
+  // 8. Resident / Guest Name with clean underline
+  const labelName = "Guest Name : ";
+  const valName = data.residentName || "Resident";
+  page.drawText(labelName, {
+    x: frameX + 22,
+    y: curY,
+    size: 11,
+    font: fontBold,
+    color: navyDeep,
+  });
+  const labelNameW = fontBold.widthOfTextAtSize(labelName, 11);
+  page.drawText(valName, {
+    x: frameX + 22 + labelNameW + 4,
+    y: curY,
+    size: 11,
+    font: fontBold,
+    color: slateDark,
+  });
+
+  page.drawLine({
+    start: { x: frameX + 22 + labelNameW, y: curY - 3 },
+    end: { x: frameX + frameW - 22, y: curY - 3 },
+    thickness: 0.8,
+    color: rgb(0.65, 0.70, 0.78),
+  });
+
+  curY -= 34;
+
+  // 9. Check-in Date & Billing Period with clean underlines
+  const labelCheckin = "Check-in Date : ";
+  const valCheckin = data.joiningDate || data.paidDate;
+  page.drawText(labelCheckin, {
+    x: frameX + 22,
+    y: curY,
+    size: 10.5,
+    font: fontBold,
+    color: navyDeep,
+  });
+  const labelCheckinW = fontBold.widthOfTextAtSize(labelCheckin, 10.5);
+  page.drawText(valCheckin, {
+    x: frameX + 22 + labelCheckinW + 4,
+    y: curY,
+    size: 10.5,
+    font: fontRegular,
+    color: slateDark,
+  });
+
+  const labelCycle = "Billing Period : ";
+  const valCycle = data.month || "Current Cycle";
+  const cycleFullW = fontBold.widthOfTextAtSize(labelCycle, 10.5) + fontRegular.widthOfTextAtSize(valCycle, 10.5) + 6;
+  const cycleX = frameX + frameW - 22 - cycleFullW;
+  page.drawText(labelCycle, {
+    x: cycleX,
+    y: curY,
+    size: 10.5,
+    font: fontBold,
+    color: navyDeep,
+  });
+  page.drawText(valCycle, {
+    x: cycleX + fontBold.widthOfTextAtSize(labelCycle, 10.5) + 4,
+    y: curY,
+    size: 10.5,
+    font: fontRegular,
+    color: slateDark,
+  });
+
+  // Underlines
+  page.drawLine({
+    start: { x: frameX + 22 + labelCheckinW, y: curY - 3 },
+    end: { x: frameX + 225, y: curY - 3 },
+    thickness: 0.8,
+    color: rgb(0.65, 0.70, 0.78),
+  });
+  page.drawLine({
+    start: { x: cycleX + fontBold.widthOfTextAtSize(labelCycle, 10.5), y: curY - 3 },
+    end: { x: frameX + frameW - 22, y: curY - 3 },
+    thickness: 0.8,
+    color: rgb(0.65, 0.70, 0.78),
+  });
+
+  curY -= 40;
+
+  // 10. Financial Box (Structured Grid)
+  const gridX = frameX + 16;
+  const gridW = frameW - 32;
+  const gridH = 126;
+  const gridY = curY - gridH;
+
+  page.drawRectangle({
+    x: gridX,
+    y: gridY,
+    width: gridW,
+    height: gridH,
+    borderColor: navyDeep,
+    borderWidth: 1.2,
+  });
+
+  // Vertical Middle Separator in Grid
+  const midX = gridX + gridW / 2;
+  page.drawLine({
+    start: { x: midX, y: gridY + 36 },
+    end: { x: midX, y: gridY + gridH },
+    thickness: 0.8,
+    color: rgb(0.65, 0.70, 0.78),
+  });
+
+  // Horizontal Grid Row Divider
+  page.drawLine({
+    start: { x: gridX, y: gridY + gridH - 44 },
+    end: { x: gridX + gridW, y: gridY + gridH - 44 },
+    thickness: 0.8,
+    color: rgb(0.65, 0.70, 0.78),
+  });
+
+  const r1Y = gridY + gridH - 28;
+  const r2Y = gridY + gridH - 72;
+
+  if (data.isSettlement && data.settlementDetails) {
+    // Settlement Grid
+    page.drawText("Initial Deposit Held :", { x: gridX + 14, y: r1Y, size: 10.5, font: fontBold, color: navyDeep });
+    page.drawText(`INR ${Number(data.settlementDetails.initialDeposit || 0).toLocaleString("en-IN")}`, { x: gridX + 130, y: r1Y, size: 10.5, font: fontMono, color: slateDark });
+
+    const totalDeds = (data.settlementDetails.totalDeductions ?? ((data.settlementDetails.unpaidRent || 0) + (data.settlementDetails.repairs || 0) + (data.settlementDetails.maintenance || 0)));
+    page.drawText("Total Deductions :", { x: midX + 14, y: r1Y, size: 10.5, font: fontBold, color: navyDeep });
+    page.drawText(`INR ${Number(totalDeds).toLocaleString("en-IN")}`, { x: midX + 125, y: r1Y, size: 10.5, font: fontMono, color: rgb(0.7, 0.2, 0.2) });
+
+    page.drawText("Unpaid Dues / Repairs :", { x: gridX + 14, y: r2Y, size: 10, font: fontBold, color: navyDeep });
+    page.drawText(`Rent: ${data.settlementDetails.unpaidRent || 0} • Repairs: ${data.settlementDetails.repairs || 0}`, { x: gridX + 14, y: r2Y - 12, size: 8.5, font: fontRegular, color: slateMuted });
+
+    page.drawText("Settlement Status :", { x: midX + 14, y: r2Y, size: 10, font: fontBold, color: navyDeep });
+    page.drawText("Bed Vacated & Ledger Finalized", { x: midX + 14, y: r2Y - 12, size: 8.5, font: fontBold, color: emeraldDark });
+  } else if (data.isDeposit) {
+    // Deposit Grid
+    page.drawText("Deposit :", { x: gridX + 14, y: r1Y, size: 11, font: fontBold, color: navyDeep });
+    page.drawText(`INR ${Number(data.amount).toLocaleString("en-IN")}`, { x: gridX + 75, y: r1Y, size: 11, font: fontMono, color: slateDark });
+
+    page.drawText("Rent :", { x: midX + 14, y: r1Y, size: 11, font: fontBold, color: navyDeep });
+    page.drawText("INR 0 (Deposit Cycle)", { x: midX + 65, y: r1Y, size: 10, font: fontRegular, color: slateMuted });
+
+    page.drawText("Security Escrow :", { x: gridX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
+    page.drawText("Refundable on Move-Out", { x: gridX + 14, y: r2Y - 12, size: 8.5, font: fontRegular, color: emeraldDark });
+
+    page.drawText("Maintenance :", { x: midX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
+    page.drawText("Nil / Included", { x: midX + 96, y: r2Y, size: 9.5, font: fontRegular, color: slateMuted });
+  } else {
+    // Standard Rent Grid (Honoring User's Red Strike-outs)
+    const effectiveRent = data.rentAmount !== undefined ? data.rentAmount : (data.parkingAmount ? Math.max(0, data.amount - data.parkingAmount) : data.amount);
+    const effectiveDeposit = data.depositAmount || 0;
+    const effectiveParking = data.parkingAmount || 0;
+    const effectiveMaint = data.maintenanceAmount || 0;
+
+    page.drawText("Deposit :", { x: gridX + 14, y: r1Y, size: 11, font: fontBold, color: navyDeep });
+    page.drawText(effectiveDeposit > 0 ? `INR ${Number(effectiveDeposit).toLocaleString("en-IN")}` : "Nil / Pre-Paid", {
+      x: gridX + 75,
+      y: r1Y,
+      size: effectiveDeposit > 0 ? 11 : 9.5,
+      font: effectiveDeposit > 0 ? fontMono : fontRegular,
+      color: effectiveDeposit > 0 ? slateDark : slateMuted,
+    });
+
+    page.drawText("Rent :", { x: midX + 14, y: r1Y, size: 11, font: fontBold, color: navyDeep });
+    page.drawText(`INR ${Number(effectiveRent).toLocaleString("en-IN")}`, { x: midX + 65, y: r1Y, size: 11, font: fontMono, color: slateDark });
+
+    page.drawText("Parking fee :", { x: gridX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
+    page.drawText(effectiveParking > 0 ? `INR ${Number(effectiveParking).toLocaleString("en-IN")}` : "Nil / Free", {
+      x: gridX + 88,
+      y: r2Y,
+      size: 10,
+      font: effectiveParking > 0 ? fontMono : fontRegular,
+      color: effectiveParking > 0 ? slateDark : slateMuted,
+    });
+
+    page.drawText("Maintenance :", { x: midX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
+    page.drawText(effectiveMaint > 0 ? `INR ${Number(effectiveMaint).toLocaleString("en-IN")}` : "Nil (Included)", {
+      x: midX + 96,
+      y: r2Y,
+      size: 9.5,
+      font: effectiveMaint > 0 ? fontMono : fontRegular,
+      color: effectiveMaint > 0 ? slateDark : slateMuted,
+    });
+  }
+
+  // Row 3: Highlighted Total Received & Cleared Bar
+  const r3H = 36;
+  page.drawRectangle({
+    x: gridX,
+    y: gridY,
+    width: gridW,
+    height: r3H,
+    color: emeraldBg,
+    borderColor: rgb(0.55, 0.85, 0.70),
+    borderWidth: 1,
+  });
+
+  const totText = data.isSettlement
+    ? `NET REFUNDED :  INR ${Number(data.amount || 0).toLocaleString("en-IN")}`
+    : `TOTAL RECEIVED :  INR ${Number(data.amount || 0).toLocaleString("en-IN")}`;
+
+  page.drawText(totText, {
+    x: gridX + 14,
+    y: gridY + 12,
+    size: 11.5,
+    font: fontBold,
+    color: emeraldDark,
+  });
+
+  const payDest = data.paidTo ? ` • A/C: ${data.paidTo}` : "";
+  const modeStr = `Mode: ${data.paymentMode || "UPI"}${payDest}`;
+  const modeW = fontBold.widthOfTextAtSize(modeStr, 9);
+  page.drawText(modeStr, {
+    x: gridX + gridW - 14 - modeW,
+    y: gridY + 13,
+    size: 9,
+    font: fontBold,
+    color: slateDark,
+  });
+
+  curY = gridY - 48;
+
+  // 11. Signatures Section (Box 4: Owners Signature on Left, Guest on Right)
+  const sigLineW = 195;
+  const ownerSigX = frameX + 24;
+  const guestSigX = frameX + frameW - 24 - sigLineW;
+  const sigBoxY = curY;
+
+  // Embedded Owner Signature (If uploaded) OR Elegant Calligraphic Fallback
+  let imageEmbedded = false;
+  if (data.signatureUrl && typeof data.signatureUrl === "string" && data.signatureUrl.includes("base64,")) {
+    try {
+      const base64Data = data.signatureUrl.split("base64,")[1];
+      const imageBytes = Buffer.from(base64Data, "base64");
+      let embeddedImg;
+      if (data.signatureUrl.includes("image/jpeg") || data.signatureUrl.includes("image/jpg")) {
+        embeddedImg = await pdfDoc.embedJpg(imageBytes);
+      } else {
+        try {
+          embeddedImg = await pdfDoc.embedPng(imageBytes);
+        } catch {
+          embeddedImg = await pdfDoc.embedJpg(imageBytes);
+        }
+      }
+      if (embeddedImg) {
+        const imgDims = embeddedImg.scaleToFit(140, 40);
+        page.drawImage(embeddedImg, {
+          x: ownerSigX + (sigLineW - imgDims.width) / 2,
+          y: sigBoxY + 12,
+          width: imgDims.width,
+          height: imgDims.height,
+        });
+        imageEmbedded = true;
+      }
+    } catch (sigErr) {
+      console.warn("Notice: could not embed owner signature image, using script signature fallback:", sigErr);
+    }
+  }
+
+  if (!imageEmbedded) {
+    const ownerNameText = data.ownerName || data.propertyName || "Authorized Desk";
+    page.drawText(ownerNameText, {
+      x: ownerSigX + 12,
+      y: sigBoxY + 18,
+      size: 15,
+      font: fontOblique,
+      color: rgb(0.08, 0.22, 0.52),
+    });
+  }
+
+  // Left Underline: Owners Signature
+  page.drawLine({
+    start: { x: ownerSigX, y: sigBoxY + 10 },
+    end: { x: ownerSigX + sigLineW, y: sigBoxY + 10 },
+    thickness: 1,
+    color: navyDeep,
+  });
+
+  page.drawText("Owners Signature", {
+    x: ownerSigX + 32,
+    y: sigBoxY - 5,
+    size: 10,
+    font: fontBold,
+    color: navyDeep,
+  });
+
+  const ownerTitle = data.ownerName ? `Authorized Signatory • ${data.ownerName}` : "Authorized Signatory • Property Management";
+  page.drawText(ownerTitle, {
+    x: ownerSigX + 8,
+    y: sigBoxY - 18,
     size: 8,
     font: fontRegular,
     color: slateMuted,
   });
 
-  // 8. VOIDED Watermark
+  // Right: Guest Signature
+  page.drawText("Digitally Verified & Acknowledged", {
+    x: guestSigX + 16,
+    y: sigBoxY + 16,
+    size: 9,
+    font: fontBold,
+    color: emeraldDark,
+  });
+
+  page.drawLine({
+    start: { x: guestSigX, y: sigBoxY + 10 },
+    end: { x: guestSigX + sigLineW, y: sigBoxY + 10 },
+    thickness: 1,
+    color: navyDeep,
+  });
+
+  page.drawText("Guest Signature", {
+    x: guestSigX + 46,
+    y: sigBoxY - 5,
+    size: 10,
+    font: fontBold,
+    color: navyDeep,
+  });
+
+  page.drawText("Resident / Occupant Acknowledgment", {
+    x: guestSigX + 18,
+    y: sigBoxY - 18,
+    size: 8,
+    font: fontRegular,
+    color: slateMuted,
+  });
+
+  curY = sigBoxY - 58;
+
+  // 12. Notice Board Footer
+  page.drawLine({
+    start: { x: frameX + 12, y: curY + 16 },
+    end: { x: frameX + frameW - 12, y: curY + 16 },
+    thickness: 0.8,
+    color: gridBorder,
+  });
+
+  const ruleText = "*   Guests are subject to the rules and regulations outlined on the notice board.   *";
+  const ruleW = fontBold.widthOfTextAtSize(ruleText, 9.5);
+  page.drawText(ruleText, {
+    x: frameX + (frameW - ruleW) / 2,
+    y: curY,
+    size: 9.5,
+    font: fontBold,
+    color: navyDeep,
+  });
+
+  // Micro Income Tax HRA Exemption declaration at bottom
+  const compText = "Authentic electronic receipt issued via TenoPilot Property OS • Valid for Income Tax HRA Exemption under Sec 10(13A)";
+  const compW = fontRegular.widthOfTextAtSize(compText, 7.5);
+  page.drawText(compText, {
+    x: frameX + (frameW - compW) / 2,
+    y: frameY + 12,
+    size: 7.5,
+    font: fontRegular,
+    color: slateMuted,
+  });
+
+  // 13. VOIDED Watermark (If cancelled)
   if (data.isVoided) {
     page.drawText("VOIDED / CANCELLED", {
-      x: 80,
-      y: height / 2 - 40,
-      size: 44,
+      x: frameX + 35,
+      y: frameY + frameH / 2 - 40,
+      size: 46,
       font: fontBold,
       color: rgb(0.85, 0.2, 0.2),
-      opacity: 0.2,
-      rotate: degrees(45),
+      opacity: 0.22,
+      rotate: degrees(38),
     });
   }
 

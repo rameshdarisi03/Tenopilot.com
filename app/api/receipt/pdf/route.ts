@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateReceiptPdfBuffer, ReceiptPdfData } from "@/lib/pdfGenerator";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
+    const propertyId = searchParams.get("propertyId") || undefined;
     const receiptNo = searchParams.get("receiptNo") || `RCP-${Date.now().toString().slice(-6)}`;
-    const propertyName = searchParams.get("propertyName") || "TenoPilot Coliving";
-    const propertyAddress = searchParams.get("propertyAddress") || "Premium Student & Professional Housing";
-    const managerPhone = searchParams.get("managerPhone") || "+91 92066 51295";
+    let propertyName = searchParams.get("propertyName") || "TenoPilot Coliving";
+    let propertyAddress = searchParams.get("propertyAddress") || "Premium Student & Professional Housing";
+    let managerPhone = searchParams.get("managerPhone") || "+91 92066 51295";
+    let ownerName = searchParams.get("ownerName") || undefined;
+    let signatureUrl = searchParams.get("signatureUrl") || undefined;
     const residentName = searchParams.get("residentName") || "Resident";
     const roomNumber = searchParams.get("roomNumber") || "N/A";
     const bedCode = searchParams.get("bedCode") || "Bed 1";
@@ -18,6 +23,7 @@ export async function GET(req: NextRequest) {
     const paymentMode = searchParams.get("paymentMode") || "UPI / Digital Transfer";
     const paidTo = searchParams.get("paidTo") || "Main Business Pool";
     const month = searchParams.get("month") || "Current Cycle";
+    const joiningDate = searchParams.get("joiningDate") || undefined;
     const isDeposit = searchParams.get("isDeposit") === "true" || receiptNo.startsWith("DEP");
     const isSettlement = searchParams.get("isSettlement") === "true" || receiptNo.startsWith("REF") || receiptNo.startsWith("SETTLE");
     const isVoided = searchParams.get("isVoided") === "true";
@@ -28,11 +34,30 @@ export async function GET(req: NextRequest) {
     const depositAmount = searchParams.get("depositAmount") ? Number(searchParams.get("depositAmount")) : undefined;
     const parkingAmount = searchParams.get("parkingAmount") ? Number(searchParams.get("parkingAmount")) : undefined;
 
+    if (propertyId && (!signatureUrl || !ownerName)) {
+      try {
+        const propSnap = await getDoc(doc(db, "properties", propertyId, "settings", "config"));
+        if (propSnap.exists()) {
+          const pData = propSnap.data();
+          if (!signatureUrl && pData.signatureUrl) signatureUrl = pData.signatureUrl;
+          if (!ownerName && pData.ownerName) ownerName = pData.ownerName;
+          if (propertyName === "TenoPilot Coliving" && pData.propertyName) propertyName = pData.propertyName;
+          if (propertyAddress === "Premium Student & Professional Housing" && pData.propertyAddress) propertyAddress = pData.propertyAddress;
+          if (managerPhone === "+91 92066 51295" && pData.managerPhone) managerPhone = pData.managerPhone;
+        }
+      } catch (fsErr) {
+        console.warn("Notice loading property settings for receipt PDF:", fsErr);
+      }
+    }
+
     const pdfData: ReceiptPdfData = {
       receiptNo,
       propertyName,
       propertyAddress,
       managerPhone,
+      ownerName,
+      signatureUrl,
+      joiningDate,
       residentName,
       roomNumber,
       bedCode,

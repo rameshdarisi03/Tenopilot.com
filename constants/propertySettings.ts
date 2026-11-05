@@ -60,6 +60,7 @@ export interface PropertySettingsData {
   invoiceConfig?: InvoiceConfig;
   houseRulesAndRegulations?: string; // Optional custom rules, curfew, terms to attach to rental agreements
   ownerName?: string; // Property Owner / Authorized Signatory Name for rental agreements
+  signatureUrl?: string; // Base64 data URL or public URL of owner signature / official stamp
 }
 
 export const DEFAULT_PROPERTY_RENTAL_TIERS = {
