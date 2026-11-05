@@ -1739,6 +1739,11 @@ export default function TenantsDirectoryPage({
 
     occupantStore.updateOccupant(updated, propertyId);
 
+    // Save directly to Cloud Firestore so changes persist across all sessions and devices
+    saveOccupantToFirestore(propertyId, updated).catch((err) => {
+      console.warn("Notice saving occupant to Firestore on collect rent:", err);
+    });
+
     // DDS-13 Dynamic Cascading Matrix Compliance: Update bed occupant status in propertyStore!
     const currentStructure = propertyStore.getStructure(propertyId);
     const updatedStructure = currentStructure.map((floor) => ({

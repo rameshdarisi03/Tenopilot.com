@@ -1293,6 +1293,11 @@ export default function IndividualTenantProfilePage({
     setOccupantState(updated);
     occupantStore.updateOccupant(updated, propertyId);
 
+    // Save directly to Cloud Firestore so payment history persists permanently
+    saveOccupantToFirestore(propertyId, updated).catch((err) => {
+      console.warn("Notice saving occupant to Firestore on rent collect:", err);
+    });
+
     // DDS-13 Dynamic Cascading Matrix Compliance: Update bed occupant payment status in propertyStore!
     const currentStructure = propertyStore.getStructure(propertyId);
     const updatedStructure = currentStructure.map((floor) => ({

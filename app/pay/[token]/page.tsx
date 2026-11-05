@@ -11,9 +11,12 @@ import {
   ArrowRight,
   Camera,
   X,
+  Download,
+  FileText,
+  Sparkles,
 } from "lucide-react";
 import { compressImageToDataUrl } from "@/utils/imageCompression";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, onSnapshot, collection } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 
@@ -49,6 +52,16 @@ export default function TenantPaymentBridgePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Real-time Verified Receipt & Status State
+  const [verifiedReceipt, setVerifiedReceipt] = useState<{
+    receiptNo: string;
+    amount: number;
+    date: string;
+    mode: string;
+    paidTo?: string;
+  } | null>(null);
+  const [liveProofStatus, setLiveProofStatus] = useState<"NONE" | "PENDING" | "APPROVED">("NONE");
 
   // Quick PDF Download Redirections
   useEffect(() => {
@@ -134,6 +147,71 @@ export default function TenantPaymentBridgePage() {
     }
     setLoading(false);
   }, [rawToken, searchParams]);
+
+  // Real-time Firestore sync for receipt and proof status
+  useEffect(() => {
+    if (!details || !db || !details.propertyId || !details.tenantId) return;
+
+    // 1. Listen for occupant document to see if payment was recorded
+    const unsubOccupant = onSnapshot(
+      doc(db, "properties", details.propertyId, "occupants", details.tenantId),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const occData = docSnap.data();
+          const history = occData.paymentHistory;
+          if (Array.isArray(history) && history.length > 0) {
+            const latest = history[0];
+            if (latest && latest.status !== "VOIDED") {
+              setVerifiedReceipt({
+                receiptNo: latest.receiptNo || "RCP-VERIFIED",
+                amount: Number(latest.amount) || details.amount,
+                date: latest.date || new Date().toLocaleDateString("en-IN"),
+                mode: latest.mode || "UPI / Digital",
+                paidTo: latest.paidTo || details.partnerName,
+              });
+              setLiveProofStatus("APPROVED");
+            }
+          }
+        }
+      },
+      (err) => console.warn("Notice checking occupant receipt:", err)
+    );
+
+    // 2. Listen for tenant's reported proofs subcollection
+    const unsubProofs = onSnapshot(
+      collection(db, "properties", details.propertyId, "tenants", details.tenantId, "reported_proofs"),
+      (snap) => {
+        if (!snap.empty) {
+          const docs = snap.docs.map((d) => d.data());
+          docs.sort((a, b) => ((b.createdAt as string) || "").localeCompare((a.createdAt as string) || ""));
+          const latest = docs[0];
+          if (latest) {
+            if (latest.status === "APPROVED") {
+              setLiveProofStatus("APPROVED");
+              setVerifiedReceipt((prev) => {
+                if (prev) return prev;
+                return {
+                  receiptNo: latest.receiptNumber || `RCP-${latest.id.slice(-6)}`,
+                  amount: Number(latest.approvedAmount || latest.reportedAmount || details.amount),
+                  date: latest.verifiedAt ? new Date(latest.verifiedAt).toLocaleDateString("en-IN") : new Date().toLocaleDateString("en-IN"),
+                  mode: "UPI / Digital",
+                  paidTo: latest.partnerName || details.partnerName,
+                };
+              });
+            } else if (latest.status === "PENDING_VERIFICATION") {
+              setLiveProofStatus("PENDING");
+            }
+          }
+        }
+      },
+      (err) => console.warn("Notice checking tenant proofs:", err)
+    );
+
+    return () => {
+      unsubOccupant();
+      unsubProofs();
+    };
+  }, [details]);
 
   // Handle Screenshot Upload with Automatic Client-Side Compression
   const handleScreenshotChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -311,8 +389,69 @@ export default function TenantPaymentBridgePage() {
           </div>
         </div>
 
-        {/* 📸 Hyper-Minimal, Laser-Focused Upload Form (Zero Fluff) */}
-        {!isSubmitted ? (
+        {/* 📸 Hyper-Minimal, Laser-Focused Upload Form or Verified Receipt View */}
+        {verifiedReceipt ? (
+          /* ✅ Verified Payment & Downloadable Official Receipt View */
+          <div className="bg-white p-6 sm:p-7 rounded-3xl border-2 border-emerald-400 shadow-xl text-center space-y-4 animate-in zoom-in-95">
+            <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-xs">
+              <CheckCircle2 className="w-9 h-9" />
+            </div>
+
+            <div>
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full border border-emerald-300">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                Payment Verified & Recorded
+              </span>
+              <h2 className="font-serif font-bold text-xl text-gray-900 mt-2.5">Rent Receipt Ready!</h2>
+              <p className="text-xs text-gray-600 mt-1 max-w-sm mx-auto">
+                Thank you, <strong>{details.tenantName}</strong>. Your rent payment for <strong>{details.propertyName}</strong> has been fully verified and recorded in the property ledger.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-left text-xs space-y-2">
+              <div className="flex justify-between items-center pb-2 border-b border-emerald-200/60">
+                <span className="text-gray-500 font-medium">Official Receipt #:</span>
+                <span className="font-mono font-bold text-gray-900 bg-white px-2 py-0.5 rounded border border-emerald-200">{verifiedReceipt.receiptNo}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-500 font-medium">Amount Received:</span>
+                <span className="font-mono font-black text-emerald-800 text-sm">₹{verifiedReceipt.amount.toLocaleString("en-IN")}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-500 font-medium">Payment Mode & Date:</span>
+                <span className="font-semibold text-gray-800">{verifiedReceipt.mode} • {verifiedReceipt.date}</span>
+              </div>
+              {verifiedReceipt.paidTo && (
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500 font-medium">Receiving Account:</span>
+                  <span className="font-semibold text-gray-800">{verifiedReceipt.paidTo}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <a
+                href={`/api/receipt/pdf?receiptNo=${encodeURIComponent(verifiedReceipt.receiptNo)}&amount=${verifiedReceipt.amount}&propertyName=${encodeURIComponent(details.propertyName)}&residentName=${encodeURIComponent(details.tenantName)}&roomNumber=${encodeURIComponent(details.roomNumber)}&paidDate=${encodeURIComponent(verifiedReceipt.date)}&paymentMode=${encodeURIComponent(verifiedReceipt.mode)}&paidTo=${encodeURIComponent(verifiedReceipt.paidTo || details.partnerName || "Main Account")}&download=true`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
+              >
+                <Download className="w-4 h-4" />
+                <span>Download Official PDF Receipt</span>
+              </a>
+
+              <a
+                href={`/api/receipt/pdf?receiptNo=${encodeURIComponent(verifiedReceipt.receiptNo)}&amount=${verifiedReceipt.amount}&propertyName=${encodeURIComponent(details.propertyName)}&residentName=${encodeURIComponent(details.tenantName)}&roomNumber=${encodeURIComponent(details.roomNumber)}&paidDate=${encodeURIComponent(verifiedReceipt.date)}&paymentMode=${encodeURIComponent(verifiedReceipt.mode)}&paidTo=${encodeURIComponent(verifiedReceipt.paidTo || details.partnerName || "Main Account")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-2.5 px-4 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs flex items-center justify-center gap-2 transition-all"
+              >
+                <FileText className="w-3.5 h-3.5 text-gray-500" />
+                <span>View Receipt Online</span>
+              </a>
+            </div>
+          </div>
+        ) : !isSubmitted && liveProofStatus !== "PENDING" ? (
           <form onSubmit={handleSubmitProof} className="bg-white p-5 sm:p-6 rounded-3xl border border-[#d7c2b9]/60 shadow-sm space-y-4">
             <div>
               <h2 className="font-serif font-bold text-sm sm:text-base text-gray-900">
