@@ -670,6 +670,23 @@ function PropertyMapContent({
 
           if (!hasRealEmail) continue;
 
+          const isCash = activeQr?.upiId === "CASH_PAYMENT" || activeQr?.upiId === "CASH" || activeQr?.accountType === "CASH_DESK" || activeQr?.upiId?.toLowerCase().includes("cash");
+          const payUrl = isCash
+            ? undefined
+            : `https://www.tenopilot.com/pay/${generatePayToken({
+                propertyId,
+                propertyName: propertySettings.propertyName || "TenoPilot PG",
+                tenantId: occ.id,
+                tenantName: occ.name,
+                roomNumber: occ.roomNumber,
+                amount: effectiveAmount,
+                dueDate: occ.dueDate || "1st of the month",
+                upiId: activeQr?.upiId || propertySettings.upiPaymentId,
+                partnerName: activeQr?.name || propertySettings.propertyName,
+                partnerPhone: activeQr?.phone || propertySettings.managerPhone || "",
+                propertyPhone: propertySettings.managerPhone || "",
+              })}`;
+
           try {
             const emailRes = await fetch("/api/email/send", {
               method: "POST",
@@ -693,6 +710,7 @@ function PropertyMapContent({
                       dueDate: occ.dueDate || "1st of the month",
                       upiId: activeQr?.upiId || propertySettings.upiPaymentId,
                       payeeName: activeQr?.name || propertySettings.propertyName,
+                      payUrl,
                     },
                   },
                 ],

@@ -51,6 +51,7 @@ import {
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { propertySettingsStore } from "@/constants/propertySettings";
+import { resolveOccupantParkingFee } from "@/utils/domainSSOT";
 import { SelfKycDeskStandeeModal } from "@/components/SelfKycDeskStandeeModal";
 import { buildWhatsAppUrl, normalizePhoneNumber, formatDisplayPhone } from "@/utils/security";
 import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
@@ -240,6 +241,7 @@ function SelfKycDeskContent({
   // Subscriptions to self-kyc store and layout store
   useEffect(() => {
     propertyStore.initFirebaseListener(propertyId);
+    propertySettingsStore.initFirebaseListener(propertyId);
     setPropertyStructure(propertyStore.getStructure(propertyId));
 
     const unsubStructure = propertyStore.subscribe(() => {
@@ -2814,34 +2816,82 @@ function SelfKycDeskContent({
                     </div>
 
                     {/* Allocation & Pricing Confirmation */}
-                    <div className="p-3.5 rounded-2xl bg-orange-50/60 border border-orange-200 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-orange-950">Target Room & Bed:</span>
-                        <span className="font-mono font-black text-orange-900 text-sm">
-                          Room {activeReviewSubmission.roomNumber} ({formatBedLabel(activeReviewSubmission.bedCode)})
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-600 font-medium">Monthly Rent:</span>
-                        <span className="font-mono font-bold text-[#c2652a]">
-                          ₹{(activeReviewSubmission.rentAmount ?? 0).toLocaleString("en-IN")} / mo
-                        </span>
-                      </div>
-                      {activeReviewSubmission.securityDeposit != null && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-600 font-medium">Security Deposit:</span>
-                          <span className="font-mono font-bold text-gray-900">
-                            ₹{Number(activeReviewSubmission.securityDeposit).toLocaleString("en-IN")}
-                          </span>
+                    {(() => {
+                      const hasTaggedVehicles = Boolean(
+                        activeReviewSubmission.vehicleNumbers && activeReviewSubmission.vehicleNumbers.length > 0
+                      );
+                      const currentSettings = propertySettingsStore.getSettings(propertyId);
+                      const matchedOccupant = occupantsList.find(
+                        (o) =>
+                          o.id === activeReviewSubmission.id ||
+                          o.id === activeReviewSubmission.occupantId ||
+                          (activeReviewSubmission.phone && o.phone && o.phone.replace(/\D/g, "").slice(-10) === activeReviewSubmission.phone.replace(/\D/g, "").slice(-10))
+                      );
+                      const parkingFee = hasTaggedVehicles
+                        ? resolveOccupantParkingFee(
+                            matchedOccupant || { vehicleNumbers: activeReviewSubmission.vehicleNumbers },
+                            currentSettings
+                          )
+                        : 0;
+                      const baseRent = activeReviewSubmission.rentAmount ?? 0;
+                      const totalMonthlyTariff = baseRent + parkingFee;
+
+                      return (
+                        <div className="p-3.5 rounded-2xl bg-orange-50/60 border border-orange-200 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-orange-950">Target Room & Bed:</span>
+                            <span className="font-mono font-black text-orange-900 text-sm">
+                              Room {activeReviewSubmission.roomNumber} ({formatBedLabel(activeReviewSubmission.bedCode)})
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600 font-medium">Monthly Rent:</span>
+                            <span className="font-mono font-bold text-[#c2652a]">
+                              ₹{baseRent.toLocaleString("en-IN")} / mo
+                            </span>
+                          </div>
+
+                          {/* 🚗 Parking Fee right under Rent section if vehicle was tagged */}
+                          {hasTaggedVehicles && (
+                            <div className="flex items-center justify-between py-1.5 px-2.5 rounded-xl bg-orange-100/70 border border-orange-200">
+                              <span className="text-xs font-semibold text-orange-950 flex items-center gap-1.5">
+                                <span>🚗 Parking Fee:</span>
+                                <span className="text-[10px] font-medium text-orange-800">
+                                  ({activeReviewSubmission.vehicleNumbers?.length} vehicle{(activeReviewSubmission.vehicleNumbers?.length || 0) > 1 ? "s" : ""})
+                                </span>
+                              </span>
+                              <span className="font-mono font-bold text-xs text-orange-900">
+                                {parkingFee > 0 ? `+₹${parkingFee.toLocaleString("en-IN")} / mo` : "₹0 (Free / Included)"}
+                              </span>
+                            </div>
+                          )}
+
+                          {hasTaggedVehicles && parkingFee > 0 && (
+                            <div className="flex items-center justify-between pt-1 border-t border-orange-200/70">
+                              <span className="text-xs font-bold text-orange-950">Total Monthly Tariff:</span>
+                              <span className="font-mono font-black text-[#c2652a] text-sm">
+                                ₹{totalMonthlyTariff.toLocaleString("en-IN")} / mo
+                              </span>
+                            </div>
+                          )}
+
+                          {activeReviewSubmission.securityDeposit != null && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-600 font-medium">Security Deposit:</span>
+                              <span className="font-mono font-bold text-gray-900">
+                                ₹{Number(activeReviewSubmission.securityDeposit).toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between pt-1 border-t border-orange-200">
+                            <span className="text-gray-600 font-medium">Agreed Joining Date:</span>
+                            <span className="font-bold text-gray-900">
+                              {activeReviewSubmission.joiningDate}
+                            </span>
+                          </div>
                         </div>
-                      )}
-                      <div className="flex items-center justify-between pt-1 border-t border-orange-200">
-                        <span className="text-gray-600 font-medium">Agreed Joining Date:</span>
-                        <span className="font-bold text-gray-900">
-                          {activeReviewSubmission.joiningDate}
-                        </span>
-                      </div>
-                    </div>
+                      );
+                    })()}
 
                     {/* Rejection Input Box (if toggled) */}
                     {showRejectionInput && (

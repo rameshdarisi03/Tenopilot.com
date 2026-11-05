@@ -57,6 +57,8 @@ export interface SESSendParams {
     complaintStatus?: string;
     customMessage?: string;
     category?: string;
+    payUrl?: string;
+    proofUrl?: string;
   };
   attachments?: {
     name: string;
@@ -156,6 +158,8 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
         </p>
       </div>`;
 
+      const targetScreenshotUrl = p.proofUrl || (p.payUrl ? (p.payUrl.includes("?") ? `${p.payUrl}&view=proof` : `${p.payUrl}?view=proof`) : "");
+
       const html = `
 <!DOCTYPE html>
 <html lang="en">
@@ -208,6 +212,21 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
       </div>
 
       ${paymentCardHtml}
+
+      ${targetScreenshotUrl ? `
+      <!-- Direct Payment Verification & Screenshot Upload CTA -->
+      <div style="text-align:center;margin:0 0 24px 0;padding:22px;background:#f0fdf4;border-radius:16px;border:1px solid #86efac;box-shadow:0 2px 8px rgba(16,185,129,0.08);">
+        <p style="margin:0 0 10px 0;font-size:13px;font-weight:700;color:#166534;">
+          Paid your rent via UPI / NetBanking?
+        </p>
+        <a href="${targetScreenshotUrl}" target="_blank" style="display:inline-block;background:#059669;color:#ffffff;text-decoration:none;font-weight:800;font-size:15px;padding:14px 28px;border-radius:12px;box-shadow:0 4px 14px rgba(5,150,105,0.3);letter-spacing:0.3px;">
+          📸 Upload Payment Screenshot
+        </a>
+        <p style="margin:10px 0 0 0;font-size:11px;color:#15803d;line-height:1.4;">
+          Click above to submit your transaction screenshot for instant desk verification & official PDF receipt generation.
+        </p>
+      </div>
+      ` : ""}
 
       <p style="font-size:13px;color:#64748b;margin:0 0 20px 0;line-height:1.5;">
         💡 <em>If you have already completed this payment, please disregard this notice or share the payment receipt with our desk so we can generate your official e-receipt immediately.</em>

@@ -940,6 +940,21 @@ export default function TenantsDirectoryPage({
         continue;
       }
       const destEmail = rawEmail;
+      const occPayUrl = (activeQr?.upiId === "CASH_PAYMENT" || activeQr?.accountType === "CASH_DESK")
+        ? undefined
+        : `https://www.tenopilot.com/pay/${generatePayToken({
+            propertyId,
+            propertyName: currentSettings.propertyName || "TenoPilot PG",
+            tenantId: occ.id,
+            tenantName: occ.name,
+            roomNumber: occ.roomNumber,
+            amount: effectiveAmount,
+            dueDate: occ.dueDate,
+            upiId: activeQr?.upiId,
+            partnerName: activeQr?.bankLabel || activeQr?.name,
+            partnerPhone: activeQr?.phone || currentSettings.managerPhone || "",
+            propertyPhone: currentSettings.managerPhone || "",
+          })}`;
       try {
         const emailRes = await fetch("/api/email/send", {
           method: "POST",
@@ -965,6 +980,7 @@ export default function TenantsDirectoryPage({
                   upiId: activeQr?.upiId,
                   bankLabel: activeQr?.bankLabel,
                   accountType: activeQr?.accountType,
+                  payUrl: occPayUrl,
                 },
               },
             ],
@@ -1260,6 +1276,21 @@ export default function TenantsDirectoryPage({
         continue;
       }
       const destEmail = rawEmail;
+      const occPayUrl = (activeQr?.upiId === "CASH_PAYMENT" || activeQr?.accountType === "CASH_DESK")
+        ? undefined
+        : `https://www.tenopilot.com/pay/${generatePayToken({
+            propertyId,
+            propertyName: currentSettings.propertyName || "TenoPilot PG",
+            tenantId: occ.id,
+            tenantName: occ.name,
+            roomNumber: occ.roomNumber,
+            amount: effectiveAmount,
+            dueDate: occ.dueDate,
+            upiId: activeQr?.upiId,
+            partnerName: activeQr?.bankLabel || activeQr?.name,
+            partnerPhone: activeQr?.phone || currentSettings.managerPhone || "",
+            propertyPhone: currentSettings.managerPhone || "",
+          })}`;
         try {
           const emailRes = await fetch("/api/email/send", {
             method: "POST",
@@ -1280,11 +1311,12 @@ export default function TenantsDirectoryPage({
                     roomNumber: occ.roomNumber,
                     bedCode: occ.bedCode,
                     amount: effectiveAmount,
-                  breakupNote,
-                  dueDate: occ.dueDate,
+                    breakupNote,
+                    dueDate: occ.dueDate,
                     upiId: activeQr?.upiId,
                     bankLabel: activeQr?.bankLabel,
                     accountType: activeQr?.accountType,
+                    payUrl: occPayUrl,
                   },
                 },
               ],

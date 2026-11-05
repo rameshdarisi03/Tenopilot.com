@@ -18,6 +18,7 @@ import {
 import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
 import { portfolioStore } from "@/constants/portfolioStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
+import { propertySettingsStore } from "@/constants/propertySettings";
 import { saveOccupantToFirestore, sanitizeForFirestore } from "@/lib/firestoreService";
 import {
   sanitizePlainText,
@@ -860,6 +861,11 @@ export const selfKycStore = {
         workplace: submission.workplace || existingOcc.workplace,
         vehicleNumbers: submission.vehicleNumbers && submission.vehicleNumbers.length > 0 ? submission.vehicleNumbers : existingOcc.vehicleNumbers,
         vehicleNumber: submission.vehicleNumbers?.[0] || existingOcc.vehicleNumber,
+        parkingCharges: existingOcc.parkingCharges !== undefined
+          ? existingOcc.parkingCharges
+          : ((submission.vehicleNumbers && submission.vehicleNumbers.length > 0) || (existingOcc.vehicleNumbers && existingOcc.vehicleNumbers.length > 0)
+            ? (propertySettingsStore.getSettings(submission.propertyId)?.parkingCharges || 0)
+            : 0),
         kycVerified: true,
         kycDocs: {
           idMode: submission.aadhaarPdfUrl ? "PDF" : "IMAGES",
@@ -907,6 +913,9 @@ export const selfKycStore = {
         address: submission.address || undefined,
         vehicleNumbers: submission.vehicleNumbers && submission.vehicleNumbers.length > 0 ? submission.vehicleNumbers : undefined,
         vehicleNumber: submission.vehicleNumbers?.[0] || undefined,
+        parkingCharges: (submission.vehicleNumbers && submission.vehicleNumbers.length > 0)
+          ? (propertySettingsStore.getSettings(submission.propertyId)?.parkingCharges || 0)
+          : 0,
         kycDocs: {
           idMode: submission.aadhaarPdfUrl ? "PDF" : "IMAGES",
           photoUrl: submission.photoUrl,
