@@ -512,6 +512,199 @@ export default function ReportsAnalyticsPage({
   }, [occupants, propertySettings]);
 
   // -------------------------------------------------------------
+  // TIMELINE-FILTERED SECURITY DEPOSIT TRANSACTIONS & CUSTODY
+  // -------------------------------------------------------------
+  const depositAnalytics = useMemo(() => {
+    const { startDate, endDate, isAllTime } = resolveActiveDateBounds();
+    const transactions: {
+      receiptNo: string;
+      date: string;
+      isoDate: string;
+      occupantName: string;
+      roomNumber: string;
+      bedCode: string;
+      phone: string;
+      type: "COLLECTED" | "REFUNDED";
+      amount: number;
+      mode: string;
+      paidTo: string;
+      status: string;
+    }[] = [];
+
+    let totalCollectedInPeriod = 0;
+    let totalRefundedInPeriod = 0;
+
+    occupants.forEach((occ) => {
+      const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
+      const history = occ.paymentHistory || [];
+
+      history.forEach((pm, idx) => {
+        if (pm.status === "VOIDED") return;
+        const rawDate = pm.date || "";
+        if (!rawDate) return;
+        let isoDate = "";
+        if (rawDate.match(/^\d{4}-\d{2}-\d{2}/)) {
+          isoDate = rawDate.slice(0, 10);
+        } else {
+          const parsed = new Date(rawDate);
+          if (!isNaN(parsed.getTime())) {
+            isoDate = parsed.toISOString().slice(0, 10);
+          }
+        }
+
+        const inPeriod = isAllTime || (isoDate && isoDate >= startDate && isoDate <= endDate);
+        if (!inPeriod) return;
+
+        const rNo = (pm.receiptNo || "").trim();
+        const mStr = (pm.month || "").trim().toLowerCase();
+        const isRefund = rNo.startsWith("REF-") || mStr.includes("refund");
+        const isDep =
+          !isRefund &&
+          (mStr.includes("deposit") ||
+            rNo.toLowerCase().includes("dep") ||
+            ((pm as any).depositAmount && (pm as any).depositAmount > 0));
+
+        if (!isDep && !isRefund) return;
+
+        if (isDep) {
+          totalCollectedInPeriod += pm.amount;
+        } else {
+          totalRefundedInPeriod += pm.amount;
+        }
+
+        transactions.push({
+          receiptNo: pm.receiptNo || (isRefund ? `REF-${idx + 101}` : `DEP-${idx + 101}`),
+          date: pm.date || "Active Cycle",
+          isoDate,
+          occupantName: occ.name,
+          roomNumber: occ.roomNumber,
+          bedCode: occ.bedCode,
+          phone: occ.phone,
+          type: isRefund ? "REFUNDED" : "COLLECTED",
+          amount: pm.amount,
+          mode: pm.mode || "UPI",
+          paidTo: pm.paidTo || "Main Business Account",
+          status: isRefund ? "REFUNDED" : "PAID",
+        });
+      });
+
+      // If occupant joined in this timeline and paid deposit on joining without granular item in paymentHistory
+      const joinStr = occ.joiningDate || "";
+      const joinIso = joinStr && joinStr.match(/^\d{4}-\d{2}-\d{2}/) ? joinStr.slice(0, 10) : "";
+      const inJoinPeriod = isAllTime || (joinIso && joinIso >= startDate && joinIso <= endDate);
+      const hasGranularDep = history.some(
+        (pm) =>
+          (pm.month || "").toLowerCase().includes("deposit") || (pm.receiptNo || "").toLowerCase().includes("dep")
+      );
+
+      if (inJoinPeriod && !hasGranularDep && stmt.totalDepositPaid > 0) {
+        totalCollectedInPeriod += stmt.totalDepositPaid;
+        transactions.push({
+          receiptNo: `DEP-${occ.roomNumber}-${occ.bedCode}`,
+          date: occ.joiningDate || "Active",
+          isoDate: joinIso,
+          occupantName: occ.name,
+          roomNumber: occ.roomNumber,
+          bedCode: occ.bedCode,
+          phone: occ.phone,
+          type: "COLLECTED",
+          amount: stmt.totalDepositPaid,
+          mode: "Direct Transfer",
+          paidTo: "Main Business Account",
+          status: "PAID",
+        });
+      }
+
+      // Check checkout settlement for vacated tenants
+      if (occ.checkoutSettlement) {
+        const setDate = occ.checkoutSettlement.settledDate || "";
+        const setIso = setDate && setDate.match(/^\d{4}-\d{2}-\d{2}/) ? setDate.slice(0, 10) : "";
+        const inSettlementPeriod = isAllTime || (setIso && setIso >= startDate && setIso <= endDate);
+        const hasGranularRef = history.some(
+          (pm) => (pm.receiptNo || "").startsWith("REF-") || (pm.month || "").toLowerCase().includes("refund")
+        );
+
+        if (inSettlementPeriod && !hasGranularRef && occ.checkoutSettlement.netRefunded > 0) {
+          totalRefundedInPeriod += occ.checkoutSettlement.netRefunded;
+          transactions.push({
+            receiptNo: `REF-${occ.roomNumber}-${occ.bedCode}`,
+            date: occ.checkoutSettlement.settledDate || "Recent",
+            isoDate: setIso,
+            occupantName: occ.name,
+            roomNumber: occ.roomNumber,
+            bedCode: occ.bedCode,
+            phone: occ.phone,
+            type: "REFUNDED",
+            amount: occ.checkoutSettlement.netRefunded,
+            mode: occ.checkoutSettlement.paymentChannel || "Bank Refund",
+            paidTo: "Resident Account",
+            status: "REFUNDED",
+          });
+        }
+      }
+    });
+
+    // Cross-check compliance logs for checkout refunds
+    const complianceLogs = complianceLogStore.getLogs(propertyId);
+    complianceLogs.forEach((log) => {
+      const logDate = log.checkOutDate && log.checkOutDate.match(/^\d{4}-\d{2}-\d{2}/) ? log.checkOutDate.slice(0, 10) : "";
+      if (isAllTime || (logDate && logDate >= startDate && logDate <= endDate)) {
+        if (log.depositRefunded && log.depositRefunded > 0) {
+          const alreadyTracked = transactions.some(
+            (t) => t.type === "REFUNDED" && t.occupantName.toLowerCase() === (log.name || "").toLowerCase()
+          );
+          if (!alreadyTracked) {
+            totalRefundedInPeriod += log.depositRefunded;
+            transactions.push({
+              receiptNo: `REF-CHK-${log.id.slice(-4)}`,
+              date: log.checkOutDate || "Recent",
+              isoDate: logDate,
+              occupantName: log.name || "Exited Resident",
+              roomNumber: log.roomNumber || "N/A",
+              bedCode: log.bedCode || "N/A",
+              phone: log.phone || "",
+              type: "REFUNDED",
+              amount: log.depositRefunded,
+              mode: "Bank Refund",
+              paidTo: "Resident Account",
+              status: "REFUNDED",
+            });
+          }
+        }
+      }
+    });
+
+    // Active Custody Register (Active & Notice residents)
+    const custodyRegister = occupants
+      .filter((o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice")
+      .map((occ) => {
+        const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
+        const req = stmt.securityDepositRequired || 0;
+        const paid = stmt.totalDepositPaid || (stmt.isDepositCleared ? req : 0);
+        const rem = stmt.remainingDepositDue !== undefined ? stmt.remainingDepositDue : Math.max(0, req - paid);
+        return {
+          occupant: occ,
+          statement: stmt,
+          req,
+          paid,
+          rem,
+          status: stmt.isDepositCleared ? "PAID" : "PENDING",
+        };
+      });
+
+    const totalEscrowHeld = custodyRegister.reduce((acc, c) => acc + c.paid, 0);
+
+    return {
+      transactions: transactions.sort((a, b) => (b.date > a.date ? 1 : -1)),
+      totalCollectedInPeriod,
+      totalRefundedInPeriod,
+      netEscrowChange: totalCollectedInPeriod - totalRefundedInPeriod,
+      custodyRegister,
+      totalEscrowHeld,
+    };
+  }, [occupants, propertySettings, selectedTimelineFilter, customStartDate, customEndDate, propertyId]);
+
+  // -------------------------------------------------------------
   // 1-CLICK EXPORT HANDLERS (CSV & COLORFUL EXCEL)
   // -------------------------------------------------------------
   const handleExportRentRollCSV = () => {
@@ -585,30 +778,57 @@ export default function ReportsAnalyticsPage({
   };
 
   const handleExportDepositRegisterCSV = () => {
-    const rows = occupants.map((occ) => {
-      const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
-      return {
-        "Tenant ID": occ.id,
-        "Tenant Name": occ.name,
-        "Room Location": `Room ${occ.roomNumber} (${occ.bedCode})`,
-        "Check-In Date": occ.joiningDate || "N/A",
-        "Security Deposit Required (INR)": stmt.securityDepositRequired,
-        "Deposit Paid": stmt.isDepositCleared ? "YES" : "NO",
-        "Deposit Status": stmt.isDepositCleared ? "PAID" : "PENDING",
-        "Contact Phone": occ.phone,
-        "Emergency Phone": occ.emergencyContact?.phone || "N/A",
-      };
-    });
+    const { startDate, endDate, label } = resolveActiveDateBounds();
 
-    const csv = Papa.unparse(rows);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Security_Deposit_Report_${propertyId}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    triggerToast("✓ Security Deposit Report downloaded successfully!");
+    if (depositAnalytics.transactions.length > 0) {
+      // Timeline-filtered deposit activity
+      const rows = depositAnalytics.transactions.map((t) => ({
+        "Receipt / Ref #": t.receiptNo,
+        "Transaction Date": t.date,
+        "Resident Name": t.occupantName,
+        "Room Location": `Room ${t.roomNumber} (${t.bedCode})`,
+        "Contact Phone": t.phone,
+        "Activity Type": t.type,
+        "Amount (INR)": t.amount,
+        "Payment Mode": t.mode,
+        "Account / Channel": t.paidTo,
+        "Status": t.status,
+      }));
+
+      const csv = Papa.unparse(rows);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Security_Deposit_Activity_${propertyId}_${startDate}_to_${endDate}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      triggerToast(`✓ Security Deposit Activity Report (${label}) downloaded!`);
+    } else {
+      // Current Escrow Custody Register
+      const rows = depositAnalytics.custodyRegister.map((c) => ({
+        "Tenant ID": c.occupant.id,
+        "Tenant Name": c.occupant.name,
+        "Room Location": `Room ${c.occupant.roomNumber} (${c.occupant.bedCode})`,
+        "Check-In Date": c.occupant.joiningDate || "Active",
+        "Security Deposit Required (INR)": c.req,
+        "Deposit Paid / Held (INR)": c.paid,
+        "Remaining Due (INR)": c.rem,
+        "Deposit Status": c.status,
+        "Contact Phone": c.occupant.phone,
+        "Emergency Phone": c.occupant.emergencyContact?.phone || "N/A",
+      }));
+
+      const csv = Papa.unparse(rows);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Security_Deposit_Custody_Register_${propertyId}_${startDate}_to_${endDate}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      triggerToast(`✓ Security Deposit Custody Register (${label}) downloaded!`);
+    }
   };
 
   const handleExportDefaultersCSV = () => {
@@ -921,53 +1141,87 @@ export default function ReportsAnalyticsPage({
       setupWorksheetView(wsNotice, 5);
 
       // ==========================================
-      // SHEET 5: SECURITY DEPOSITS CUSTODY
+      // SHEET 5: SECURITY DEPOSITS & ESCROW
       // ==========================================
       const wsDeposits = wb.addWorksheet("Security Deposits");
       renderHeroBanner(
         wsDeposits,
-        `${propertySettings.propertyName || "Sunshine PG"} — RESIDENT SECURITY DEPOSIT ESCROW REGISTER`,
-        `Statutory Custody Ledger`,
-        "H",
+        `${propertySettings.propertyName || "Sunshine PG"} — SECURITY DEPOSITS & ESCROW AUDIT`,
+        `Report Window: ${activeDateBounds.label} • Net Escrow Flow: ₹${depositAnalytics.netEscrowChange.toLocaleString("en-IN")}`,
+        "J",
         "FF312E81"
       );
 
-      const depositCols = [
-        { header: "Resident Name", key: "name", width: 24 },
-        { header: "Room & Bed", key: "roomBed", width: 14, align: "center" as const },
-        { header: "Contact Phone", key: "phone", width: 16, align: "center" as const },
-        { header: "Check-In Date", key: "joiningDate", width: 14, align: "center" as const },
-        { header: "Deposit Required", key: "req", width: 18, align: "right" as const, isCurrency: true },
-        { header: "Deposit Paid", key: "paid", width: 18, align: "right" as const, isCurrency: true },
-        { header: "Remaining Due", key: "rem", width: 16, align: "right" as const, isCurrency: true },
-        { header: "Status", key: "status", width: 14, align: "center" as const },
-      ];
+      renderMetadataCards(
+        wsDeposits,
+        [
+          { label: "Window", value: activeDateBounds.label },
+          { label: "Deposits Collected", value: `₹${depositAnalytics.totalCollectedInPeriod.toLocaleString("en-IN")}` },
+          { label: "Move-Out Refunds", value: `₹${depositAnalytics.totalRefundedInPeriod.toLocaleString("en-IN")}` },
+          { label: "Current Escrow Held", value: `₹${depositAnalytics.totalEscrowHeld.toLocaleString("en-IN")}` },
+        ],
+        4
+      );
 
-      const depositRowsData = occupants
-        .filter((o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice")
-        .map((occ) => {
-          const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
-          const req = stmt.securityDepositRequired || 0;
-          const paid = stmt.totalDepositPaid || (stmt.isDepositCleared ? req : 0);
-          const rem = stmt.remainingDepositDue !== undefined ? stmt.remainingDepositDue : Math.max(0, req - paid);
-          return {
-            name: occ.name,
-            roomBed: `${occ.roomNumber} (${occ.bedCode})`,
-            phone: occ.phone,
-            joiningDate: occ.joiningDate || "Active",
-            req,
-            paid,
-            rem,
-            status: stmt.isDepositCleared ? "PAID" : "PENDING",
-          };
-        });
+      if (depositAnalytics.transactions.length > 0) {
+        const depositActivityCols = [
+          { header: "Receipt / Ref #", key: "receiptNo", width: 18 },
+          { header: "Date", key: "date", width: 14, align: "center" as const },
+          { header: "Resident Name", key: "name", width: 24 },
+          { header: "Room", key: "room", width: 10, align: "center" as const },
+          { header: "Bed", key: "bed", width: 10, align: "center" as const },
+          { header: "Phone Number", key: "phone", width: 16, align: "center" as const },
+          { header: "Activity Type", key: "type", width: 16, align: "center" as const },
+          { header: "Payment Mode", key: "mode", width: 14, align: "center" as const },
+          { header: "Amount (INR)", key: "amount", width: 18, align: "right" as const, isCurrency: true },
+          { header: "Status", key: "status", width: 14, align: "center" as const },
+        ];
 
-      const lastDepRow = renderStyledTable(wsDeposits, 5, depositCols, depositRowsData, "FF312E81");
-      if (depositRowsData.length > 0) {
-        renderTotalRow(wsDeposits, lastDepRow + 1, 6, lastDepRow, depositCols);
+        const depositActivityRows = depositAnalytics.transactions.map((t) => ({
+          receiptNo: t.receiptNo,
+          date: t.date,
+          name: t.occupantName,
+          room: t.roomNumber,
+          bed: t.bedCode,
+          phone: t.phone,
+          type: t.type,
+          mode: t.mode,
+          amount: t.amount,
+          status: t.status,
+        }));
+
+        const lastActivityRow = renderStyledTable(wsDeposits, 6, depositActivityCols, depositActivityRows, "FF312E81");
+        renderTotalRow(wsDeposits, lastActivityRow + 1, 7, lastActivityRow, depositActivityCols);
+      } else {
+        const depositCols = [
+          { header: "Resident Name", key: "name", width: 24 },
+          { header: "Room & Bed", key: "roomBed", width: 14, align: "center" as const },
+          { header: "Contact Phone", key: "phone", width: 16, align: "center" as const },
+          { header: "Check-In Date", key: "joiningDate", width: 14, align: "center" as const },
+          { header: "Deposit Required", key: "req", width: 18, align: "right" as const, isCurrency: true },
+          { header: "Deposit Paid / Held", key: "paid", width: 18, align: "right" as const, isCurrency: true },
+          { header: "Remaining Due", key: "rem", width: 16, align: "right" as const, isCurrency: true },
+          { header: "Status", key: "status", width: 14, align: "center" as const },
+        ];
+
+        const depositRowsData = depositAnalytics.custodyRegister.map((c) => ({
+          name: c.occupant.name,
+          roomBed: `${c.occupant.roomNumber} (${c.occupant.bedCode})`,
+          phone: c.occupant.phone,
+          joiningDate: c.occupant.joiningDate || "Active",
+          req: c.req,
+          paid: c.paid,
+          rem: c.rem,
+          status: c.status,
+        }));
+
+        const lastDepRow = renderStyledTable(wsDeposits, 6, depositCols, depositRowsData, "FF312E81");
+        if (depositRowsData.length > 0) {
+          renderTotalRow(wsDeposits, lastDepRow + 1, 7, lastDepRow, depositCols);
+        }
       }
       autoFitColumnWidths(wsDeposits);
-      setupWorksheetView(wsDeposits, 5);
+      setupWorksheetView(wsDeposits, 6);
 
       // ==========================================
       // SHEET 6: OPERATIONAL EXPENSES
@@ -1327,15 +1581,26 @@ export default function ReportsAnalyticsPage({
                     </button>
                   </div>
 
-                  {/* Export Box 5: Security Deposit Custody Report */}
+                  {/* Export Box 5: Security Deposit Activity & Escrow Report */}
                   <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-gray-50 border border-gray-200 flex flex-col justify-between space-y-3 sm:space-y-4 hover:border-[#c2652a]/60 hover:bg-orange-50/20 transition-all group">
                     <div className="space-y-1.5 sm:space-y-2">
-                      <div className="w-9 sm:w-10 h-9 sm:h-10 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-bold">
-                        <ShieldCheck className="w-4 sm:w-5 h-4 sm:h-5" />
+                      <div className="flex items-center justify-between">
+                        <div className="w-9 sm:w-10 h-9 sm:h-10 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-bold">
+                          <ShieldCheck className="w-4 sm:w-5 h-4 sm:h-5" />
+                        </div>
+                        {depositAnalytics.transactions.length > 0 ? (
+                          <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full">
+                            {depositAnalytics.transactions.length} in Window
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-extrabold text-purple-800 bg-purple-100 border border-purple-300 px-2.5 py-0.5 rounded-full">
+                            ₹{depositAnalytics.totalEscrowHeld.toLocaleString("en-IN")} Escrow Held
+                          </span>
+                        )}
                       </div>
-                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Security Deposit Custody (.csv)</h4>
+                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Security Deposit Activity (.csv)</h4>
                       <p className="text-[11px] sm:text-xs text-gray-500 leading-relaxed">
-                        Resident security deposit status list with joining dates, amounts held, and remaining dues.
+                        Collections, move-out refunds, and escrow balances for {activeDateBounds.label}.
                       </p>
                     </div>
                     <button
