@@ -1446,22 +1446,20 @@ export default function PropertySettingsPage({
                           </div>
 
                           <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60 flex-wrap">
-                            <button
-                              type="button"
-                              onClick={() => signatureCameraInputRef.current?.click()}
-                              className="px-3 py-1.5 text-xs font-bold text-purple-800 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-xl cursor-pointer flex items-center gap-1.5 shadow-2xs transition-all active:scale-95"
+                            <label
+                              htmlFor="signature-camera-input"
+                              className="px-2.5 sm:px-3 py-1.5 text-xs font-bold text-[#c2652a] bg-[#c2652a]/10 hover:bg-[#c2652a]/20 border border-[#c2652a]/30 rounded-xl cursor-pointer flex items-center gap-1.5 shadow-2xs transition-all active:scale-95 select-none"
                             >
-                              <Camera className="w-3.5 h-3.5 text-purple-600" />
-                              <span>Take New Photo</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => signatureGalleryInputRef.current?.click()}
-                              className="px-3 py-1.5 text-xs font-bold text-gray-700 bg-white hover:bg-gray-100 border border-gray-300 rounded-xl cursor-pointer flex items-center gap-1.5 shadow-2xs transition-all active:scale-95"
+                              <Camera className="w-3.5 h-3.5 text-[#c2652a]" />
+                              <span>Camera</span>
+                            </label>
+                            <label
+                              htmlFor="signature-gallery-input"
+                              className="px-2.5 sm:px-3 py-1.5 text-xs font-bold text-gray-700 bg-white hover:bg-gray-100 border border-gray-300 rounded-xl cursor-pointer flex items-center gap-1.5 shadow-2xs transition-all active:scale-95 select-none"
                             >
-                              <Upload className="w-3.5 h-3.5 text-blue-600" />
-                              <span>Choose from Gallery</span>
-                            </button>
+                              <Upload className="w-3.5 h-3.5 text-gray-600" />
+                              <span>Gallery</span>
+                            </label>
                             <button
                               type="button"
                               onClick={() => {
@@ -1469,7 +1467,7 @@ export default function PropertySettingsPage({
                                 setSignatureSizeKb(null);
                                 triggerToast("Signature removed. System will use digital signature fallback.");
                               }}
-                              className="px-3 py-1.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl cursor-pointer flex items-center gap-1 transition-all active:scale-95 ml-auto"
+                              className="px-2.5 sm:px-3 py-1.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl cursor-pointer flex items-center gap-1 transition-all active:scale-95 ml-auto"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                               <span>Remove</span>
@@ -1477,61 +1475,58 @@ export default function PropertySettingsPage({
                           </div>
                         </div>
                       ) : (
-                        <div className="space-y-2.5">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div className="space-y-2">
+                          {/* Side-by-Side Mobile-Responsive Camera & Gallery Buttons with App Theme */}
+                          <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
                             {/* Option 1: Take Photo with Camera */}
-                            <button
-                              type="button"
-                              disabled={isCompressingSignature}
-                              onClick={() => signatureCameraInputRef.current?.click()}
-                              className="p-3.5 sm:p-4 rounded-2xl border-2 border-dashed border-purple-300 hover:border-purple-500 bg-purple-50/40 hover:bg-purple-50/80 transition-all flex items-center gap-3 text-left cursor-pointer active:scale-98 group"
+                            <label
+                              htmlFor="signature-camera-input"
+                              className="p-3 sm:p-3.5 rounded-2xl border-2 border-dashed border-[#c2652a]/35 hover:border-[#c2652a] bg-[#c2652a]/5 hover:bg-[#c2652a]/10 transition-all flex flex-col items-center justify-center text-center cursor-pointer active:scale-95 select-none group"
                             >
-                              <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
-                                <Camera className="w-5 h-5" />
+                              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#c2652a] text-white flex items-center justify-center shrink-0 shadow-xs mb-1.5 group-hover:scale-105 transition-transform">
+                                <Camera className="w-4 h-4 sm:w-5 sm:h-5" />
                               </div>
-                              <div className="min-w-0">
-                                <span className="block font-bold text-xs text-purple-950">📸 Take Photo with Camera</span>
-                                <span className="block text-[10px] text-purple-700 font-medium mt-0.5 truncate">
-                                  Snap signature signed on white paper
-                                </span>
-                              </div>
-                            </button>
+                              <span className="block font-bold text-[11px] sm:text-xs text-[#201a17]">
+                                📸 Camera
+                              </span>
+                              <span className="block text-[9px] sm:text-[10px] text-[#c2652a] font-semibold mt-0.5 truncate max-w-full">
+                                Snap on white paper
+                              </span>
+                            </label>
 
                             {/* Option 2: Choose from Gallery */}
-                            <button
-                              type="button"
-                              disabled={isCompressingSignature}
-                              onClick={() => signatureGalleryInputRef.current?.click()}
-                              className="p-3.5 sm:p-4 rounded-2xl border-2 border-dashed border-blue-300 hover:border-blue-500 bg-blue-50/40 hover:bg-blue-50/80 transition-all flex items-center gap-3 text-left cursor-pointer active:scale-98 group"
+                            <label
+                              htmlFor="signature-gallery-input"
+                              className="p-3 sm:p-3.5 rounded-2xl border-2 border-dashed border-[#c2652a]/35 hover:border-[#c2652a] bg-[#c2652a]/5 hover:bg-[#c2652a]/10 transition-all flex flex-col items-center justify-center text-center cursor-pointer active:scale-95 select-none group"
                             >
-                              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
-                                <Upload className="w-5 h-5" />
+                              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#201a17] text-white flex items-center justify-center shrink-0 shadow-xs mb-1.5 group-hover:scale-105 transition-transform">
+                                <Upload className="w-4 h-4 sm:w-5 sm:h-5" />
                               </div>
-                              <div className="min-w-0">
-                                <span className="block font-bold text-xs text-blue-950">🖼️ Choose from Gallery</span>
-                                <span className="block text-[10px] text-blue-700 font-medium mt-0.5 truncate">
-                                  Upload photo or official seal image
-                                </span>
-                              </div>
-                            </button>
+                              <span className="block font-bold text-[11px] sm:text-xs text-[#201a17]">
+                                🖼️ Gallery
+                              </span>
+                              <span className="block text-[9px] sm:text-[10px] text-gray-600 font-semibold mt-0.5 truncate max-w-full">
+                                Choose image or seal
+                              </span>
+                            </label>
                           </div>
 
-                          <div className="flex items-center justify-between text-[10px] text-gray-500 px-1">
-                            <span>Clean white paper recommended for highest clarity</span>
-                            <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                              <Sparkles className="w-3 h-3" /> Auto-compressed without quality loss
+                          <div className="flex items-center justify-between text-[10px] text-gray-500 px-1 flex-wrap gap-1">
+                            <span>Clean white background recommended</span>
+                            <span className="text-[#c2652a] font-semibold flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-[#c2652a]" /> Auto-compressed for HD vouchers
                             </span>
                           </div>
                         </div>
                       )}
 
-                      {/* Native OS File Inputs for Camera & Gallery */}
+                      {/* Native OS Accessible File Inputs (Camera & Gallery) */}
                       <input
-                        ref={signatureCameraInputRef}
+                        id="signature-camera-input"
                         type="file"
                         accept="image/*"
                         capture="environment"
-                        className="hidden"
+                        className="sr-only opacity-0 absolute w-0 h-0 pointer-events-none"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) handleProcessSignatureFile(file);
@@ -1539,10 +1534,10 @@ export default function PropertySettingsPage({
                         }}
                       />
                       <input
-                        ref={signatureGalleryInputRef}
+                        id="signature-gallery-input"
                         type="file"
                         accept="image/*"
-                        className="hidden"
+                        className="sr-only opacity-0 absolute w-0 h-0 pointer-events-none"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) handleProcessSignatureFile(file);
