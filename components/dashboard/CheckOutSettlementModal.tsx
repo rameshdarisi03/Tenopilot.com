@@ -105,7 +105,8 @@ export function CheckOutSettlementModal({
   });
 
   const [settlementNotes, setSettlementNotes] = useState(() => occupant.checkoutSettlement?.notes || "");
-  const [sendThankYouNotice, setSendThankYouNotice] = useState(true);
+  const [sendWhatsAppNotice, setSendWhatsAppNotice] = useState(true);
+  const [sendEmailNotice, setSendEmailNotice] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen || !occupant) return null;
@@ -257,8 +258,8 @@ export function CheckOutSettlementModal({
 
       complianceLogStore.addLog(propertyId, sanitizedComplianceEntry);
 
-      // 5. 💬 Auto-Dispatch Thank You Note & Settlement PDF Receipt via WhatsApp & Email
-      if (sendThankYouNotice) {
+      // 5. 💬 Auto-Dispatch Move-Out Settlement PDF Receipt via WhatsApp & Email
+      if ((sendWhatsAppNotice || sendEmailNotice) && !isBadDebtExit) {
         try {
           const baseUrl = getCanonicalPortalOrigin();
           const receiptNoStr = `REF-${Date.now().toString().slice(-6)}`;
@@ -291,8 +292,8 @@ export function CheckOutSettlementModal({
 
           const pdfUrl = `${baseUrl}/api/receipt/pdf?${pdfParams.toString()}`;
 
-          // WhatsApp Dispatch
-          if (occupant.phone) {
+          // WhatsApp Dispatch (if checked)
+          if (sendWhatsAppNotice && occupant.phone) {
             fetch("/api/whatsapp/send", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -309,6 +310,9 @@ export function CheckOutSettlementModal({
                     params: {
                       receiptId: receiptNoStr,
                       receiptUrl: pdfUrl,
+                      amount: netRefundableAmount > 0 ? netRefundableAmount : 0,
+                      paidDate: todayStr,
+                      paymentMode: paymentChannel,
                       roomNumber: roomNumber || occupant.roomNumber,
                       bedCode: bedCode || occupant.bedCode,
                       managerPhone: settings?.managerPhone,
@@ -319,8 +323,8 @@ export function CheckOutSettlementModal({
             }).catch((e) => console.warn("Notice dispatching WhatsApp checkout thank you:", e));
           }
 
-            // Email Dispatch
-            if (occupant.email && !occupant.email.includes("resident.tenopilot.com")) {
+          // Email Dispatch (if checked)
+          if (sendEmailNotice && occupant.email && !occupant.email.includes("resident.tenopilot.com")) {
               fetch("/api/email/send", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -414,7 +418,8 @@ export function CheckOutSettlementModal({
                 setDrawerKeysReturned(true);
                 setAcRemoteReturned(true);
                 setRoomInspected(true);
-                setSendThankYouNotice(true);
+                setSendWhatsAppNotice(true);
+                setSendEmailNotice(true);
                 setSettlementNotes("");
               }}
               className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
@@ -440,7 +445,8 @@ export function CheckOutSettlementModal({
                 setDrawerKeysReturned(false);
                 setAcRemoteReturned(false);
                 setRoomInspected(false);
-                setSendThankYouNotice(false);
+                setSendWhatsAppNotice(false);
+                setSendEmailNotice(false);
                 setSettlementNotes("Resident absconded without notice/intimation. Left room uninspected with pending dues.");
               }}
               className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
@@ -462,7 +468,8 @@ export function CheckOutSettlementModal({
               type="button"
               onClick={() => {
                 setExitDisposition("DEFAULTED");
-                setSendThankYouNotice(false);
+                setSendWhatsAppNotice(false);
+                setSendEmailNotice(false);
                 setSettlementNotes("Resident refused to clear outstanding rent/damages before vacating.");
               }}
               className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
@@ -755,20 +762,41 @@ export function CheckOutSettlementModal({
           </div>
         )}
 
-        {/* SECTION 4: Automated Digital Dispatch (WhatsApp & Email) */}
-        {!isBadDebtExit && (
-          <div className="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-emerald-950">
-            <label className="flex items-center gap-2.5 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={sendThankYouNotice}
-                onChange={(e) => setSendThankYouNotice(e.target.checked)}
-                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-              />
-              <span className="font-bold text-xs text-emerald-950 flex items-center gap-1.5">
-                <span>💬</span> Send Thank You note & Settlement PDF Receipt via WhatsApp & Email
-              </span>
-            </label>
+        {/* SECTION 4: Automated Digital Dispatch (WhatsApp & Email Options) */}
+        {!isBadDebtExit ? (
+          <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-emerald-950 space-y-2.5">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 block">
+              📬 Digital Delivery Channels (Check to Send):
+            </span>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={sendWhatsAppNotice}
+                  onChange={(e) => setSendWhatsAppNotice(e.target.checked)}
+                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                />
+                <span className="font-bold text-xs text-gray-800 flex items-center gap-1">
+                  <span>💬</span> WhatsApp Notice & PDF
+                </span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={sendEmailNotice}
+                  onChange={(e) => setSendEmailNotice(e.target.checked)}
+                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                />
+                <span className="font-bold text-xs text-gray-800 flex items-center gap-1">
+                  <span>✉️</span> Email Notice & PDF
+                </span>
+              </label>
+            </div>
+          </div>
+        ) : (
+          <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
+            <span className="font-bold">⚠️ Absconded / Unsettled Default:</span> Friendly thank-you notices are automatically disabled. Tenancy termination is preserved in police compliance records.
           </div>
         )}
 

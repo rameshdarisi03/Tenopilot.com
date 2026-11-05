@@ -37,10 +37,10 @@ export async function POST(req: NextRequest) {
         }
 
         if (!partnerPhone) {
-          const settingsDoc = await getDoc(doc(db, "properties", propertyId, "settings", "current"));
+          const settingsDoc = await getDoc(doc(db, "properties", propertyId, "settings", "config"));
           if (settingsDoc.exists()) {
             const sData = settingsDoc.data();
-            partnerPhone = sData.phone || sData.ownerPhone;
+            partnerPhone = sData.managerPhone || sData.phone || sData.ownerPhone;
             if (!partnerName) partnerName = sData.ownerName || "Master Admin";
             if (!propertyName) propertyName = sData.propertyName;
           }
@@ -63,6 +63,7 @@ export async function POST(req: NextRequest) {
       params: {
         amount,
         roomNumber,
+        tenantName,
         utrNumber: utrNumber || "Screenshot Attached",
         upiId,
         proofId,

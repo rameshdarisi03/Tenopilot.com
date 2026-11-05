@@ -31,6 +31,7 @@ import { partnerStore, PaymentAccountConfig, PartnerConfig } from "@/constants/p
 import { ThemedAccountSelect } from "@/components/dashboard/ThemedAccountSelect";
 import { complianceLogStore } from "@/constants/complianceLogStore";
 import { sanitizeOccupantForCompliance } from "@/utils/dpdpRetentionEngine";
+import { getCanonicalPortalOrigin } from "@/utils/urlUtils";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
 import { generateReceiptNumber } from "@/lib/invoiceNumberEngine";
 import { buildWhatsAppUrl, sanitizeVehicleNumber, normalizePhoneNumber, formatDisplayPhone } from "@/utils/security";
@@ -543,6 +544,8 @@ export default function IndividualTenantProfilePage({
   const [earlyDeparturePolicy, setEarlyDeparturePolicy] = useState<"PRO_RATA_REFUND" | "RETAIN_PACKAGE">("PRO_RATA_REFUND");
   const [penaltyAmount, setPenaltyAmount] = useState<number>(0);
   const [guestSettlementPaymentMode, setGuestSettlementPaymentMode] = useState<string>("Cash");
+  const [sendGuestWhatsAppNotice, setSendGuestWhatsAppNotice] = useState<boolean>(true);
+  const [sendGuestEmailNotice, setSendGuestEmailNotice] = useState<boolean>(true);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showDeleteGuestModal, setShowDeleteGuestModal] = useState(false);
   const [showGuestCheckoutConfirmModal, setShowGuestCheckoutConfirmModal] = useState(false);
@@ -1751,7 +1754,7 @@ export default function IndividualTenantProfilePage({
   };
 
   // 2b. Guest Checkout & Bed Clearance Submit Handler (Simple PG Owner Cash Settlement)
-  const handleGuestCheckoutSubmit = (e: React.FormEvent) => {
+  const handleGuestCheckoutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!occupantState) return;
 
@@ -1775,6 +1778,7 @@ export default function IndividualTenantProfilePage({
     const netCashToReturn = stmt.totalPaid - totalOwnerKeeps;
 
     const newPaymentHistory = [...(occupantState.paymentHistory || [])];
+    const guestReceiptNo = `REF-GUEST-${Date.now().toString().slice(-5)}`;
 
     // If money was returned to the guest, log an official return receipt in ledger
     if (netCashToReturn > 0) {
@@ -1784,7 +1788,7 @@ export default function IndividualTenantProfilePage({
         date: guestCheckoutDate,
         amount: -netCashToReturn,
         mode: guestSettlementPaymentMode || "Cash",
-        receiptNo: `RET-${Date.now().toString().slice(-4)}`,
+        receiptNo: guestReceiptNo,
         status: "PAID",
       });
 
@@ -1809,7 +1813,7 @@ export default function IndividualTenantProfilePage({
         date: guestCheckoutDate,
         amount: deficitAmount,
         mode: guestSettlementPaymentMode || "Cash",
-        receiptNo: `SET-${Date.now().toString().slice(-4)}`,
+        receiptNo: guestReceiptNo,
         status: "PAID",
       });
     }
@@ -1826,6 +1830,7 @@ export default function IndividualTenantProfilePage({
 
     setOccupantState(updatedGuest);
     occupantStore.updateOccupant(updatedGuest, propertyId);
+    await saveOccupantToFirestore(propertyId, updatedGuest);
 
     // 🔒 Write DPDP Act 2023 Sanitized Immutable Record to Master Police Register
     const exitCategory = analysis?.isEarly ? "Emergency Early Departure" : "Standard Scheduled Departure";
@@ -1857,27 +1862,107 @@ export default function IndividualTenantProfilePage({
 
     complianceLogStore.addLog(propertyId, sanitizedComplianceEntry);
 
-    // Vacate bed slot in propertyStore singleton (Bed returns to Available 🟢)
-    const currentStructure = propertyStore.getStructure(propertyId);
-    const updatedStructure = currentStructure.map((floor) => ({
-      ...floor,
-      rooms: floor.rooms.map((room) => {
-        if (room.roomNumber !== occupantState.roomNumber) return room;
-        return {
-          ...room,
-          beds: room.beds.map((bed) => {
-            if (bed.bedCode !== occupantState.bedCode) return bed;
-            return {
-              ...bed,
-              status: "Available" as const,
-              occupant: undefined,
-              vacatingDate: undefined,
-            };
-          }),
-        };
-      }),
-    }));
-    propertyStore.updateStructure(updatedStructure, propertyId);
+    // 🟢 GUARANTEED BED RELEASE: Canonical bed clearance across Map & Firestore
+    await propertyStore.freeUpBedSlot(propertyId, occupantState.roomNumber, occupantState.bedCode, occupantState.id);
+
+    // 💬 Auto-Dispatch Guest Settlement Statement & PDF Receipt via WhatsApp / Email
+    if (sendGuestWhatsAppNotice || sendGuestEmailNotice) {
+      try {
+        const baseUrl = getCanonicalPortalOrigin();
+        const propName = propertySettings?.propertyName || "TenoPilot PG";
+        const pdfParams = new URLSearchParams({
+          receiptNo: guestReceiptNo,
+          propertyName: propName,
+          propertyAddress: propertySettings?.propertyAddress || "",
+          managerPhone: propertySettings?.managerPhone || "",
+          residentName: occupantState.name,
+          roomNumber: occupantState.roomNumber || "N/A",
+          bedCode: occupantState.bedCode || "Bed 1",
+          amount: String(netCashToReturn > 0 ? netCashToReturn : 0),
+          paidDate: guestCheckoutDate || new Date().toISOString().slice(0, 10),
+          paymentMode: guestSettlementPaymentMode || "Cash",
+          isSettlement: "true",
+          initialDeposit: String(depositHeld),
+          unpaidRent: "0",
+          repairs: String(addedPenalty),
+          maintenance: "0",
+          totalDeductions: String(totalOwnerKeeps),
+          netRefunded: String(Math.max(0, netCashToReturn)),
+          netDeficit: String(netCashToReturn < 0 ? Math.abs(netCashToReturn) : 0),
+          checkoutDate: guestCheckoutDate || new Date().toISOString().slice(0, 10),
+          status: netCashToReturn > 0 ? "PARTIAL_REFUND" : "FULL_REFUND",
+          notes: guestCheckoutNotes.trim(),
+        });
+        const pdfUrl = `${baseUrl}/api/receipt/pdf?${pdfParams.toString()}`;
+
+        if (sendGuestWhatsAppNotice && occupantState.phone) {
+          fetch("/api/whatsapp/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              propertyId,
+              messages: [
+                {
+                  toPhone: occupantState.phone,
+                  recipientName: occupantState.name,
+                  propertyId,
+                  propertyName: propName,
+                  occupantId: occupantState.id,
+                  type: "CHECKOUT_THANK_YOU",
+                  params: {
+                    receiptId: guestReceiptNo,
+                    receiptUrl: pdfUrl,
+                    amount: netCashToReturn > 0 ? netCashToReturn : 0,
+                    paidDate: guestCheckoutDate || new Date().toISOString().slice(0, 10),
+                    paymentMode: guestSettlementPaymentMode || "Cash",
+                    roomNumber: occupantState.roomNumber,
+                    bedCode: occupantState.bedCode,
+                    managerPhone: propertySettings?.managerPhone,
+                  },
+                },
+              ],
+            }),
+          }).catch((e) => console.warn("Notice dispatching guest checkout WhatsApp:", e));
+        }
+
+        if (sendGuestEmailNotice && occupantState.email && !occupantState.email.includes("resident.tenopilot.com")) {
+          fetch("/api/email/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              propertyId,
+              messages: [
+                {
+                  toEmail: occupantState.email,
+                  recipientName: occupantState.name,
+                  propertyId,
+                  propertyName: propName,
+                  type: "CHECKOUT_THANK_YOU",
+                  params: {
+                    receiptId: guestReceiptNo,
+                    receiptUrl: pdfUrl,
+                    amount: netCashToReturn > 0 ? netCashToReturn : 0,
+                    initialDeposit: depositHeld,
+                    unpaidRent: 0,
+                    repairs: addedPenalty,
+                    maintenance: 0,
+                    totalDeductions: totalOwnerKeeps,
+                    netRefunded: Math.max(0, netCashToReturn),
+                    paidDate: guestCheckoutDate || new Date().toISOString().slice(0, 10),
+                    paymentMode: guestSettlementPaymentMode || "Cash",
+                    roomNumber: occupantState.roomNumber,
+                    bedCode: occupantState.bedCode,
+                    managerPhone: propertySettings?.managerPhone,
+                  },
+                },
+              ],
+            }),
+          }).catch((e) => console.warn("Notice dispatching guest checkout Email:", e));
+        }
+      } catch (err) {
+        console.warn("Notice in guest checkout dispatch:", err);
+      }
+    }
 
     const summaryMsg =
       netCashToReturn > 0
@@ -5303,6 +5388,38 @@ export default function IndividualTenantProfilePage({
                       placeholder="e.g. Early checkout due to emergency, room inspected, key returned, no damages..."
                       className="w-full p-2.5 rounded-xl border border-gray-300 text-xs text-gray-900 focus:ring-1 focus:ring-red-500"
                     ></textarea>
+                  </div>
+
+                  {/* Digital Delivery Options */}
+                  <div className="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-emerald-950 space-y-2">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 block">
+                      📬 Digital Delivery Channels (Check to Send):
+                    </span>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={sendGuestWhatsAppNotice}
+                          onChange={(e) => setSendGuestWhatsAppNotice(e.target.checked)}
+                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        />
+                        <span className="font-bold text-xs text-gray-800 flex items-center gap-1">
+                          <span>💬</span> WhatsApp Notice & PDF
+                        </span>
+                      </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={sendGuestEmailNotice}
+                          onChange={(e) => setSendGuestEmailNotice(e.target.checked)}
+                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        />
+                        <span className="font-bold text-xs text-gray-800 flex items-center gap-1">
+                          <span>✉️</span> Email Notice & PDF
+                        </span>
+                      </label>
+                    </div>
                   </div>
 
                   <div className="p-2.5 bg-emerald-50 rounded-2xl border border-emerald-200 text-[10px] text-emerald-900 font-semibold space-y-0.5">

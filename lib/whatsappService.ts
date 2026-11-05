@@ -53,6 +53,8 @@ export interface WhatsAppSendParams {
     isReplacement?: boolean;
     isCorrected?: boolean;
     totalBuildings?: string | number;
+    tenantName?: string;
+    residentName?: string;
   };
 }
 
@@ -1017,20 +1019,19 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         const p = payload.params || {};
         const pName = payload.propertyName || "TenoPilot PG & Living";
         const partnerName = payload.recipientName || "Property Partner";
-        const amtStr = Number(p.amount || 0).toLocaleString("en-IN");
-        const roomStay = p.roomNumber ? `Room ${p.roomNumber}` : "Accommodation";
-        const utrStr = p.utrNumber || "Screenshot Attached";
+        const residentName = p.tenantName || p.residentName || "Resident";
+        const roomStay = `${p.roomNumber ? `Room ${p.roomNumber}` : "Accommodation"}${p.bedCode ? ` (${p.bedCode})` : ""}`;
         const proofParam = p.proofId || "";
-
         const upiDest = p.upiId || "Partner Bank Account";
 
+        // Primary: partner_payment_alert_v2 (Resident name front-and-center, no unverified amount tag)
         requestBody = {
           messaging_product: "whatsapp",
           recipient_type: "individual",
           to: formattedPhone,
           type: "template",
           template: {
-            name: "partner_payment_alert_v1",
+            name: "partner_payment_alert_v2",
             language: { code: "en_US" },
             components: [
               {
@@ -1038,10 +1039,9 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
                 parameters: [
                   { type: "text", text: pName },
                   { type: "text", text: partnerName },
+                  { type: "text", text: residentName },
                   { type: "text", text: upiDest },
-                  { type: "text", text: amtStr },
                   { type: "text", text: roomStay },
-                  { type: "text", text: utrStr },
                 ],
               },
               {
@@ -1050,6 +1050,46 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
                 index: "0",
                 parameters: [
                   { type: "text", text: `${payload.propertyId}/tenants?proof=${proofParam}` },
+                ],
+              },
+            ],
+          },
+        };
+      } else if (payload.type === "CHECKOUT_THANK_YOU") {
+        const p = payload.params || {};
+        const pName = payload.propertyName || "TenoPilot PG & Living";
+        const receiptNoStr = p.receiptId || `REF-${Date.now().toString().slice(-6)}`;
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.tenopilot.com";
+        const fileName = `SETTLEMENT_STATEMENT_${receiptNoStr.replace(/^#+/, "")}.pdf`;
+        const pdfUrl = p.receiptUrl || `${baseUrl}/api/receipt/pdf?receiptNo=${encodeURIComponent(receiptNoStr)}&isSettlement=true&download=true`;
+
+        // 🌟 Primary: Official Check-Out & Settlement Statement Document Template
+        requestBody = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "template",
+          template: {
+            name: "pg_checkout_settlement_doc_v1",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "header",
+                parameters: [
+                  {
+                    type: "document",
+                    document: {
+                      link: pdfUrl,
+                      filename: fileName,
+                    },
+                  },
+                ],
+              },
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: pName },
+                  { type: "text", text: payload.recipientName },
                 ],
               },
             ],
@@ -1692,17 +1732,46 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         resData = await response.json();
       }
 
-      // Graceful fallback for partner_payment_alert_v1 if template is pending review or not found
-      if (!response.ok && payload.type === "PAYMENT_PROOF_ALERT" && requestBody?.template?.name === "partner_payment_alert_v1") {
-        console.warn("partner_payment_alert_v1 pending approval or error, falling back to direct text:", resData?.error?.message);
-        const fallbackTextBody = {
+      // Graceful fallback for partner_payment_alert_v2 if pending Meta review: fallback to approved partner_payment_alert_v1
+      if (!response.ok && payload.type === "PAYMENT_PROOF_ALERT" && requestBody?.template?.name === "partner_payment_alert_v2") {
+        console.warn("partner_payment_alert_v2 pending approval, falling back to partner_payment_alert_v1:", resData?.error?.message);
+        const p = payload.params || {};
+        const pName = payload.propertyName || "TenoPilot PG & Living";
+        const partnerName = payload.recipientName || "Property Partner";
+        const residentName = p.tenantName || p.residentName || "Resident";
+        const roomStayWithResident = `${p.roomNumber ? `Room ${p.roomNumber}` : "Stay"}${p.bedCode ? ` (${p.bedCode})` : ""} • ${residentName}`;
+        const proofParam = p.proofId || "";
+        const upiDest = p.upiId || "Partner Bank Account";
+
+        const fallbackV1Body = {
           messaging_product: "whatsapp",
           recipient_type: "individual",
           to: formattedPhone,
-          type: "text",
-          text: {
-            preview_url: true,
-            body: messageBody,
+          type: "template",
+          template: {
+            name: "partner_payment_alert_v1",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: pName },
+                  { type: "text", text: partnerName },
+                  { type: "text", text: upiDest },
+                  { type: "text", text: p.amount ? Number(p.amount).toLocaleString("en-IN") : "Screenshot Attached" },
+                  { type: "text", text: roomStayWithResident },
+                  { type: "text", text: "Screenshot Attached" },
+                ],
+              },
+              {
+                type: "button",
+                sub_type: "url",
+                index: "0",
+                parameters: [
+                  { type: "text", text: `${payload.propertyId}/tenants?proof=${proofParam}` },
+                ],
+              },
+            ],
           },
         };
         response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
@@ -1711,7 +1780,70 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
             Authorization: `Bearer ${metaToken}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(fallbackTextBody),
+          body: JSON.stringify(fallbackV1Body),
+        });
+        resData = await response.json();
+      }
+
+      // Graceful fallback for CHECKOUT_THANK_YOU if pg_checkout_settlement_doc_v1 is pending Meta review:
+      // Fall back to approved pg_rent_payment_receipt_doc with the official settlement PDF attached!
+      if (!response.ok && payload.type === "CHECKOUT_THANK_YOU" && requestBody?.template?.name === "pg_checkout_settlement_doc_v1") {
+        console.warn("pg_checkout_settlement_doc_v1 pending approval, falling back to pg_rent_payment_receipt_doc:", resData?.error?.message);
+        const p = payload.params || {};
+        const pName = payload.propertyName || "TenoPilot PG";
+        const receiptNoStr = p.receiptId || `REF-${Date.now().toString().slice(-6)}`;
+        const fileName = `SETTLEMENT_STATEMENT_${receiptNoStr.replace(/^#+/, "")}.pdf`;
+        const origin = process.env.NEXT_PUBLIC_APP_URL || "https://www.tenopilot.com";
+        const pdfUrl = p.receiptUrl || `${origin}/api/receipt/pdf?receiptNo=${encodeURIComponent(receiptNoStr)}&isSettlement=true&download=true`;
+        const roomStay = `${p.roomNumber ? `Room ${p.roomNumber}` : "Stay"}${p.bedCode ? ` (${p.bedCode})` : ""} • Move-Out Settlement`;
+        const amountStr = Number(p.amount || 0).toLocaleString("en-IN");
+        const paidDateStr = p.paidDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+        const modeStr = p.paymentMode || "UPI / Digital";
+
+        const fallbackSettlementDocBody = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "template",
+          template: {
+            name: "pg_rent_payment_receipt_doc",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "header",
+                parameters: [
+                  {
+                    type: "document",
+                    document: {
+                      link: pdfUrl,
+                      filename: fileName,
+                    },
+                  },
+                ],
+              },
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: pName },
+                  { type: "text", text: payload.recipientName },
+                  { type: "text", text: receiptNoStr },
+                  { type: "text", text: amountStr },
+                  { type: "text", text: paidDateStr },
+                  { type: "text", text: modeStr },
+                  { type: "text", text: roomStay },
+                ],
+              },
+            ],
+          },
+        };
+
+        response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${metaToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(fallbackSettlementDocBody),
         });
         resData = await response.json();
       }

@@ -539,7 +539,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
 </body>
 </html>`;
 
-      const text = `Welcome to ${pName}! 🎉\n\nDear ${payload.recipientName},\n\nCongratulations! Your resident check-in and KYC verification have been officially approved.\n\nAccommodation Details:\nProperty: ${pName}\nRoom: Room ${roomStay}\nCheck-In Date: ${checkinDate}\n${rentStr ? `Monthly Tariff: ${rentStr}\n` : ""}${depositStr ? `Security Deposit: ${depositStr}\n` : ""}${managerPhone ? `Manager Contact: +91 ${managerPhone}\n` : ""}\n📎 Official Tenancy Agreement Attached:\nYour digitally attested Residential Lease Agreement (PDF) is attached to this email for your permanent records.\n\nView Resident Details: ${residentPortalUrl}\n\nWarm regards,\n${pName} Management Desk • Powered by TenoPilot.com`;
+      const text = `Welcome to ${pName}! 🎉\n\nDear ${payload.recipientName},\n\nCongratulations! Your resident check-in and KYC verification have been officially approved.\n\nAccommodation Details:\nProperty: ${pName}\nRoom: Room ${roomStay}\nCheck-In Date: ${checkinDate}\n${rentStr ? `Monthly Tariff: ${rentStr}\n` : ""}${depositStr ? `Security Deposit: ${depositStr}\n` : ""}${managerPhone ? `Manager Contact: +91 ${managerPhone}\n` : ""}\n📎 Official Tenancy Agreement Attached:\nYour digitally attested Residential Lease Agreement (PDF) is attached to this email for your permanent records.\n\nView Resident Details: ${residentPortalUrl}\n\nWarm regards,\n${pName} Desk • Powered by TenoPilot.com`;
       return { subject, html, text };
     }
 
@@ -615,7 +615,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
 
       <div style="border-top:1px solid #f1f5f9;padding-top:18px;margin-top:20px;">
         <p style="margin:0 0 4px 0;font-size:13px;font-weight:700;color:#334155;">Warm regards,</p>
-        <p style="margin:0;font-size:14px;font-weight:800;color:#0f172a;">${pName} Management</p>
+        <p style="margin:0;font-size:14px;font-weight:800;color:#0f172a;">${pName}</p>
         ${p.managerPhone ? `<p style="margin:2px 0 0 0;font-size:12px;color:#64748b;">📞 ${p.managerPhone}</p>` : ""}
       </div>
     </div>
@@ -625,7 +625,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
 </body>
 </html>`;
 
-      const text = `${pName}\nThank You for Staying With Us!\n\nDear ${payload.recipientName},\n\nThank you for choosing ${pName} as your home! It was an absolute pleasure having you with us, and we wish you great success in your next chapter.\n\nYour room handover and move-out security deposit settlement have been finalized.\n\nDownload your official Settlement PDF Receipt:\n${downloadLink}\n\nYou and your friends are always welcome back at ${pName}!\n\nWarm regards,\n${pName} Management`;
+      const text = `${pName}\nThank You for Staying With Us!\n\nDear ${payload.recipientName},\n\nThank you for choosing ${pName} as your home! It was an absolute pleasure having you with us, and we wish you great success in your next chapter.\n\nYour room handover and move-out security deposit settlement have been finalized.\n\nDownload your official Settlement PDF Receipt:\n${downloadLink}\n\nYou and your friends are always welcome back at ${pName}!\n\nWarm regards,\n${pName}`;
 
       return { subject, html, text };
     }

@@ -376,11 +376,11 @@ export default function TenantPaymentBridgePage() {
 
       <main className="max-w-lg mx-auto p-4 space-y-4 pt-4">
         {/* 🏢 Accommodation & Bill Summary Card */}
-        <div className="bg-white p-5 rounded-3xl border border-[#d7c2b9]/60 shadow-sm">
+        <div className={`bg-white p-5 rounded-3xl border shadow-sm ${verifiedReceipt ? "border-emerald-300 bg-gradient-to-r from-emerald-50/40 to-white" : "border-[#d7c2b9]/60"}`}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#c2652a]">
-                Payment Verification
+              <span className={`text-[10px] font-extrabold uppercase tracking-wider ${verifiedReceipt ? "text-emerald-700" : "text-[#c2652a]"}`}>
+                {verifiedReceipt ? "✓ Payment Completed & Cleared" : "Payment Verification"}
               </span>
               <h1 className="font-serif font-bold text-base sm:text-lg text-gray-900 mt-0.5">
                 {details.propertyName}
@@ -389,17 +389,29 @@ export default function TenantPaymentBridgePage() {
                 {details.tenantName} • <span className="font-bold text-gray-700">{details.roomNumber}</span>
               </p>
             </div>
-            <div className="text-right shrink-0">
-              <span className="text-[10px] font-bold text-gray-400 block">Payable Rent</span>
-              <div className="font-mono font-black text-xl text-gray-900 mt-0.5">
-                ₹{details.amount.toLocaleString("en-IN")}
-              </div>
-              {details.dueDate && (
-                <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 inline-block mt-1">
-                  Due: {details.dueDate}
+            {verifiedReceipt ? (
+              <div className="text-right shrink-0">
+                <span className="text-[10px] font-bold text-emerald-700 block">Cycle Status</span>
+                <div className="font-mono font-black text-xl text-emerald-800 mt-0.5">
+                  ₹0 Due
+                </div>
+                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300 inline-block mt-1">
+                  ✓ Paid ₹{verifiedReceipt.amount.toLocaleString("en-IN")}
                 </span>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="text-right shrink-0">
+                <span className="text-[10px] font-bold text-gray-400 block">Payable Rent</span>
+                <div className="font-mono font-black text-xl text-gray-900 mt-0.5">
+                  ₹{details.amount.toLocaleString("en-IN")}
+                </div>
+                {details.dueDate && (
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 inline-block mt-1">
+                    Due: {details.dueDate}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
