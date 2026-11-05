@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { doc, getDoc, getDocs, collection, updateDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { executePlanActivationPipeline } from "@/lib/planActivationProvisioner";
 
 export async function POST(req: NextRequest) {
   try {
@@ -147,6 +148,20 @@ export async function POST(req: NextRequest) {
         updatedAt: new Date().toISOString(),
       };
       await setDoc(doc(db, "users", `portfolio_${sanitizedEmail}`), portfolioDoc, { merge: true });
+
+      // 🚀 Execute Master Life-After-Activation Pipeline (Wallets, Credits, Feature Entitlements)
+      await executePlanActivationPipeline({
+        email: foundInvite.ownerEmail || cleanIdentifier,
+        phone: foundInvite.ownerPhone,
+        propertyId: propId,
+        plan: foundInvite.assignedPlan || "10_DAY_TRIAL",
+        durationDays: Number(foundInvite.trialDurationDays) || (foundInvite.assignedPlan === "ANNUAL_VIP" ? 365 : 30),
+        paymentMode: "Activation Pass",
+        amountPaid: 0,
+        receiptNumber: foundInvite.activationCode || `ACT-${foundInvite.id}`,
+        activatedBy: "Customer Activation Pass",
+        notes: `Redeemed Activation Pass: ${foundInvite.activationCode || foundInvite.id}`,
+      });
     } catch (e) {
       console.warn("Firestore updateDoc in /api/invites/redeem error:", e);
     }

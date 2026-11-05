@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { doc, setDoc, getDocs, collection } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { executePlanActivationPipeline } from "@/lib/planActivationProvisioner";
 
 // Server-side cache for high availability - 100% Clean Zero Mock
 let serverInvites: any[] = [];
@@ -121,6 +122,20 @@ export async function POST(req: NextRequest) {
         updatedAt: new Date().toISOString(),
       };
       await setDoc(doc(db, "users", `portfolio_${sanitizedEmail}`), portfolioDoc, { merge: true });
+
+      // 🚀 Pre-provision Master Life-After-Activation Pipeline (Wallets, Credits & Entitlements)
+      await executePlanActivationPipeline({
+        email: inviteRecord.ownerEmail,
+        phone: inviteRecord.ownerPhone,
+        propertyId: propId,
+        plan: inviteRecord.assignedPlan || "10_DAY_TRIAL",
+        durationDays: Number(inviteRecord.trialDurationDays) || 10,
+        paymentMode: "VIP Pass",
+        amountPaid: 0,
+        receiptNumber: inviteRecord.activationCode,
+        activatedBy: inviteRecord.generatedByStaffName || "Founder (Apex)",
+        notes: `Issued Onboarding Pass: ${inviteRecord.activationCode} for ${inviteRecord.pgName}`,
+      });
     } catch (fsErr) {
       console.warn("Firestore write in POST /api/invites fallback:", fsErr);
     }

@@ -525,6 +525,8 @@ export default function ApexCommandClientsPage() {
         body: JSON.stringify({
           userId: req.userId,
           email: req.customerEmail,
+          phone: req.customerPhone || req.phone || "",
+          propertyId: req.propertyId || null,
           plan: req.plan || "PRO_MONTHLY",
           durationDays: req.plan === "PRO_ANNUAL" ? 365 : req.plan === "PRO_SEMI_ANNUAL" ? 180 : req.plan === "PRO_QUARTERLY" ? 90 : 30,
           paymentMode: req.paymentMode || "UPI / Bank Transfer (Offline)",
@@ -723,6 +725,8 @@ export default function ApexCommandClientsPage() {
         body: JSON.stringify({
           userId: selectedCustomer360.userId,
           email: selectedCustomer360.email,
+          phone: selectedCustomer360.phone || "",
+          propertyId: (selectedCustomer360.propertyIds && selectedCustomer360.propertyIds[0]) || (selectedCustomer360 as any).propertyId || null,
           plan: planSelection,
           durationDays: Number(planDurationDays),
           paymentMode: paymentModeSelection,
@@ -761,6 +765,7 @@ export default function ApexCommandClientsPage() {
         body: JSON.stringify({
           userId: accountToExtend.userId || accountToExtend.id,
           email: accountToExtend.email,
+          propertyId: (accountToExtend.propertyIds && accountToExtend.propertyIds[0]) || (accountToExtend as any).propertyId || null,
           plan: "10_DAY_TRIAL",
           durationDays: 10,
           paymentMode: "VIP Pass",

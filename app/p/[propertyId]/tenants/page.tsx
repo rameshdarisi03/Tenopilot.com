@@ -324,8 +324,20 @@ export default function TenantsDirectoryPage({
   const [showBulkKYCModal, setShowBulkKYCModal] = useState(false);
   const [bulkKycSelectedIds, setBulkKycSelectedIds] = useState<string[]>([]);
   const [bulkKycOnlyPendingFilter, setBulkKycOnlyPendingFilter] = useState(false);
+  const [selectedKycChannels, setSelectedKycChannels] = useState<{
+    email: boolean;
+    whatsapp: boolean;
+  }>({
+    email: true,
+    whatsapp: true,
+  });
   const [isSendingCloudKYC, setIsSendingCloudKYC] = useState(false);
-  const [kycSuccessModalData, setKycSuccessModalData] = useState<{ count: number; creditsRemaining?: number } | null>(null);
+  const [kycSuccessModalData, setKycSuccessModalData] = useState<{
+    count: number;
+    whatsappRemaining?: number;
+    emailRemaining?: number;
+    channels?: { whatsapp: boolean; email: boolean };
+  } | null>(null);
 
   // WhatsApp & Email Cloud Gateway & Credit Wallet States
   const [showWhatsAppWalletModal, setShowWhatsAppWalletModal] = useState(false);
@@ -3852,13 +3864,13 @@ Scroll vertically to browse all residents without pagination limits
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <button
                 type="button"
                 onClick={() => setShowRentReminderQRModal(true)}
-                className="px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0"
+                className="px-2.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] sm:text-xs font-bold shadow-md flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0"
               >
-                <MessageSquare className="w-4 h-4" />
+                <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                 <span>Send Reminders ({selectedIds.length})</span>
               </button>
 
@@ -3868,9 +3880,9 @@ Scroll vertically to browse all residents without pagination limits
                   setBulkKycSelectedIds([...selectedIds]);
                   setShowBulkKYCModal(true);
                 }}
-                className="px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0"
+                className="px-2.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-[11px] sm:text-xs font-bold shadow-md flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0"
               >
-                <ShieldCheck className="w-4 h-4" />
+                <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                 <span>KYC Reminders ({selectedIds.length})</span>
               </button>
 
@@ -5018,7 +5030,9 @@ Scroll vertically to browse all residents without pagination limits
                           <div className="min-w-0">
                             <span className="block font-bold text-xs truncate">Email</span>
                             <span className={`block text-[10px] font-semibold truncate ${emailCredits <= 0 ? "text-rose-600 font-bold" : "text-blue-700"}`}>
-                              {emailCredits <= 0 ? "0 Credits • Locked 🔒" : `${emailCredits} Credits`}
+                              {emailCredits < selectedCandidateCount
+                                ? `${selectedCandidateCount} Credit${selectedCandidateCount === 1 ? "" : "s"} • Low 🔒`
+                                : `${selectedCandidateCount} Credit${selectedCandidateCount === 1 ? "" : "s"}`}
                             </span>
                           </div>
                         </div>
@@ -5076,7 +5090,9 @@ Scroll vertically to browse all residents without pagination limits
                           <div className="min-w-0">
                             <span className="block font-bold text-xs truncate">WhatsApp</span>
                             <span className={`block text-[10px] font-semibold truncate ${whatsappCredits <= 0 ? "text-rose-600 font-bold" : "text-emerald-700"}`}>
-                              {whatsappCredits <= 0 ? "0 Credits • Locked 🔒" : `${whatsappCredits} Credits`}
+                              {whatsappCredits < selectedCandidateCount
+                                ? `${selectedCandidateCount} Credit${selectedCandidateCount === 1 ? "" : "s"} • Low 🔒`
+                                : `${selectedCandidateCount} Credit${selectedCandidateCount === 1 ? "" : "s"}`}
                             </span>
                           </div>
                         </div>
@@ -5257,49 +5273,33 @@ Scroll vertically to browse all residents without pagination limits
 
               {!kycSuccessModalData ? (
                 <>
-                  {/* Clean Responsive Header */}
-                  <div className="flex items-center justify-between border-b border-gray-100 pb-3 gap-2">
+                  {/* Clean Responsive Mobile-First Header */}
+                  <div className="flex items-start sm:items-center justify-between border-b border-gray-100 pb-3 gap-2">
                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
                       <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-purple-100 text-purple-800 flex items-center justify-center font-bold shrink-0 shadow-xs">
                         <ShieldCheck className="w-5 h-5 text-purple-700" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h3 className="font-serif font-bold text-sm sm:text-base text-gray-900 leading-tight truncate">
+                        <h3 className="font-serif font-bold text-sm sm:text-base text-gray-900 leading-tight">
                           Send Digital KYC Reminders
                         </h3>
-                        <p className="text-[11px] text-gray-500 font-medium truncate mt-0.5">
+                        <p className="text-[11px] text-gray-500 font-medium leading-tight mt-0.5">
                           Mandatory digital check-in & residency verification links
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setShowWhatsAppWalletModal(true)}
-                        className={`flex items-center gap-1 px-2.5 py-1 border rounded-full font-bold text-[10px] sm:text-[11px] cursor-pointer shadow-2xs transition-all ${
-                          whatsappCredits <= 0
-                            ? "bg-rose-50 hover:bg-rose-100 border-rose-300 text-rose-800"
-                            : "bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-800"
-                        }`}
-                        title="Click to recharge credits"
-                      >
-                        {whatsappCredits <= 0 ? <Lock className="w-3 h-3 text-rose-600" /> : <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />}
-                        <span>{whatsappCredits} Credits</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowBulkKYCModal(false);
-                          setKycSuccessModalData(null);
-                        }}
-                        className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 cursor-pointer"
-                        aria-label="Close"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowBulkKYCModal(false);
+                        setKycSuccessModalData(null);
+                      }}
+                      className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 cursor-pointer shrink-0"
+                      aria-label="Close"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
                   </div>
 
                   {(() => {
@@ -5485,137 +5485,342 @@ Scroll vertically to browse all residents without pagination limits
                           </div>
                         </div>
 
-                        {/* Dispatch Actions */}
-                        <div className="pt-2 border-t border-gray-100 space-y-2">
-                          <button
-                            type="button"
-                            disabled={isSendingCloudKYC || displayCandidates.length === 0}
-                            onClick={async () => {
-                              const targets = displayCandidates.filter((o) => bulkKycSelectedIds.includes(o.id));
-                              const recipients = targets.length > 0 ? targets : displayCandidates;
-                              if (recipients.length === 0) {
-                                triggerToast("No residents selected.");
-                                return;
-                              }
+                        {/* Dispatch Actions with Dual Delivery Channels */}
+                        {(() => {
+                          const targets = displayCandidates.filter((o) => bulkKycSelectedIds.includes(o.id));
+                          const recipients = targets.length > 0 ? targets : displayCandidates;
+                          const targetCount = recipients.length;
 
-                              if (whatsappCredits <= 0) {
-                                triggerToast("🔒 WhatsApp Gateway Locked: Your credit balance is 0. Please recharge your wallet.");
-                                setShowWhatsAppWalletModal(true);
-                                return;
-                              }
+                          return (
+                            <div className="pt-2 border-t border-gray-100 space-y-3">
+                              {/* 1-Click Send KYC Multi-Channel Action Bar */}
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-600 flex items-center gap-1.5">
+                                    <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                                    <span>Delivery Channels</span>
+                                  </span>
+                                  <span className="text-[10px] text-gray-400 font-medium">
+                                    {targetCount} Selected
+                                  </span>
+                                </div>
 
-                              setIsSendingCloudKYC(true);
-                              try {
-                                const pSettings = propertySettingsStore.getSettings(propertyId);
-                                const pName = pSettings?.propertyName || currentSettings?.propertyName || "TenoPilot PG";
-                                const deskPhone = currentSettings?.managerPhone || pSettings?.managerPhone || "";
+                                <div className="grid grid-cols-2 gap-2.5">
+                                  {/* Email Channel */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (emailCredits <= 0) {
+                                        triggerToast("🔒 Email Gateway Locked: Your credit balance is 0. Please recharge your wallet.");
+                                        setShowWhatsAppWalletModal(true);
+                                        return;
+                                      }
+                                      setSelectedKycChannels((prev) => ({ ...prev, email: !prev.email }));
+                                    }}
+                                    className={`p-2.5 sm:p-3 rounded-2xl border-2 transition-all flex items-center justify-between text-left cursor-pointer active:scale-98 ${
+                                      emailCredits <= 0
+                                        ? "border-rose-300 bg-rose-50/40 text-rose-950"
+                                        : selectedKycChannels.email
+                                        ? "border-blue-600 bg-blue-50/80 text-blue-950 shadow-xs"
+                                        : "border-gray-200 bg-white hover:bg-gray-50 text-gray-500"
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <div
+                                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                                          emailCredits <= 0
+                                            ? "bg-rose-500 text-white"
+                                            : selectedKycChannels.email
+                                            ? "bg-blue-600 text-white"
+                                            : "bg-gray-100 text-gray-500"
+                                        }`}
+                                      >
+                                        {emailCredits <= 0 ? <Lock className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <span className="block font-bold text-xs truncate">Email</span>
+                                        <span className={`block text-[10px] font-semibold truncate ${emailCredits <= 0 ? "text-rose-600 font-bold" : "text-blue-700"}`}>
+                                          {emailCredits < targetCount
+                                            ? `${targetCount} Credit${targetCount === 1 ? "" : "s"} • Low 🔒`
+                                            : `Consumes ${targetCount} Credit${targetCount === 1 ? "" : "s"}`}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div
+                                      className={`w-5 h-5 rounded-lg border flex items-center justify-center shrink-0 transition-colors ${
+                                        emailCredits <= 0
+                                          ? "border-rose-300 bg-rose-100 text-rose-600"
+                                          : selectedKycChannels.email
+                                          ? "bg-blue-600 border-blue-600 text-white"
+                                          : "border-gray-300 bg-white"
+                                      }`}
+                                    >
+                                      {emailCredits <= 0 ? (
+                                        <Lock className="w-3 h-3" />
+                                      ) : (
+                                        selectedKycChannels.email && <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                      )}
+                                    </div>
+                                  </button>
 
-                                const messagesToSend = recipients.map((occ) => {
-                                  const shortToken = `${encodeURIComponent(occ.id)}?p=${encodeURIComponent(propertyId)}&name=${encodeURIComponent(occ.name)}&jd=${encodeURIComponent(occ.joiningDate || "")}`;
-                                  return {
-                                    toPhone: occ.phone,
-                                    recipientName: occ.name,
-                                    propertyId,
-                                    propertyName: pName,
-                                    type: "ONBOARDING_INVITE" as const,
-                                    params: {
-                                      roomNumber: occ.roomNumber || "N/A",
-                                      bedCode: occ.bedCode || "Bed A",
-                                      joiningDate: occ.joiningDate || "On Arrival",
-                                      managerPhone: deskPhone,
-                                      propertyPhone: deskPhone,
-                                      onboardUrl: `https://www.tenopilot.com/self-onboard/${shortToken}`,
-                                    },
-                                  };
-                                });
+                                  {/* WhatsApp Channel */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (whatsappCredits <= 0) {
+                                        triggerToast("🔒 WhatsApp Gateway Locked: Your credit balance is 0. Please recharge your wallet.");
+                                        setShowWhatsAppWalletModal(true);
+                                        return;
+                                      }
+                                      setSelectedKycChannels((prev) => ({ ...prev, whatsapp: !prev.whatsapp }));
+                                    }}
+                                    className={`p-2.5 sm:p-3 rounded-2xl border-2 transition-all flex items-center justify-between text-left cursor-pointer active:scale-98 ${
+                                      whatsappCredits <= 0
+                                        ? "border-rose-300 bg-rose-50/40 text-rose-950"
+                                        : selectedKycChannels.whatsapp
+                                        ? "border-emerald-600 bg-emerald-50/80 text-emerald-950 shadow-xs"
+                                        : "border-gray-200 bg-white hover:bg-gray-50 text-gray-500"
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <div
+                                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                                          whatsappCredits <= 0
+                                            ? "bg-rose-500 text-white"
+                                            : selectedKycChannels.whatsapp
+                                            ? "bg-emerald-600 text-white"
+                                            : "bg-gray-100 text-gray-500"
+                                        }`}
+                                      >
+                                        {whatsappCredits <= 0 ? <Lock className="w-4 h-4" /> : <MessageSquare className="w-4 h-4" />}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <span className="block font-bold text-xs truncate">WhatsApp</span>
+                                        <span className={`block text-[10px] font-semibold truncate ${whatsappCredits <= 0 ? "text-rose-600 font-bold" : "text-emerald-700"}`}>
+                                          {whatsappCredits < targetCount
+                                            ? `${targetCount} Credit${targetCount === 1 ? "" : "s"} • Low 🔒`
+                                            : `Consumes ${targetCount} Credit${targetCount === 1 ? "" : "s"}`}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div
+                                      className={`w-5 h-5 rounded-lg border flex items-center justify-center shrink-0 transition-colors ${
+                                        whatsappCredits <= 0
+                                          ? "border-rose-300 bg-rose-100 text-rose-600"
+                                          : selectedKycChannels.whatsapp
+                                          ? "bg-emerald-600 border-emerald-600 text-white"
+                                          : "border-gray-300 bg-white"
+                                      }`}
+                                    >
+                                      {whatsappCredits <= 0 ? (
+                                        <Lock className="w-3 h-3" />
+                                      ) : (
+                                        selectedKycChannels.whatsapp && <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                      )}
+                                    </div>
+                                  </button>
+                                </div>
+                              </div>
 
-                                const res = await fetch("/api/whatsapp/send", {
-                                  method: "POST",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({
-                                    propertyId,
-                                    userId: profile?.uid,
-                                    userEmail: profile?.email,
-                                    messages: messagesToSend,
-                                  }),
-                                });
-
-                                const resData = await res.json().catch(() => ({}));
-
-                                if (res.ok) {
-                                  recipients.forEach((occ) => {
-                                    if (typeof window !== "undefined") {
-                                      try {
-                                        localStorage.setItem(`tenopilot_kyc_reminder_sent_${propertyId}_${occ.id}`, new Date().toISOString());
-                                      } catch {}
-                                    }
-                                    updateDoc(doc(db, "properties", propertyId, "occupants", occ.id), {
-                                      kycReminderSentAt: new Date().toISOString(),
-                                    }).catch(() => {});
-                                  });
-
-                                  await whatsappCreditStore.fetchWalletFromFirestore(propertyId);
-                                  const remaining = typeof resData.creditsRemaining === "number"
-                                    ? resData.creditsRemaining
-                                    : whatsappCreditStore.getCredits(propertyId);
-                                  setWhatsappCredits(remaining);
-
-                                  fireCelebrationConfetti();
-                                  setKycSuccessModalData({
-                                    count: resData.successfulCount || recipients.length,
-                                    creditsRemaining: remaining,
-                                  });
-                                  triggerToast(`⚡ Sent digital KYC invitations to ${resData.successfulCount || recipients.length} residents!`);
-                                } else {
-                                  if (resData?.requiresPro) {
-                                    setShowProReminderPaywall(true);
+                              {/* Action Trigger Button */}
+                              <button
+                                type="button"
+                                disabled={isSendingCloudKYC || targetCount === 0 || (!selectedKycChannels.whatsapp && !selectedKycChannels.email)}
+                                onClick={async () => {
+                                  if (targetCount === 0) {
+                                    triggerToast("No residents selected.");
+                                    return;
                                   }
-                                  triggerToast(resData?.error || "⚠️ Failed to dispatch WhatsApp KYC invitations.");
-                                }
-                              } catch (err) {
-                                console.error(err);
-                                triggerToast("⚠️ Error sending KYC invitations.");
-                              } finally {
-                                setIsSendingCloudKYC(false);
-                              }
-                            }}
-                            className="w-full py-3 rounded-2xl bg-purple-700 hover:bg-purple-800 disabled:bg-gray-300 text-white font-bold text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
-                          >
-                            <Zap className="w-4 h-4 text-amber-300" />
-                            <span>
-                              {isSendingCloudKYC
-                                ? "Dispatching Cloud Reminders..."
-                                : `⚡ Send All (${displayCandidates.filter((o) => bulkKycSelectedIds.includes(o.id)).length || displayCandidates.length}) via WhatsApp Cloud API`}
-                            </span>
-                          </button>
 
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (sampleOcc && navigator.clipboard) {
-                                  navigator.clipboard.writeText(buildOccKycMsg(sampleOcc));
-                                  triggerToast("📋 KYC Invitation template copied to clipboard!");
-                                }
-                              }}
-                              className="flex-1 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all"
-                            >
-                              <Copy className="w-3.5 h-3.5" />
-                              <span>Copy Message</span>
-                            </button>
+                                  if (selectedKycChannels.whatsapp && whatsappCredits < targetCount) {
+                                    triggerToast("🔒 WhatsApp Gateway Locked: Insufficient WhatsApp credits. Please recharge your wallet.");
+                                    setShowWhatsAppWalletModal(true);
+                                    return;
+                                  }
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setShowBulkKYCModal(false);
-                                setKycSuccessModalData(null);
-                              }}
-                              className="py-2 px-4 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-500 font-semibold text-xs transition-all"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
+                                  if (selectedKycChannels.email && emailCredits < targetCount) {
+                                    triggerToast("🔒 Email Gateway Locked: Insufficient Email credits. Please recharge your wallet.");
+                                    setShowWhatsAppWalletModal(true);
+                                    return;
+                                  }
+
+                                  setIsSendingCloudKYC(true);
+                                  try {
+                                    const pSettings = propertySettingsStore.getSettings(propertyId);
+                                    const pName = pSettings?.propertyName || currentSettings?.propertyName || "TenoPilot PG";
+                                    const deskPhone = currentSettings?.managerPhone || pSettings?.managerPhone || "";
+
+                                    // 1. Dispatch WhatsApp if selected
+                                    if (selectedKycChannels.whatsapp) {
+                                      const messagesToSend = recipients.map((occ) => {
+                                        const shortToken = `${encodeURIComponent(occ.id)}?p=${encodeURIComponent(propertyId)}&name=${encodeURIComponent(occ.name)}&jd=${encodeURIComponent(occ.joiningDate || "")}`;
+                                        return {
+                                          toPhone: occ.phone,
+                                          recipientName: occ.name,
+                                          propertyId,
+                                          propertyName: pName,
+                                          type: "ONBOARDING_INVITE" as const,
+                                          params: {
+                                            roomNumber: occ.roomNumber || "N/A",
+                                            bedCode: occ.bedCode || "Bed A",
+                                            joiningDate: occ.joiningDate || "On Arrival",
+                                            managerPhone: deskPhone,
+                                            propertyPhone: deskPhone,
+                                            onboardUrl: `https://www.tenopilot.com/self-onboard/${shortToken}`,
+                                          },
+                                        };
+                                      });
+
+                                      const resWa = await fetch("/api/whatsapp/send", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({
+                                          propertyId,
+                                          userId: profile?.uid,
+                                          userEmail: profile?.email,
+                                          messages: messagesToSend,
+                                        }),
+                                      });
+                                      const waData = await resWa.json().catch(() => ({}));
+                                      if (!resWa.ok && waData?.requiresPro) {
+                                        setShowProReminderPaywall(true);
+                                        setIsSendingCloudKYC(false);
+                                        return;
+                                      }
+                                    }
+
+                                    // 2. Dispatch Email if selected
+                                    if (selectedKycChannels.email) {
+                                      const emailMessages = recipients.map((occ) => {
+                                        const shortToken = `${encodeURIComponent(occ.id)}?p=${encodeURIComponent(propertyId)}&name=${encodeURIComponent(occ.name)}&jd=${encodeURIComponent(occ.joiningDate || "")}`;
+                                        const toEmail = occ.email || (occ as any).contactEmail || `${occ.phone.replace(/\D/g, "")}@guest.tenopilot.com`;
+                                        return {
+                                          toEmail,
+                                          recipientName: occ.name,
+                                          propertyId,
+                                          propertyName: pName,
+                                          type: "ONBOARDING_INVITE" as const,
+                                          params: {
+                                            roomNumber: occ.roomNumber || "N/A",
+                                            bedCode: occ.bedCode || "Bed A",
+                                            joiningDate: occ.joiningDate || "On Arrival",
+                                            managerPhone: deskPhone,
+                                            propertyPhone: deskPhone,
+                                            onboardUrl: `https://www.tenopilot.com/self-onboard/${shortToken}`,
+                                            rentAmount: occ.rentAmount || (occ as any).rent,
+                                          },
+                                        };
+                                      });
+
+                                      const resEmail = await fetch("/api/email/send", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({
+                                          propertyId,
+                                          userId: profile?.uid,
+                                          userEmail: profile?.email,
+                                          messages: emailMessages,
+                                        }),
+                                      });
+                                      const emailData = await resEmail.json().catch(() => ({}));
+                                      if (!resEmail.ok && emailData?.requiresPro) {
+                                        setShowProReminderPaywall(true);
+                                        setIsSendingCloudKYC(false);
+                                        return;
+                                      }
+                                    }
+
+                                    // 3. Mark timestamp on occupant documents
+                                    recipients.forEach((occ) => {
+                                      if (typeof window !== "undefined") {
+                                        try {
+                                          localStorage.setItem(`tenopilot_kyc_reminder_sent_${propertyId}_${occ.id}`, new Date().toISOString());
+                                        } catch {}
+                                      }
+                                      updateDoc(doc(db, "properties", propertyId, "occupants", occ.id), {
+                                        kycReminderSentAt: new Date().toISOString(),
+                                      }).catch(() => {});
+                                    });
+
+                                    // 4. Authoritatively refresh wallet balances
+                                    await whatsappCreditStore.fetchWalletFromFirestore(propertyId);
+                                    await emailCreditStore.fetchWalletFromFirestore(propertyId);
+
+                                    const remWa = whatsappCreditStore.getCredits(propertyId);
+                                    const remEmail = emailCreditStore.getCredits(propertyId);
+
+                                    setWhatsappCredits(remWa);
+                                    setEmailCredits(remEmail);
+
+                                    fireCelebrationConfetti();
+                                    setKycSuccessModalData({
+                                      count: targetCount,
+                                      whatsappRemaining: remWa,
+                                      emailRemaining: remEmail,
+                                      channels: {
+                                        whatsapp: selectedKycChannels.whatsapp,
+                                        email: selectedKycChannels.email,
+                                      },
+                                    });
+
+                                    const channelDesc = selectedKycChannels.whatsapp && selectedKycChannels.email
+                                      ? "WhatsApp & Email"
+                                      : selectedKycChannels.whatsapp
+                                      ? "WhatsApp"
+                                      : "Email";
+                                    triggerToast(`⚡ Sent digital KYC invitations to ${targetCount} resident(s) via ${channelDesc}!`);
+                                  } catch (err) {
+                                    console.error(err);
+                                    triggerToast("⚠️ Error sending KYC invitations.");
+                                  } finally {
+                                    setIsSendingCloudKYC(false);
+                                  }
+                                }}
+                                className="w-full py-3 rounded-2xl bg-gradient-to-r from-purple-700 via-indigo-700 to-purple-800 hover:from-purple-800 hover:to-indigo-800 disabled:bg-gray-300 disabled:from-gray-300 disabled:to-gray-300 text-white font-bold text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                              >
+                                <Zap className="w-4 h-4 text-amber-300" />
+                                <span>
+                                  {isSendingCloudKYC
+                                    ? "Dispatching KYC Invitations..."
+                                    : selectedKycChannels.whatsapp && selectedKycChannels.email
+                                    ? `⚡ Send All (${targetCount}) via WhatsApp & Email`
+                                    : selectedKycChannels.whatsapp
+                                    ? `⚡ Send All (${targetCount}) via WhatsApp Cloud API`
+                                    : selectedKycChannels.email
+                                    ? `✉️ Send All (${targetCount}) via Official Email Gateway`
+                                    : "Select a delivery channel to send"}
+                                </span>
+                              </button>
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (sampleOcc && navigator.clipboard) {
+                                      navigator.clipboard.writeText(buildOccKycMsg(sampleOcc));
+                                      triggerToast("📋 KYC Invitation template copied to clipboard!");
+                                    }
+                                  }}
+                                  className="flex-1 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                  <span>Copy Message</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setShowBulkKYCModal(false);
+                                    setKycSuccessModalData(null);
+                                  }}
+                                  className="py-2 px-4 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-500 font-semibold text-xs transition-all cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   })()}
@@ -5638,11 +5843,23 @@ Scroll vertically to browse all residents without pagination limits
                     </p>
                   </div>
 
-                  <div className="p-3 bg-purple-50/80 border border-purple-200/80 rounded-2xl text-xs flex items-center justify-between text-purple-950">
-                    <span className="flex items-center gap-1.5 font-semibold text-purple-900">
-                      <span>💬</span> WhatsApp Balance:
-                    </span>
-                    <span className="font-mono font-bold text-purple-800">{kycSuccessModalData.creditsRemaining ?? 0} Credits</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    {kycSuccessModalData.channels?.whatsapp && (
+                      <div className="p-3 bg-emerald-50/80 border border-emerald-200/80 rounded-2xl flex items-center justify-between text-emerald-950">
+                        <span className="flex items-center gap-1.5 font-semibold text-emerald-900">
+                          <span>💬</span> WhatsApp Balance:
+                        </span>
+                        <span className="font-mono font-bold text-emerald-800">{kycSuccessModalData.whatsappRemaining ?? whatsappCredits} Credits</span>
+                      </div>
+                    )}
+                    {kycSuccessModalData.channels?.email && (
+                      <div className="p-3 bg-blue-50/80 border border-blue-200/80 rounded-2xl flex items-center justify-between text-blue-950">
+                        <span className="flex items-center gap-1.5 font-semibold text-blue-900">
+                          <span>✉️</span> Email Balance:
+                        </span>
+                        <span className="font-mono font-bold text-blue-800">{kycSuccessModalData.emailRemaining ?? emailCredits} Credits</span>
+                      </div>
+                    )}
                   </div>
 
                   <button
