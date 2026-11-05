@@ -227,15 +227,15 @@ export function renderStyledTable(
         cell.font = { name: "Segoe UI", size: 9, bold: true, color: { argb: "FF047857" } };
       }
 
-      if (col.key === "status" && typeof val === "string") {
+      if ((col.key === "status" || col.key === "agingCategory") && typeof val === "string") {
         const uVal = val.toUpperCase();
         if (uVal.includes("PAID") || uVal.includes("ACTIVE") || uVal.includes("COLLECTED")) {
           cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCFCE7" } };
           cell.font = { name: "Segoe UI", size: 9, bold: true, color: { argb: "FF166534" } };
-        } else if (uVal.includes("REFUND") || uVal.includes("NOTICE") || uVal.includes("PARTIAL")) {
+        } else if (uVal.includes("REFUND") || uVal.includes("NOTICE") || uVal.includes("PARTIAL") || uVal.includes("1-5 DAYS") || uVal.includes("6-15 DAYS")) {
           cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFEDD5" } };
           cell.font = { name: "Segoe UI", size: 9, bold: true, color: { argb: "FF9A3412" } };
-        } else if (uVal.includes("OVERDUE") || uVal.includes("VOID") || uVal.includes("PENDING")) {
+        } else if (uVal.includes("OVERDUE") || uVal.includes("VOID") || uVal.includes("PENDING") || uVal.includes("CRITICAL") || uVal.includes("16-30 DAYS")) {
           cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEE2E2" } };
           cell.font = { name: "Segoe UI", size: 9, bold: true, color: { argb: "FF991B1B" } };
         }

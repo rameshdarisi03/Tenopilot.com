@@ -26,8 +26,10 @@ import {
   ChevronRight,
   X,
   CreditCard,
+  AlertTriangle,
+  UserMinus,
+  Users,
 } from "lucide-react";
-import * as XLSX from "xlsx";
 import Papa from "papaparse";
 
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
@@ -35,6 +37,18 @@ import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { expenseStore, ExpenseRecord } from "@/constants/expenseStore";
 import { complianceLogStore } from "@/constants/complianceLogStore";
+import { subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
+import {
+  createStyledWorkbook,
+  setupWorksheetView,
+  renderHeroBanner,
+  renderMetadataCards,
+  renderKpiCardsRow,
+  renderStyledTable,
+  renderTotalRow,
+  autoFitColumnWidths,
+  downloadWorkbookInBrowser,
+} from "@/lib/excelReportGenerator";
 import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
 import { ReceiptRupeeIcon } from "@/constants/businessIconLibrary";
 
@@ -160,6 +174,7 @@ export default function ReportsAnalyticsPage({
 
   useEffect(() => {
     propertySettingsStore.initFirebaseListener(propertyId);
+    propertyStore.initFirebaseListener(propertyId);
     expenseStore.initPropertyFirebase(propertyId);
 
     const updateAll = () => {
@@ -178,12 +193,21 @@ export default function ReportsAnalyticsPage({
     const unsubExp = expenseStore.subscribe(updateAll);
     const unsubComp = complianceLogStore.subscribe(updateAll);
 
+    // Direct Real-time Cloud Firestore subscription for occupants
+    const unsubFirestoreOccupants = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
+      if (fsOccupants) {
+        occupantStore.setOccupantsFromFirestore(fsOccupants, propertyId);
+        setOccupants(occupantStore.getOccupants(propertyId));
+      }
+    });
+
     return () => {
       unsubSettings();
       unsubOcc();
       unsubProp();
       unsubExp();
       unsubComp();
+      unsubFirestoreOccupants();
     };
   }, [propertyId, selectedTimelineFilter, customStartDate, customEndDate]);
 
@@ -279,6 +303,7 @@ export default function ReportsAnalyticsPage({
       const periodPayments = isAllTime
         ? history
         : history.filter((pm) => {
+            if (pm.status === "VOIDED") return false;
             const rawDate = pm.date || "";
             if (!rawDate) return false;
             let isoDate = "";
@@ -296,6 +321,7 @@ export default function ReportsAnalyticsPage({
 
       if (periodPayments.length > 0) {
         periodPayments.forEach((pm) => {
+          if (pm.status === "VOIDED") return;
           totalRevenueIntake += pm.amount;
           const isDeposit =
             (pm.month || "").toLowerCase().includes("deposit") ||
@@ -310,11 +336,11 @@ export default function ReportsAnalyticsPage({
             upiTotal += pm.amount;
           }
         });
-      } else if (selectedTimelineFilter === "THIS_MONTH" || isAllTime) {
+      } else if (stmt.totalRentPaid > 0 && (selectedTimelineFilter === "THIS_MONTH" || isAllTime)) {
+        // Migration fallback when statement shows paid rent without granular payment history
         totalRevenueIntake += stmt.totalRentPaid;
         rentOnlyIntake += stmt.totalRentPaid;
-        upiTotal += Math.round(stmt.totalRentPaid * 0.80);
-        cashTotal += Math.round(stmt.totalRentPaid * 0.20);
+        upiTotal += stmt.totalRentPaid;
       }
     });
 
@@ -329,15 +355,76 @@ export default function ReportsAnalyticsPage({
     const upiPct = totalChannel > 0 ? Math.round((upiTotal / totalChannel) * 100) : 0;
     const cashPct = totalChannel > 0 ? 100 - upiPct : 0;
 
-    // 3. 6-Month Historical Revenue Trend Generation (True Zero for New Properties)
-    const monthNames = ["Mar", "Apr", "May", "Jun", "Jul", "Aug"];
-    const sixMonthTrend = monthNames.map((m, idx) => {
-      const growthFactor = totalRevenueIntake > 0 ? (0.70 + idx * 0.06) : 0;
-      const rev = totalRevenueIntake > 0 ? Math.round(totalRevenueIntake * growthFactor) : 0;
-      const occPctVal = totalBeds > 0 ? Math.min(100, Math.round(((activeOccupantCount / totalBeds) * 100) * (0.8 + idx * 0.04))) : 0;
+    // 3. Genuine Trailing 6-Month Collections & Occupancy Trend
+    const now = new Date();
+    const monthsData: { month: string; yearMonth: string; startDate: string; endDate: string }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const y = d.getFullYear();
+      const m = d.getMonth();
+      const lastDay = new Date(y, m + 1, 0).getDate();
+      const monthStr = d.toLocaleString("en-IN", { month: "short" });
+      const mPad = String(m + 1).padStart(2, "0");
+      monthsData.push({
+        month: monthStr,
+        yearMonth: `${y}-${mPad}`,
+        startDate: `${y}-${mPad}-01`,
+        endDate: `${y}-${mPad}-${String(lastDay).padStart(2, "0")}`,
+      });
+    }
+
+    const sixMonthTrend = monthsData.map((mObj) => {
+      let monthRev = 0;
+      let monthOccupants = 0;
+
+      occupants.forEach((occ) => {
+        const history = occ.paymentHistory || [];
+        history.forEach((pm) => {
+          if (pm.status === "VOIDED") return;
+          const rawDate = pm.date || "";
+          let isoDate = "";
+          if (rawDate.match(/^\d{4}-\d{2}-\d{2}/)) {
+            isoDate = rawDate.slice(0, 10);
+          } else {
+            const parsed = new Date(rawDate);
+            if (!isNaN(parsed.getTime())) {
+              isoDate = parsed.toISOString().slice(0, 10);
+            }
+          }
+          if (isoDate && isoDate >= mObj.startDate && isoDate <= mObj.endDate) {
+            monthRev += pm.amount;
+          }
+        });
+
+        const joinStr = occ.joiningDate || occ.lastPaidDate || "";
+        const vacateStr = occ.vacatingDate || occ.guestCheckoutDate || "";
+        const joinIso = joinStr && joinStr.match(/^\d{4}-\d{2}-\d{2}/) ? joinStr.slice(0, 10) : "";
+        const vacateIso = vacateStr && vacateStr.match(/^\d{4}-\d{2}-\d{2}/) ? vacateStr.slice(0, 10) : "";
+
+        const joinedBeforeOrDuring = !joinIso || joinIso <= mObj.endDate;
+        const notVacatedBefore = !vacateIso || vacateIso >= mObj.startDate;
+
+        if (joinedBeforeOrDuring && notVacatedBefore) {
+          if (occ.lifecycleStatus === "Active" || occ.lifecycleStatus === "Notice") {
+            monthOccupants++;
+          }
+        }
+      });
+
+      if (mObj.yearMonth === `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`) {
+        if (monthRev === 0 && totalRevenueIntake > 0) {
+          monthRev = totalRevenueIntake;
+        }
+        if (monthOccupants === 0 && activeOccupantCount > 0) {
+          monthOccupants = activeOccupantCount;
+        }
+      }
+
+      const occPctVal = totalBeds > 0 ? Math.min(100, Math.round((monthOccupants / totalBeds) * 100)) : 0;
+
       return {
-        month: m,
-        revenue: rev,
+        month: mObj.month,
+        revenue: monthRev,
         occupancyPct: occPctVal,
       };
     });
@@ -362,7 +449,70 @@ export default function ReportsAnalyticsPage({
   }, [structure, occupants, propertySettings, expenses, selectedTimelineFilter, customStartDate, customEndDate]);
 
   // -------------------------------------------------------------
-  // 1-CLICK EXPORT HANDLERS (CSV & EXCEL)
+  // DEFAULTERS & OVERDUE AGING AUDIT ENGINE
+  // -------------------------------------------------------------
+  const defaultersList = useMemo(() => {
+    const list: {
+      occupant: Occupant;
+      statement: ReturnType<typeof calculateOccupantFinancialStatement>;
+      daysOverdue: number;
+      agingCategory: "1-5 Days" | "6-15 Days" | "16-30 Days" | "30+ Days Critical";
+    }[] = [];
+
+    const activeAndNotice = occupants.filter(
+      (o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice"
+    );
+
+    activeAndNotice.forEach((occ) => {
+      const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
+      if (stmt.netOutstandingBalance > 0) {
+        const days = Math.max(1, occ.daysDiff < 0 ? Math.abs(occ.daysDiff) : 1);
+        let agingCategory: "1-5 Days" | "6-15 Days" | "16-30 Days" | "30+ Days Critical" = "1-5 Days";
+        if (days > 30) {
+          agingCategory = "30+ Days Critical";
+        } else if (days > 15) {
+          agingCategory = "16-30 Days";
+        } else if (days > 5) {
+          agingCategory = "6-15 Days";
+        }
+
+        list.push({
+          occupant: occ,
+          statement: stmt,
+          daysOverdue: days,
+          agingCategory,
+        });
+      }
+    });
+
+    return list.sort((a, b) => b.statement.netOutstandingBalance - a.statement.netOutstandingBalance);
+  }, [occupants, propertySettings]);
+
+  // -------------------------------------------------------------
+  // VACATING & NOTICE PERIOD SCHEDULE ENGINE
+  // -------------------------------------------------------------
+  const vacatingNoticeList = useMemo(() => {
+    return occupants
+      .filter((o) => o.lifecycleStatus === "Notice" || !!o.vacatingDate)
+      .map((occ) => {
+        const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
+        const secDep = stmt.securityDepositRequired || 0;
+        const rentDue = stmt.netOutstandingBalance || 0;
+        const estimatedRefund = Math.max(0, secDep - rentDue);
+
+        return {
+          occupant: occ,
+          statement: stmt,
+          vacatingDate: occ.vacatingDate || "Notice Active",
+          depositHeld: secDep,
+          outstandingDue: rentDue,
+          estimatedRefund,
+        };
+      });
+  }, [occupants, propertySettings]);
+
+  // -------------------------------------------------------------
+  // 1-CLICK EXPORT HANDLERS (CSV & COLORFUL EXCEL)
   // -------------------------------------------------------------
   const handleExportRentRollCSV = () => {
     const rows: any[] = [];
@@ -374,6 +524,7 @@ export default function ReportsAnalyticsPage({
 
       if (history.length > 0) {
         history.forEach((pm) => {
+          if (pm.status === "VOIDED") return;
           const rawDate = pm.date || "";
           let inRange = isAllTime;
           if (!isAllTime && rawDate) {
@@ -384,7 +535,7 @@ export default function ReportsAnalyticsPage({
 
           if (inRange) {
             rows.push({
-              "Receipt Number": pm.receiptNo || "N/A",
+              "Receipt Number": pm.receiptNo || `REC-${occ.roomNumber}-${occ.bedCode}`,
               "Tenant Name": occ.name,
               "Room Number": occ.roomNumber,
               "Bed Code": occ.bedCode,
@@ -394,14 +545,14 @@ export default function ReportsAnalyticsPage({
               "Amount Paid (INR)": pm.amount,
               "Payment Stream": (pm.month || "").toLowerCase().includes("deposit") ? "Security Deposit" : "Room Rent",
               "Payment Mode": pm.mode || "UPI",
-              "Collected By": pm.collectedBy?.name || "Admin",
+              "Collected By": pm.collectedBy?.name || propertySettings.propertyName || "Desk Admin",
               "Status": pm.status || "PAID",
             });
           }
         });
       } else if (stmt.totalPaid > 0) {
         rows.push({
-          "Receipt Number": `RCP-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+          "Receipt Number": `REC-${occ.roomNumber || "0"}-${occ.bedCode || "1"}`,
           "Tenant Name": occ.name,
           "Room Number": occ.roomNumber,
           "Bed Code": occ.bedCode,
@@ -410,8 +561,8 @@ export default function ReportsAnalyticsPage({
           "Payment Date": occ.joiningDate || "Active",
           "Amount Paid (INR)": stmt.totalPaid,
           "Payment Stream": "Room Rent",
-          "Payment Mode": "PhonePe UPI",
-          "Collected By": "Master Admin",
+          "Payment Mode": "Direct Transfer",
+          "Collected By": propertySettings.propertyName || "Desk Admin",
           "Status": "PAID",
         });
       }
@@ -460,56 +611,409 @@ export default function ReportsAnalyticsPage({
     triggerToast("✓ Security Deposit Report downloaded successfully!");
   };
 
-  const handleExportFullExcelWorkbook = () => {
-    const wb = XLSX.utils.book_new();
+  const handleExportDefaultersCSV = () => {
+    if (defaultersList.length === 0) {
+      triggerToast("🎉 Zero defaulters! All active residents are fully paid.");
+      return;
+    }
 
-    // Sheet 1: Rent Payment Report
-    const rentRows = occupants.map((occ) => {
-      const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
-      return {
-        "Tenant Name": occ.name,
-        "Room": occ.roomNumber,
-        "Bed": occ.bedCode,
-        "Phone": occ.phone,
-        "Monthly Rent": occ.rentAmount,
-        "Pro-Rata Rent Due": stmt.proRataRent,
-        "Total Paid This Cycle": stmt.totalPaid,
-        "Outstanding Due": stmt.netOutstandingBalance,
-        "Deposit Status": stmt.isDepositCleared ? "PAID" : "PENDING",
-        "Deposited To Account": (occ.paymentHistory && occ.paymentHistory.length > 0 ? occ.paymentHistory[occ.paymentHistory.length - 1].paidTo : undefined) || "Main Business Account",
-      };
-    });
-    const wsRent = XLSX.utils.json_to_sheet(rentRows);
-    XLSX.utils.book_append_sheet(wb, wsRent, "Rent Payments");
-
-    // Sheet 2: Operational Expenses
-    const expRows = expenses.map((e) => ({
-      "Expense ID": e.id,
-      "Date": e.date,
-      "Category": e.category,
-      "Amount (INR)": e.amount,
-      "Paid From": e.paidFrom,
-      "Notes": e.notes || "",
+    const rows = defaultersList.map((d) => ({
+      "Tenant Name": d.occupant.name,
+      "Room Number": d.occupant.roomNumber,
+      "Bed Code": d.occupant.bedCode,
+      "Phone Number": d.occupant.phone,
+      "Monthly Rent (INR)": d.occupant.rentAmount,
+      "Outstanding Dues (INR)": d.statement.netOutstandingBalance,
+      "Days Overdue": d.daysOverdue,
+      "Aging Category": d.agingCategory,
+      "Target Due Date": d.occupant.dueDate || `Day ${d.occupant.dueDay}`,
+      "Emergency Contact": d.occupant.emergencyContact?.name || "N/A",
+      "Emergency Phone": d.occupant.emergencyContact?.phone || "N/A",
     }));
-    const wsExp = XLSX.utils.json_to_sheet(expRows);
-    XLSX.utils.book_append_sheet(wb, wsExp, "PG Expenses");
 
-    // Sheet 3: Room Sharing Performance
-    const yieldRows = businessAnalytics.sharingMatrix.map((s) => ({
-      "Sharing Type": s.sharingName,
-      "Total Beds": s.totalBeds,
-      "Occupied Beds": s.occupiedBeds,
-      "Occupancy %": `${s.occPct}%`,
-      "Avg Rent Per Bed": s.avgRentPerBed,
-      "Total Monthly Earnings (INR)": s.realizedYield,
-      "Full Capacity Potential (INR)": s.capacityYield,
-      "Lost Earnings from Vacant Beds (INR)": s.vacancyLoss,
+    const csv = Papa.unparse(rows);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Rent_Defaulters_Aging_Report_${propertyId}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    triggerToast("✓ Rent Defaulters & Aging Report downloaded!");
+  };
+
+  const handleExportVacatingNoticeCSV = () => {
+    if (vacatingNoticeList.length === 0) {
+      triggerToast("ℹ️ No residents currently on notice or scheduled to vacate.");
+      return;
+    }
+
+    const rows = vacatingNoticeList.map((v) => ({
+      "Tenant Name": v.occupant.name,
+      "Room Number": v.occupant.roomNumber,
+      "Bed Code": v.occupant.bedCode,
+      "Phone Number": v.occupant.phone,
+      "Vacating / Move-Out Date": v.vacatingDate,
+      "Monthly Rent (INR)": v.occupant.rentAmount,
+      "Security Deposit Held (INR)": v.depositHeld,
+      "Pending Rent Dues (INR)": v.outstandingDue,
+      "Estimated Refund Payable (INR)": v.estimatedRefund,
+      "Emergency Phone": v.occupant.emergencyContact?.phone || "N/A",
     }));
-    const wsYield = XLSX.utils.json_to_sheet(yieldRows);
-    XLSX.utils.book_append_sheet(wb, wsYield, "Room Performance");
 
-    XLSX.writeFile(wb, `TenoPilot_CA_Accounts_Pack_${propertyId}.xlsx`);
-    triggerToast("✓ CA & Accounts Excel Workbook downloaded successfully!");
+    const csv = Papa.unparse(rows);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Vacating_Notice_Schedule_${propertyId}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    triggerToast("✓ Vacating & Notice Schedule downloaded!");
+  };
+
+  const handleExportFullExcelWorkbook = async () => {
+    try {
+      triggerToast("⏳ Generating executive colorful CA pack workbook...");
+      const wb = createStyledWorkbook(`TenoPilot OS • ${propertySettings.propertyName || "Sunshine PG"}`);
+
+      // ==========================================
+      // SHEET 1: EXECUTIVE SUMMARY & PERFORMANCE
+      // ==========================================
+      const wsSummary = wb.addWorksheet("Executive Summary");
+      renderHeroBanner(
+        wsSummary,
+        `${propertySettings.propertyName || "Sunshine PG"} — FINANCIAL & OPERATIONS AUDIT`,
+        `Report Window: ${activeDateBounds.label} • Generated: ${new Date().toLocaleString("en-IN")}`,
+        "H",
+        "FFC2652A"
+      );
+
+      renderMetadataCards(
+        wsSummary,
+        [
+          { label: "Property", value: propertySettings.propertyName || "Sunshine PG" },
+          { label: "Timeline", value: activeDateBounds.label },
+          { label: "Total Beds", value: `${businessAnalytics.totalBeds}` },
+          {
+            label: "Occupancy Rate",
+            value: `${
+              businessAnalytics.totalBeds > 0
+                ? ((businessAnalytics.occupiedBeds / businessAnalytics.totalBeds) * 100).toFixed(1)
+                : "0.0"
+            }%`,
+          },
+        ],
+        4
+      );
+
+      const totalDefaultersDues = defaultersList.reduce((acc, d) => acc + d.statement.netOutstandingBalance, 0);
+
+      renderKpiCardsRow(wsSummary, 6, [
+        {
+          label: "Total Collections",
+          value: `₹${businessAnalytics.totalRevenueIntake.toLocaleString("en-IN")}`,
+          subtext: `${activeDateBounds.label}`,
+          fillColorHex: "FFD1FAE5",
+          textColorHex: "FF065F46",
+        },
+        {
+          label: "Total Expenses",
+          value: `₹${businessAnalytics.totalExpenses.toLocaleString("en-IN")}`,
+          subtext: "Operational Bills",
+          fillColorHex: "FFFEE2E2",
+          textColorHex: "FF991B1B",
+        },
+        {
+          label: "Net Operating Profit",
+          value: `₹${businessAnalytics.netOperatingProfit.toLocaleString("en-IN")}`,
+          subtext: `${businessAnalytics.operatingMargin}% Net Margin`,
+          fillColorHex: "FFE0E7FF",
+          textColorHex: "FF3730A3",
+        },
+        {
+          label: "Outstanding Rent Dues",
+          value: `₹${totalDefaultersDues.toLocaleString("en-IN")}`,
+          subtext: `${defaultersList.length} Defaulters`,
+          fillColorHex: "FFFFEDD5",
+          textColorHex: "FF9A3412",
+        },
+      ]);
+
+      const sharingColumns = [
+        { header: "Room Sharing Type", key: "sharingName", width: 22 },
+        { header: "Total Beds", key: "totalBeds", width: 14, align: "center" as const },
+        { header: "Occupied Beds", key: "occupiedBeds", width: 14, align: "center" as const },
+        { header: "Occupancy %", key: "occPct", width: 14, align: "center" as const },
+        { header: "Average Rent", key: "avgRentPerBed", width: 16, align: "right" as const, isCurrency: true },
+        { header: "Realized Monthly Yield", key: "realizedYield", width: 22, align: "right" as const, isCurrency: true },
+        { header: "Full Capacity Potential", key: "capacityYield", width: 22, align: "right" as const, isCurrency: true },
+        { header: "Vacancy Loss", key: "vacancyLoss", width: 18, align: "right" as const, isCurrency: true },
+      ];
+
+      const startSharingDataRow = 12;
+      const lastSharingRow = renderStyledTable(
+        wsSummary,
+        11,
+        sharingColumns,
+        businessAnalytics.sharingMatrix,
+        "FF1E293B"
+      );
+
+      if (businessAnalytics.sharingMatrix.length > 0) {
+        renderTotalRow(wsSummary, lastSharingRow + 1, startSharingDataRow, lastSharingRow, sharingColumns);
+      }
+      autoFitColumnWidths(wsSummary);
+      setupWorksheetView(wsSummary, 11);
+
+      // ==========================================
+      // SHEET 2: RENT ROLL & COLLECTIONS
+      // ==========================================
+      const wsRent = wb.addWorksheet("Rent Roll");
+      renderHeroBanner(
+        wsRent,
+        `${propertySettings.propertyName || "Sunshine PG"} — RENT ROLL & COLLECTIONS LEDGER`,
+        `Report Window: ${activeDateBounds.label}`,
+        "J",
+        "FF065F46"
+      );
+
+      const rentRollCols = [
+        { header: "Receipt #", key: "receiptNo", width: 18 },
+        { header: "Date", key: "date", width: 14, align: "center" as const },
+        { header: "Resident Name", key: "name", width: 24 },
+        { header: "Room", key: "room", width: 10, align: "center" as const },
+        { header: "Bed", key: "bed", width: 10, align: "center" as const },
+        { header: "Phone", key: "phone", width: 16, align: "center" as const },
+        { header: "Cycle", key: "cycle", width: 16 },
+        { header: "Mode", key: "mode", width: 14, align: "center" as const },
+        { header: "Amount Paid (INR)", key: "amount", width: 18, align: "right" as const, isCurrency: true },
+        { header: "Status", key: "status", width: 14, align: "center" as const },
+      ];
+
+      const rentRowsData: any[] = [];
+      occupants.forEach((occ) => {
+        const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
+        const history = occ.paymentHistory || [];
+        if (history.length > 0) {
+          history.forEach((pm) => {
+            if (pm.status === "VOIDED") return;
+            rentRowsData.push({
+              receiptNo: pm.receiptNo || `REC-${occ.roomNumber}-${occ.bedCode}`,
+              date: pm.date || occ.joiningDate || "N/A",
+              name: occ.name,
+              room: occ.roomNumber,
+              bed: occ.bedCode,
+              phone: occ.phone,
+              cycle: pm.month || "Current Cycle",
+              mode: pm.mode || "UPI",
+              amount: pm.amount,
+              status: pm.status || "PAID",
+            });
+          });
+        } else if (stmt.totalPaid > 0) {
+          rentRowsData.push({
+            receiptNo: `REC-${occ.roomNumber || "0"}-${occ.bedCode || "1"}`,
+            date: occ.joiningDate || "Active",
+            name: occ.name,
+            room: occ.roomNumber,
+            bed: occ.bedCode,
+            phone: occ.phone,
+            cycle: "Active Cycle",
+            mode: "Direct Transfer",
+            amount: stmt.totalPaid,
+            status: "PAID",
+          });
+        }
+      });
+
+      const lastRentRow = renderStyledTable(wsRent, 5, rentRollCols, rentRowsData, "FF065F46");
+      if (rentRowsData.length > 0) {
+        renderTotalRow(wsRent, lastRentRow + 1, 6, lastRentRow, rentRollCols);
+      }
+      autoFitColumnWidths(wsRent);
+      setupWorksheetView(wsRent, 5);
+
+      // ==========================================
+      // SHEET 3: DEFAULTERS & OVERDUE AGING
+      // ==========================================
+      const wsDefaulters = wb.addWorksheet("Rent Defaulters");
+      renderHeroBanner(
+        wsDefaulters,
+        `${propertySettings.propertyName || "Sunshine PG"} — RENT OVERDUE & DEFAULTERS AGING`,
+        `Immediate Attention Required • Generated: ${new Date().toLocaleString("en-IN")}`,
+        "I",
+        "FF991B1B"
+      );
+
+      const defaulterCols = [
+        { header: "Resident Name", key: "name", width: 24 },
+        { header: "Room", key: "room", width: 10, align: "center" as const },
+        { header: "Bed", key: "bed", width: 10, align: "center" as const },
+        { header: "Phone Number", key: "phone", width: 16, align: "center" as const },
+        { header: "Monthly Rent", key: "rentAmount", width: 16, align: "right" as const, isCurrency: true },
+        { header: "Overdue Amount", key: "outstanding", width: 18, align: "right" as const, isCurrency: true },
+        { header: "Days Overdue", key: "daysOverdue", width: 14, align: "center" as const },
+        { header: "Aging Category", key: "agingCategory", width: 20, align: "center" as const },
+        { header: "Emergency Phone", key: "emergencyPhone", width: 16, align: "center" as const },
+      ];
+
+      const defaulterRowsData = defaultersList.map((d) => ({
+        name: d.occupant.name,
+        room: d.occupant.roomNumber,
+        bed: d.occupant.bedCode,
+        phone: d.occupant.phone,
+        rentAmount: d.occupant.rentAmount,
+        outstanding: d.statement.netOutstandingBalance,
+        daysOverdue: `${d.daysOverdue} Days`,
+        agingCategory: d.agingCategory,
+        emergencyPhone: d.occupant.emergencyContact?.phone || "N/A",
+      }));
+
+      const lastDefRow = renderStyledTable(wsDefaulters, 5, defaulterCols, defaulterRowsData, "FF991B1B");
+      if (defaulterRowsData.length > 0) {
+        renderTotalRow(wsDefaulters, lastDefRow + 1, 6, lastDefRow, defaulterCols);
+      }
+      autoFitColumnWidths(wsDefaulters);
+      setupWorksheetView(wsDefaulters, 5);
+
+      // ==========================================
+      // SHEET 4: VACATING & NOTICE SCHEDULE
+      // ==========================================
+      const wsNotice = wb.addWorksheet("Vacating Schedule");
+      renderHeroBanner(
+        wsNotice,
+        `${propertySettings.propertyName || "Sunshine PG"} — VACATING & NOTICE PERIOD SCHEDULE`,
+        `Upcoming Move-Outs & Security Deposit Refund Estimations`,
+        "I",
+        "FFC2652A"
+      );
+
+      const noticeCols = [
+        { header: "Resident Name", key: "name", width: 24 },
+        { header: "Room", key: "room", width: 10, align: "center" as const },
+        { header: "Bed", key: "bed", width: 10, align: "center" as const },
+        { header: "Phone Number", key: "phone", width: 16, align: "center" as const },
+        { header: "Vacating Date", key: "vacatingDate", width: 16, align: "center" as const },
+        { header: "Monthly Rent", key: "rentAmount", width: 16, align: "right" as const, isCurrency: true },
+        { header: "Deposit Held", key: "depositHeld", width: 16, align: "right" as const, isCurrency: true },
+        { header: "Pending Rent Due", key: "outstandingDue", width: 16, align: "right" as const, isCurrency: true },
+        { header: "Est. Net Refund", key: "estimatedRefund", width: 18, align: "right" as const, isCurrency: true },
+      ];
+
+      const noticeRowsData = vacatingNoticeList.map((v) => ({
+        name: v.occupant.name,
+        room: v.occupant.roomNumber,
+        bed: v.occupant.bedCode,
+        phone: v.occupant.phone,
+        vacatingDate: v.vacatingDate,
+        rentAmount: v.occupant.rentAmount,
+        depositHeld: v.depositHeld,
+        outstandingDue: v.outstandingDue,
+        estimatedRefund: v.estimatedRefund,
+      }));
+
+      const lastNoticeRow = renderStyledTable(wsNotice, 5, noticeCols, noticeRowsData, "FFC2652A");
+      if (noticeRowsData.length > 0) {
+        renderTotalRow(wsNotice, lastNoticeRow + 1, 6, lastNoticeRow, noticeCols);
+      }
+      autoFitColumnWidths(wsNotice);
+      setupWorksheetView(wsNotice, 5);
+
+      // ==========================================
+      // SHEET 5: SECURITY DEPOSITS CUSTODY
+      // ==========================================
+      const wsDeposits = wb.addWorksheet("Security Deposits");
+      renderHeroBanner(
+        wsDeposits,
+        `${propertySettings.propertyName || "Sunshine PG"} — RESIDENT SECURITY DEPOSIT ESCROW REGISTER`,
+        `Statutory Custody Ledger`,
+        "H",
+        "FF312E81"
+      );
+
+      const depositCols = [
+        { header: "Resident Name", key: "name", width: 24 },
+        { header: "Room & Bed", key: "roomBed", width: 14, align: "center" as const },
+        { header: "Contact Phone", key: "phone", width: 16, align: "center" as const },
+        { header: "Check-In Date", key: "joiningDate", width: 14, align: "center" as const },
+        { header: "Deposit Required", key: "req", width: 18, align: "right" as const, isCurrency: true },
+        { header: "Deposit Paid", key: "paid", width: 18, align: "right" as const, isCurrency: true },
+        { header: "Remaining Due", key: "rem", width: 16, align: "right" as const, isCurrency: true },
+        { header: "Status", key: "status", width: 14, align: "center" as const },
+      ];
+
+      const depositRowsData = occupants
+        .filter((o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice")
+        .map((occ) => {
+          const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
+          const req = stmt.securityDepositRequired || 0;
+          const paid = stmt.totalDepositPaid || (stmt.isDepositCleared ? req : 0);
+          const rem = stmt.remainingDepositDue !== undefined ? stmt.remainingDepositDue : Math.max(0, req - paid);
+          return {
+            name: occ.name,
+            roomBed: `${occ.roomNumber} (${occ.bedCode})`,
+            phone: occ.phone,
+            joiningDate: occ.joiningDate || "Active",
+            req,
+            paid,
+            rem,
+            status: stmt.isDepositCleared ? "PAID" : "PENDING",
+          };
+        });
+
+      const lastDepRow = renderStyledTable(wsDeposits, 5, depositCols, depositRowsData, "FF312E81");
+      if (depositRowsData.length > 0) {
+        renderTotalRow(wsDeposits, lastDepRow + 1, 6, lastDepRow, depositCols);
+      }
+      autoFitColumnWidths(wsDeposits);
+      setupWorksheetView(wsDeposits, 5);
+
+      // ==========================================
+      // SHEET 6: OPERATIONAL EXPENSES
+      // ==========================================
+      const wsExp = wb.addWorksheet("PG Expenses");
+      renderHeroBanner(
+        wsExp,
+        `${propertySettings.propertyName || "Sunshine PG"} — OPERATIONAL EXPENSES & BILLS`,
+        `Window: ${activeDateBounds.label}`,
+        "F",
+        "FF1E293B"
+      );
+
+      const expCols = [
+        { header: "Date", key: "date", width: 14, align: "center" as const },
+        { header: "Category", key: "category", width: 22 },
+        { header: "Paid From Account", key: "paidFrom", width: 22 },
+        { header: "Expense Amount", key: "amount", width: 18, align: "right" as const, isCurrency: true },
+        { header: "Notes & Reference", key: "notes", width: 30 },
+      ];
+
+      const expRowsData = expenses.map((e) => ({
+        date: e.date,
+        category: e.category,
+        paidFrom: e.paidFrom,
+        amount: e.amount,
+        notes: e.notes || "",
+      }));
+
+      const lastExpRow = renderStyledTable(wsExp, 5, expCols, expRowsData, "FF1E293B");
+      if (expRowsData.length > 0) {
+        renderTotalRow(wsExp, lastExpRow + 1, 6, lastExpRow, expCols);
+      }
+      autoFitColumnWidths(wsExp);
+      setupWorksheetView(wsExp, 5);
+
+      // Trigger Client-Side Download
+      await downloadWorkbookInBrowser(
+        wb,
+        `TenoPilot_CA_Audit_Pack_${propertyId}_${activeDateBounds.startDate}_to_${activeDateBounds.endDate}.xlsx`
+      );
+      triggerToast("✅ Full Colorful CA & Accounts Pack downloaded successfully!");
+    } catch (err: any) {
+      console.error("Excel generation error:", err);
+      triggerToast(`⚠️ Failed to generate Excel: ${err.message || "Unknown error"}`);
+    }
   };
 
   return (
@@ -720,7 +1224,7 @@ export default function ReportsAnalyticsPage({
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                   {/* Export Box 1: Rent Payment Report */}
                   <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-gray-50 border border-gray-200 flex flex-col justify-between space-y-3 sm:space-y-4 hover:border-[#c2652a]/60 hover:bg-orange-50/20 transition-all group">
                     <div className="space-y-1.5 sm:space-y-2">
@@ -729,7 +1233,7 @@ export default function ReportsAnalyticsPage({
                       </div>
                       <h4 className="font-bold text-xs sm:text-sm text-gray-900">Rent Payment Report (.csv)</h4>
                       <p className="text-[11px] sm:text-xs text-gray-500 leading-relaxed">
-                        All rent payments, dates, UPI references, and tenant details in the selected timeline.
+                        Itemized rent payments, receipts, payment modes, and resident details for {activeDateBounds.label}.
                       </p>
                     </div>
                     <button
@@ -741,7 +1245,69 @@ export default function ReportsAnalyticsPage({
                     </button>
                   </div>
 
-                  {/* Export Box 2: Expense & Bill Report */}
+                  {/* Export Box 2: Defaulters & Overdue Aging Report */}
+                  <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-rose-50/40 border border-rose-200 flex flex-col justify-between space-y-3 sm:space-y-4 hover:border-rose-400 hover:bg-rose-50/70 transition-all group">
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="w-9 sm:w-10 h-9 sm:h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold">
+                          <AlertTriangle className="w-4 sm:w-5 h-4 sm:h-5" />
+                        </div>
+                        {defaultersList.length > 0 ? (
+                          <span className="text-[10px] font-extrabold text-rose-800 bg-rose-100 border border-rose-300 px-2.5 py-0.5 rounded-full">
+                            {defaultersList.length} Defaulters
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full">
+                            ✓ Zero Dues
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Defaulters & Aging Dues (.csv)</h4>
+                      <p className="text-[11px] sm:text-xs text-gray-500 leading-relaxed">
+                        Unpaid residents grouped into 1-5d, 6-15d, and 16-30d+ critical overdue buckets with emergency contacts.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleExportDefaultersCSV}
+                      className="w-full py-2.5 px-4 rounded-xl bg-white border border-rose-300 group-hover:border-rose-600 group-hover:bg-rose-600 group-hover:text-white font-bold text-xs text-rose-700 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs min-h-[42px] active:scale-95"
+                    >
+                      <Download className="w-4 h-4" /> Download Defaulters List
+                    </button>
+                  </div>
+
+                  {/* Export Box 3: Vacating & Move-Out Schedule */}
+                  <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-orange-50/40 border border-orange-200 flex flex-col justify-between space-y-3 sm:space-y-4 hover:border-orange-400 hover:bg-orange-50/70 transition-all group">
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="w-9 sm:w-10 h-9 sm:h-10 rounded-xl bg-orange-100 text-[#c2652a] flex items-center justify-center font-bold">
+                          <UserMinus className="w-4 sm:w-5 h-4 sm:h-5" />
+                        </div>
+                        {vacatingNoticeList.length > 0 ? (
+                          <span className="text-[10px] font-extrabold text-orange-800 bg-orange-100 border border-orange-300 px-2.5 py-0.5 rounded-full">
+                            {vacatingNoticeList.length} On Notice
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-extrabold text-gray-600 bg-gray-100 border border-gray-300 px-2.5 py-0.5 rounded-full">
+                            0 On Notice
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Vacating & Notice Schedule (.csv)</h4>
+                      <p className="text-[11px] sm:text-xs text-gray-500 leading-relaxed">
+                        Upcoming move-outs, freeing beds, deposit held, unpaid dues, and estimated refunds.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleExportVacatingNoticeCSV}
+                      className="w-full py-2.5 px-4 rounded-xl bg-white border border-orange-300 group-hover:border-[#c2652a] group-hover:bg-[#c2652a] group-hover:text-white font-bold text-xs text-orange-800 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs min-h-[42px] active:scale-95"
+                    >
+                      <Download className="w-4 h-4" /> Download Notice Schedule
+                    </button>
+                  </div>
+
+                  {/* Export Box 4: Expense & Bill Report */}
                   <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-gray-50 border border-gray-200 flex flex-col justify-between space-y-3 sm:space-y-4 hover:border-[#c2652a]/60 hover:bg-orange-50/20 transition-all group">
                     <div className="space-y-1.5 sm:space-y-2">
                       <div className="w-9 sm:w-10 h-9 sm:h-10 rounded-xl bg-orange-100 text-[#c2652a] flex items-center justify-center font-bold">
@@ -749,7 +1315,7 @@ export default function ReportsAnalyticsPage({
                       </div>
                       <h4 className="font-bold text-xs sm:text-sm text-gray-900">Expense & Bill Report (.csv)</h4>
                       <p className="text-[11px] sm:text-xs text-gray-500 leading-relaxed">
-                        All PG operational expenses, bills, and vendor payments with category breakdown.
+                        All PG operational expenses, bills, and vendor payments with category and account breakdown.
                       </p>
                     </div>
                     <button
@@ -761,15 +1327,15 @@ export default function ReportsAnalyticsPage({
                     </button>
                   </div>
 
-                  {/* Export Box 3: Security Deposit Report */}
-                  <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-gray-50 border border-gray-200 flex flex-col justify-between space-y-3 sm:space-y-4 hover:border-[#c2652a]/60 hover:bg-orange-50/20 transition-all group sm:col-span-2 md:col-span-1">
+                  {/* Export Box 5: Security Deposit Custody Report */}
+                  <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-gray-50 border border-gray-200 flex flex-col justify-between space-y-3 sm:space-y-4 hover:border-[#c2652a]/60 hover:bg-orange-50/20 transition-all group">
                     <div className="space-y-1.5 sm:space-y-2">
                       <div className="w-9 sm:w-10 h-9 sm:h-10 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-bold">
                         <ShieldCheck className="w-4 sm:w-5 h-4 sm:h-5" />
                       </div>
-                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Security Deposit Report (.csv)</h4>
+                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Security Deposit Custody (.csv)</h4>
                       <p className="text-[11px] sm:text-xs text-gray-500 leading-relaxed">
-                        Tenant security deposit status list with joining dates and emergency contacts.
+                        Resident security deposit status list with joining dates, amounts held, and remaining dues.
                       </p>
                     </div>
                     <button
@@ -778,6 +1344,31 @@ export default function ReportsAnalyticsPage({
                       className="w-full py-2.5 px-4 rounded-xl bg-white border border-gray-300 group-hover:border-[#c2652a] group-hover:bg-[#c2652a] group-hover:text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs min-h-[42px] active:scale-95"
                     >
                       <Download className="w-4 h-4" /> Download Deposit Report
+                    </button>
+                  </div>
+
+                  {/* Export Box 6: Master Colorful CA Pack (ExcelJS) */}
+                  <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-gradient-to-br from-gray-900 to-[#1e293b] text-white border border-gray-800 flex flex-col justify-between space-y-3 sm:space-y-4 shadow-md group">
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="w-9 sm:w-10 h-9 sm:h-10 rounded-xl bg-[#c2652a] text-white flex items-center justify-center font-bold shadow-xs">
+                          <FileSpreadsheet className="w-4 sm:w-5 h-4 sm:h-5" />
+                        </div>
+                        <span className="text-[10px] font-extrabold text-emerald-300 bg-emerald-950/80 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
+                          6 TABS • COLORED
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-xs sm:text-sm text-white">Full CA Accounts Pack (.xlsx)</h4>
+                      <p className="text-[11px] sm:text-xs text-gray-300 leading-relaxed">
+                        Presentation-ready workbook with executive KPI banners, rent roll, defaulters, expenses, and deposit escrow.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleExportFullExcelWorkbook}
+                      className="w-full py-2.5 px-4 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs min-h-[42px] active:scale-95"
+                    >
+                      <Download className="w-4 h-4" /> Download Colorful Excel (.xlsx)
                     </button>
                   </div>
                 </div>

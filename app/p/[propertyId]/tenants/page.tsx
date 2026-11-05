@@ -2222,6 +2222,65 @@ export default function TenantsDirectoryPage({
     }
   };
 
+  const handleExportSelectedTenantsCSV = () => {
+    const targetOccupants = occupantsList.filter((o) => selectedIds.includes(o.id));
+    if (targetOccupants.length === 0) {
+      triggerToast("⚠️ Please select at least one tenant to export.");
+      return;
+    }
+
+    const headers = [
+      "Tenant ID",
+      "Resident Name",
+      "Room Number",
+      "Bed Code",
+      "Phone Number",
+      "Email Address",
+      "Stay Type",
+      "Lifecycle Status",
+      "Joining Date",
+      "Monthly Rent (INR)",
+      "Payment Status",
+      "Days Overdue / Info",
+      "Aadhaar Number",
+      "KYC Status",
+      "Emergency Contact Name",
+      "Emergency Contact Phone",
+      "Workplace / College",
+    ];
+
+    const rows = targetOccupants.map((o) => [
+      o.id,
+      `"${(o.name || "").replace(/"/g, '""')}"`,
+      o.roomNumber || "",
+      o.bedCode || "",
+      `"${o.phone || ""}"`,
+      `"${o.email || ""}"`,
+      o.stayType,
+      o.lifecycleStatus,
+      o.joiningDate || "",
+      o.rentAmount || 0,
+      o.paymentStatus,
+      `"${o.daysRemainingText || ""}"`,
+      o.aadhaarNumber || "",
+      o.kycVerified ? "Verified" : "Pending",
+      `"${(o.emergencyContact?.name || "").replace(/"/g, '""')}"`,
+      `"${o.emergencyContact?.phone || ""}"`,
+      `"${(o.workplace || o.occupation || "").replace(/"/g, '""')}"`,
+    ]);
+
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      encodeURIComponent([headers.join(","), ...rows.map((r) => r.join(","))].join("\n"));
+    const link = document.createElement("a");
+    link.setAttribute("href", csvContent);
+    link.setAttribute("download", `TenoPilot_Tenants_Roster_${propertyId}_${selectedIds.length}_records.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    triggerToast(`✓ Exported CSV for ${targetOccupants.length} tenants!`);
+  };
+
   const counts = useMemo(() => {
     return {
       All: occupantsList.filter((o) => o.lifecycleStatus !== "Past").length,
@@ -3780,10 +3839,10 @@ Scroll vertically to browse all residents without pagination limits
 
               <button
                 type="button"
-                onClick={() => triggerToast(`Exported CSV for ${selectedIds.length} tenants`)}
-                className="hidden md:flex px-3.5 py-2.5 rounded-xl border border-slate-700 hover:bg-slate-800 text-slate-200 text-xs font-semibold items-center gap-1.5 transition-all"
+                onClick={handleExportSelectedTenantsCSV}
+                className="hidden md:flex px-3.5 py-2.5 rounded-xl border border-slate-700 hover:bg-slate-800 text-slate-200 text-xs font-semibold items-center gap-1.5 transition-all cursor-pointer active:scale-95"
               >
-                <Download className="w-4 h-4" /> Export
+                <Download className="w-4 h-4" /> Export CSV
               </button>
 
               <button
