@@ -30,6 +30,8 @@ export async function GET(req: NextRequest) {
     const rentAmount = rentAmountParam !== null && rentAmountParam !== "" ? Number(rentAmountParam) : undefined;
     const depositAmount = depositAmountParam !== null && depositAmountParam !== "" ? Number(depositAmountParam) : undefined;
     const parkingAmount = parkingAmountParam !== null && parkingAmountParam !== "" ? Number(parkingAmountParam) : undefined;
+    const maintenanceAmountParam = searchParams.get("maintenanceAmount") || searchParams.get("maintenance");
+    const maintenanceAmount = maintenanceAmountParam !== null && maintenanceAmountParam !== "" ? Number(maintenanceAmountParam) : undefined;
     const isDeposit =
       searchParams.get("isDeposit") === "true" ||
       receiptNo.startsWith("DEP") ||
@@ -82,6 +84,7 @@ export async function GET(req: NextRequest) {
       rentAmount,
       depositAmount,
       parkingAmount,
+      maintenanceAmount,
       settlementDetails: isSettlement
         ? {
             initialDeposit: searchParams.get("initialDeposit") ? Number(searchParams.get("initialDeposit")) : amount,

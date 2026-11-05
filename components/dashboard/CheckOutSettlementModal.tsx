@@ -133,6 +133,7 @@ export function CheckOutSettlementModal({
 
       // 1. Build official ledger settlement entries
       const settlementRecords: any[] = [];
+      const totalMaintCharges = (maintenanceExpenses || 0) + (repairDeductions || 0);
 
       // A. If unpaid rent dues were settled (adjusted against deposit or collected on exit)
       if (unpaidRentDues > 0 && !isBadDebtExit) {
@@ -145,6 +146,10 @@ export function CheckOutSettlementModal({
           paidTo: refundAccount || paymentChannel,
           receiptNo: `SET-RENT-${Date.now().toString().slice(-4)}`,
           status: "PAID" as const,
+          rentAmount: unpaidRentDues,
+          depositAmount: 0,
+          parkingAmount: 0,
+          maintenanceAmount: 0,
         });
       }
 
@@ -159,6 +164,10 @@ export function CheckOutSettlementModal({
           paidTo: refundAccount || paymentChannel,
           receiptNo: `REF-${Date.now().toString().slice(-6)}`,
           status: "PAID" as const,
+          depositAmount: initialDeposit,
+          rentAmount: unpaidRentDues > 0 ? unpaidRentDues : 0,
+          parkingAmount: 0,
+          maintenanceAmount: totalMaintCharges > 0 ? totalMaintCharges : 0,
         });
       }
 
@@ -266,6 +275,7 @@ export function CheckOutSettlementModal({
           const settings = propertySettingsStore.getSettings(propertyId);
           const propName = settings?.propertyName || "TenoPilot PG";
 
+          const totalMaintFee = (maintenanceExpenses || 0) + (repairDeductions || 0);
           const pdfParams = new URLSearchParams({
             receiptNo: receiptNoStr,
             propertyName: propName,
@@ -281,7 +291,10 @@ export function CheckOutSettlementModal({
             initialDeposit: String(initialDeposit),
             unpaidRent: String(unpaidRentDues),
             repairs: String(repairDeductions),
-            maintenance: String(maintenanceExpenses),
+            maintenance: String(totalMaintFee),
+            maintenanceAmount: String(totalMaintFee),
+            rentAmount: String(unpaidRentDues),
+            depositAmount: String(initialDeposit),
             totalDeductions: String(totalDeductions),
             netRefunded: String(netRefundableAmount),
             netDeficit: String(netDeficitToCollect),

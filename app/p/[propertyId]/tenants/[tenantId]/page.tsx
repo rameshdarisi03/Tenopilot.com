@@ -1885,7 +1885,10 @@ export default function IndividualTenantProfilePage({
           initialDeposit: String(depositHeld),
           unpaidRent: "0",
           repairs: String(addedPenalty),
-          maintenance: "0",
+          maintenance: String(addedPenalty),
+          maintenanceAmount: String(addedPenalty),
+          rentAmount: "0",
+          depositAmount: String(depositHeld),
           totalDeductions: String(totalOwnerKeeps),
           netRefunded: String(Math.max(0, netCashToReturn)),
           netDeficit: String(netCashToReturn < 0 ? Math.abs(netCashToReturn) : 0),
@@ -2920,11 +2923,13 @@ export default function IndividualTenantProfilePage({
                   <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">
                     Outstanding Balance
                   </p>
-                  <p className="text-2xl font-bold font-serif text-gray-900">
-                    ₹{topStmt.netOutstandingBalance.toLocaleString("en-IN")}
+                  <p className={`text-2xl font-bold font-serif ${topStmt.netOutstandingBalance < 0 ? "text-purple-700" : "text-gray-900"}`}>
+                    {topStmt.netOutstandingBalance < 0
+                      ? `-₹${Math.abs(topStmt.netOutstandingBalance).toLocaleString("en-IN")}`
+                      : `₹${topStmt.netOutstandingBalance.toLocaleString("en-IN")}`}
                   </p>
                   <p className={`text-[10px] font-bold mt-1.5 ${
-                    topStmt.isFullyPaid ? "text-green-600" : topStmt.isPartialPaid ? "text-amber-600" : "text-red-600"
+                    topStmt.netOutstandingBalance < 0 ? "text-purple-600" : topStmt.isFullyPaid ? "text-green-600" : topStmt.isPartialPaid ? "text-amber-600" : "text-red-600"
                   }`}>
                     {topStmt.statusBadgeText}
                   </p>

@@ -3479,18 +3479,20 @@ Scroll vertically to browse all residents without pagination limits
                     {/* Dynamic Font & Space Sizing for Tenant Name + Status Badge (with Parentheses / Amounts) */}
                     {(() => {
                       const stmt = calculateOccupantFinancialStatement(occ, currentSettings);
+                      const isNegative = stmt.netOutstandingBalance < 0;
                       const isPaid = stmt.isFullyPaid;
                       const isPartial = stmt.isPartialPaid;
                       // Synchronize with SSOT: if financial statement badge is DUE, the resident is Due (never Overdue)!
                       const isOverdue = !isPaid && !isPartial && stmt.isOverdue && !stmt.statusBadgeText.startsWith("DUE");
 
-                      // Format partial amounts compactly if brackets exist e.g. ₹14,500 -> ₹14.5k
-                      const partialAmountCompact = stmt.netOutstandingBalance > 9999
-                        ? `₹${(stmt.netOutstandingBalance / 1000).toFixed(stmt.netOutstandingBalance % 1000 === 0 ? 0 : 1)}k`
-                        : `₹${stmt.netOutstandingBalance.toLocaleString("en-IN")}`;
+                      // Format partial or negative amounts compactly e.g. ₹14,500 -> ₹14.5k
+                      const absBal = Math.abs(stmt.netOutstandingBalance);
+                      const partialAmountCompact = absBal > 9999
+                        ? `₹${(absBal / 1000).toFixed(absBal % 1000 === 0 ? 0 : 1)}k`
+                        : `₹${absBal.toLocaleString("en-IN")}`;
 
-                      const statusMain = isPaid ? "Paid" : isPartial ? "Partial" : isOverdue ? "Overdue" : "Due";
-                      const statusExtra = isPartial ? `(${partialAmountCompact})` : "";
+                      const statusMain = isNegative ? "Paid" : isPaid ? "Paid" : isPartial ? "Partial" : isOverdue ? "Overdue" : "Due";
+                      const statusExtra = isNegative ? `(-${partialAmountCompact})` : isPartial ? `(${partialAmountCompact})` : "";
                       const fullStatusString = statusExtra ? `${statusMain} ${statusExtra}` : statusMain;
                       const statusLen = fullStatusString.length;
 
@@ -3622,7 +3624,9 @@ Scroll vertically to browse all residents without pagination limits
                               ) : (
                                 <span
                                   className={`inline-flex items-center gap-1 rounded font-bold uppercase select-none shrink-0 ${statusSizeClass} ${
-                                    isPaid
+                                    isNegative
+                                      ? "bg-purple-100 text-purple-700 border border-purple-200"
+                                      : isPaid
                                       ? "bg-green-100 text-green-700"
                                       : isPartial
                                       ? "bg-orange-100 text-orange-800 border border-orange-200"

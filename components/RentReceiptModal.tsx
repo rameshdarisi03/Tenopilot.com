@@ -38,23 +38,38 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
     receiptItem.month.toLowerCase().includes("deposit") ||
     Boolean(receiptItem.depositAmount && receiptItem.depositAmount > 0 && (!receiptItem.rentAmount || receiptItem.rentAmount === 0));
 
+  const isSettlement =
+    receiptItem.receiptNo.startsWith("REF") ||
+    receiptItem.receiptNo.startsWith("SET") ||
+    receiptItem.month.toLowerCase().includes("settlement") ||
+    receiptItem.month.toLowerCase().includes("refund");
+
   const displayBillingMonth = resolveBillingCycleMonth(
     receiptItem.month,
     receiptItem.date,
     occupant.joiningDate
   );
 
+  // Exact mappings:
+  // 1. Security Deposit amount -> mapped to Deposit field
   const effectiveDepositAmount = receiptItem.depositAmount !== undefined
     ? receiptItem.depositAmount
     : isDeposit
     ? receiptItem.amount
     : 0;
 
+  // 3. Parking charges -> mapped to Parking field
+  const effectiveParkingAmount = receiptItem.parkingAmount || 0;
+
+  // 4. Maintenance charges & penalties -> mapped to Maintenance field
+  const effectiveMaintenanceAmount = receiptItem.maintenanceAmount || 0;
+
+  // 2. Rent amount -> mapped to Rent field
   const effectiveRentAmount = receiptItem.rentAmount !== undefined
     ? receiptItem.rentAmount
     : isDeposit
     ? 0
-    : Math.max(0, receiptItem.amount - effectiveDepositAmount - (receiptItem.parkingAmount || 0));
+    : Math.max(0, receiptItem.amount - effectiveDepositAmount - effectiveParkingAmount - effectiveMaintenanceAmount);
 
   const formattedAmount = Number(receiptItem.amount || 0).toLocaleString("en-IN");
   const pName = propertySettings.propertyName || "TenoPilot PG & Coliving";
@@ -83,12 +98,14 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
       paidTo: receiptItem.paidTo || "Main Account",
       month: receiptItem.month,
       isDeposit: String(isDeposit),
+      isSettlement: String(isSettlement),
       isVoided: String(isVoided),
       download: "true",
     });
     q.set("rentAmount", String(effectiveRentAmount));
     q.set("depositAmount", String(effectiveDepositAmount));
-    if (receiptItem.parkingAmount !== undefined) q.set("parkingAmount", String(receiptItem.parkingAmount));
+    q.set("parkingAmount", String(effectiveParkingAmount));
+    q.set("maintenanceAmount", String(effectiveMaintenanceAmount));
     if (occupant.joiningDate) q.set("joiningDate", occupant.joiningDate);
     if (propertySettings.ownerName) q.set("ownerName", propertySettings.ownerName);
     // For base64 data URLs, avoid URL overflow in GET query string; the server fetches signatureUrl directly from Firestore settings
@@ -264,16 +281,16 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
                   <div>
                     <span className="font-bold text-[#142952]">Parking fee : </span>
                     <span className="font-mono font-bold text-slate-900">
-                      {receiptItem.parkingAmount && receiptItem.parkingAmount > 0
-                        ? `INR ${receiptItem.parkingAmount.toLocaleString("en-IN")}`
+                      {effectiveParkingAmount > 0
+                        ? `INR ${effectiveParkingAmount.toLocaleString("en-IN")}`
                         : "-"}
                     </span>
                   </div>
                   <div className="pl-3">
                     <span className="font-bold text-[#142952]">Maintenance : </span>
                     <span className="font-medium text-slate-600">
-                      {receiptItem.maintenanceAmount && receiptItem.maintenanceAmount > 0
-                        ? `INR ${receiptItem.maintenanceAmount.toLocaleString("en-IN")}`
+                      {effectiveMaintenanceAmount > 0
+                        ? `INR ${effectiveMaintenanceAmount.toLocaleString("en-IN")}`
                         : "-"}
                     </span>
                   </div>

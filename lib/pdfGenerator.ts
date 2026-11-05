@@ -707,11 +707,24 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
     page.drawText("Total Deductions :", { x: midX + 14, y: r1Y, size: 10.5, font: fontBold, color: navyDeep });
     page.drawText(`INR ${Number(totalDeds).toLocaleString("en-IN")}`, { x: midX + 125, y: r1Y, size: 10.5, font: fontMono, color: rgb(0.7, 0.2, 0.2) });
 
-    page.drawText("Unpaid Dues / Repairs :", { x: gridX + 14, y: r2Y, size: 10, font: fontBold, color: navyDeep });
-    page.drawText(`Rent: ${data.settlementDetails.unpaidRent || 0} • Repairs: ${data.settlementDetails.repairs || 0}`, { x: gridX + 14, y: r2Y - 12, size: 8.5, font: fontRegular, color: slateMuted });
+    const totalMaintCharges = (data.settlementDetails.maintenance || 0) + (data.settlementDetails.repairs || 0);
+    page.drawText("Unpaid Rent :", { x: gridX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
+    page.drawText(data.settlementDetails.unpaidRent && data.settlementDetails.unpaidRent > 0 ? `INR ${Number(data.settlementDetails.unpaidRent).toLocaleString("en-IN")}` : "-", {
+      x: gridX + 88,
+      y: r2Y,
+      size: 10.5,
+      font: data.settlementDetails.unpaidRent && data.settlementDetails.unpaidRent > 0 ? fontMono : fontBold,
+      color: data.settlementDetails.unpaidRent && data.settlementDetails.unpaidRent > 0 ? slateDark : slateMuted,
+    });
 
-    page.drawText("Settlement Status :", { x: midX + 14, y: r2Y, size: 10, font: fontBold, color: navyDeep });
-    page.drawText("Bed Vacated & Ledger Finalized", { x: midX + 14, y: r2Y - 12, size: 8.5, font: fontBold, color: emeraldDark });
+    page.drawText("Maintenance :", { x: midX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
+    page.drawText(totalMaintCharges > 0 ? `INR ${Number(totalMaintCharges).toLocaleString("en-IN")}` : "-", {
+      x: midX + 96,
+      y: r2Y,
+      size: 10.5,
+      font: totalMaintCharges > 0 ? fontMono : fontBold,
+      color: totalMaintCharges > 0 ? slateDark : slateMuted,
+    });
   } else if (isDeposit) {
     // Deposit Grid (Hyphen '-' for zero/non-applicable values per user request)
     const depositAmt = data.depositAmount && data.depositAmount > 0 ? data.depositAmount : data.amount;
