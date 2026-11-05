@@ -60,6 +60,7 @@ import { whatsappCreditStore, WhatsAppCreditTransaction } from "@/constants/what
 import { useAuth } from "@/providers/AuthProvider";
 import { PoliceVerificationRegister } from "@/components/dashboard/PoliceVerificationRegister";
 import { syncVehicleParkingChargesToOccupants } from "@/lib/firestoreService";
+import { compressPaymentScreenshot } from "@/lib/imageCompression";
 
 const SETTINGS_TABS: {
   id: "FINANCIAL" | "PROPERTY" | "RENT_CHARGES" | "PARTNERS" | "QR_PROFILES" | "POLICE_REGISTER" | "CONFIG";
@@ -139,6 +140,34 @@ export default function PropertySettingsPage({
   const [settings, setSettings] = useState<PropertySettingsData>(DEFAULT_PROPERTY_SETTINGS);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
+
+  // Handwritten Signature Camera & Gallery Upload State
+  const signatureCameraInputRef = React.useRef<HTMLInputElement>(null);
+  const signatureGalleryInputRef = React.useRef<HTMLInputElement>(null);
+  const [isCompressingSignature, setIsCompressingSignature] = useState(false);
+  const [signatureSizeKb, setSignatureSizeKb] = useState<number | null>(null);
+
+  const handleProcessSignatureFile = async (file: File) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      triggerToast("⚠️ Please select an image file (PNG, JPG, or WebP).");
+      return;
+    }
+
+    setIsCompressingSignature(true);
+    try {
+      // Auto-compress client-side to max 800px & high quality 0.85
+      const result = await compressPaymentScreenshot(file, 800, 0.85);
+      setSettings((prev) => ({ ...prev, signatureUrl: result.base64 }));
+      setSignatureSizeKb(result.sizeKb);
+      triggerToast(`✓ Signature compressed (${result.sizeKb} KB)! Click 'Save Settings' below to persist.`);
+    } catch (err: any) {
+      console.error("Signature compression error:", err);
+      triggerToast("⚠️ Failed to compress image. Please try another photo.");
+    } finally {
+      setIsCompressingSignature(false);
+    }
+  };
 
   // Partners & Expense Categories State
   const [partners, setPartners] = useState<PartnerConfig[]>([]);
@@ -1380,83 +1409,146 @@ export default function PropertySettingsPage({
                         Upload a photo of your signature signed on white paper (or official management stamp). This will be automatically attested in Box 4 on all rent receipts, settlement vouchers, and agreements for HRA tax compliance.
                       </p>
 
+                      {isCompressingSignature && (
+                        <div className="mb-2.5 p-2.5 bg-purple-50 border border-purple-200 rounded-xl text-purple-900 text-xs font-semibold flex items-center gap-2 animate-pulse">
+                          <Sparkles className="w-4 h-4 text-purple-600 animate-spin" />
+                          <span>Optimizing & auto-compressing signature for HD receipt attestation...</span>
+                        </div>
+                      )}
+
                       {settings.signatureUrl ? (
-                        <div className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200">
-                          <div className="h-16 w-36 bg-white rounded-xl border border-slate-300 flex items-center justify-center p-1.5 overflow-hidden shadow-2xs">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={settings.signatureUrl}
-                              alt="Owner Signature"
-                              className="max-h-full max-w-full object-contain"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <label className="px-3 py-1.5 text-xs font-bold text-gray-700 bg-white hover:bg-gray-100 border border-gray-300 rounded-xl cursor-pointer text-center shadow-2xs transition-all">
-                              Change Image
-                              <input
-                                type="file"
-                                accept="image/png,image/jpeg,image/webp"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (!file) return;
-                                  if (file.size > 2 * 1024 * 1024) {
-                                    alert("Please upload a signature smaller than 2 MB.");
-                                    return;
-                                  }
-                                  const reader = new FileReader();
-                                  reader.onload = () => {
-                                    setSettings({ ...settings, signatureUrl: reader.result as string });
-                                    triggerToast("Signature updated! Click 'Save Settings' to persist.");
-                                  };
-                                  reader.readAsDataURL(file);
-                                }}
+                        <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                          <div className="flex items-center gap-3.5">
+                            <div className="h-16 w-36 bg-white rounded-xl border border-slate-300 flex items-center justify-center p-1.5 overflow-hidden shadow-2xs shrink-0">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={settings.signatureUrl}
+                                alt="Owner Signature"
+                                className="max-h-full max-w-full object-contain"
                               />
-                            </label>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs font-bold text-gray-900">Handwritten Signature</span>
+                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                  ✓ Active
+                                </span>
+                                {signatureSizeKb && (
+                                  <span className="text-[10px] font-medium text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200">
+                                    {signatureSizeKb} KB (Compressed)
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-gray-500 mt-1 leading-relaxed">
+                                Automatically attested in Box 4 on all rent receipts, settlement vouchers & agreements.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => signatureCameraInputRef.current?.click()}
+                              className="px-3 py-1.5 text-xs font-bold text-purple-800 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-xl cursor-pointer flex items-center gap-1.5 shadow-2xs transition-all active:scale-95"
+                            >
+                              <Camera className="w-3.5 h-3.5 text-purple-600" />
+                              <span>Take New Photo</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => signatureGalleryInputRef.current?.click()}
+                              className="px-3 py-1.5 text-xs font-bold text-gray-700 bg-white hover:bg-gray-100 border border-gray-300 rounded-xl cursor-pointer flex items-center gap-1.5 shadow-2xs transition-all active:scale-95"
+                            >
+                              <Upload className="w-3.5 h-3.5 text-blue-600" />
+                              <span>Choose from Gallery</span>
+                            </button>
                             <button
                               type="button"
                               onClick={() => {
                                 setSettings({ ...settings, signatureUrl: undefined });
+                                setSignatureSizeKb(null);
                                 triggerToast("Signature removed. System will use digital signature fallback.");
                               }}
-                              className="px-3 py-1.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl cursor-pointer transition-all"
+                              className="px-3 py-1.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl cursor-pointer flex items-center gap-1 transition-all active:scale-95 ml-auto"
                             >
-                              Remove Signature
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Remove</span>
                             </button>
                           </div>
                         </div>
                       ) : (
-                        <label className="flex flex-col items-center justify-center p-4 rounded-2xl border-2 border-dashed border-gray-300 hover:border-[#c2652a] bg-gray-50/70 hover:bg-orange-50/30 cursor-pointer transition-all">
-                          <div className="w-10 h-10 rounded-full bg-orange-100/80 text-[#c2652a] flex items-center justify-center font-bold text-lg mb-1.5">
-                            ✍️
+                        <div className="space-y-2.5">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            {/* Option 1: Take Photo with Camera */}
+                            <button
+                              type="button"
+                              disabled={isCompressingSignature}
+                              onClick={() => signatureCameraInputRef.current?.click()}
+                              className="p-3.5 sm:p-4 rounded-2xl border-2 border-dashed border-purple-300 hover:border-purple-500 bg-purple-50/40 hover:bg-purple-50/80 transition-all flex items-center gap-3 text-left cursor-pointer active:scale-98 group"
+                            >
+                              <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                                <Camera className="w-5 h-5" />
+                              </div>
+                              <div className="min-w-0">
+                                <span className="block font-bold text-xs text-purple-950">📸 Take Photo with Camera</span>
+                                <span className="block text-[10px] text-purple-700 font-medium mt-0.5 truncate">
+                                  Snap signature signed on white paper
+                                </span>
+                              </div>
+                            </button>
+
+                            {/* Option 2: Choose from Gallery */}
+                            <button
+                              type="button"
+                              disabled={isCompressingSignature}
+                              onClick={() => signatureGalleryInputRef.current?.click()}
+                              className="p-3.5 sm:p-4 rounded-2xl border-2 border-dashed border-blue-300 hover:border-blue-500 bg-blue-50/40 hover:bg-blue-50/80 transition-all flex items-center gap-3 text-left cursor-pointer active:scale-98 group"
+                            >
+                              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                                <Upload className="w-5 h-5" />
+                              </div>
+                              <div className="min-w-0">
+                                <span className="block font-bold text-xs text-blue-950">🖼️ Choose from Gallery</span>
+                                <span className="block text-[10px] text-blue-700 font-medium mt-0.5 truncate">
+                                  Upload photo or official seal image
+                                </span>
+                              </div>
+                            </button>
                           </div>
-                          <span className="text-xs font-bold text-gray-800">
-                            Upload Signature or Seal Image
-                          </span>
-                          <span className="text-[10px] text-gray-500 mt-0.5">
-                            PNG, JPG or WebP (max 2 MB) • Clean white background recommended
-                          </span>
-                          <input
-                            type="file"
-                            accept="image/png,image/jpeg,image/webp"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              if (file.size > 2 * 1024 * 1024) {
-                                alert("Please upload a signature smaller than 2 MB.");
-                                return;
-                              }
-                              const reader = new FileReader();
-                              reader.onload = () => {
-                                setSettings({ ...settings, signatureUrl: reader.result as string });
-                                triggerToast("Signature loaded! Click 'Save Settings' below to persist.");
-                              };
-                              reader.readAsDataURL(file);
-                            }}
-                          />
-                        </label>
+
+                          <div className="flex items-center justify-between text-[10px] text-gray-500 px-1">
+                            <span>Clean white paper recommended for highest clarity</span>
+                            <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                              <Sparkles className="w-3 h-3" /> Auto-compressed without quality loss
+                            </span>
+                          </div>
+                        </div>
                       )}
+
+                      {/* Native OS File Inputs for Camera & Gallery */}
+                      <input
+                        ref={signatureCameraInputRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleProcessSignatureFile(file);
+                          e.target.value = "";
+                        }}
+                      />
+                      <input
+                        ref={signatureGalleryInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleProcessSignatureFile(file);
+                          e.target.value = "";
+                        }}
+                      />
                     </div>
                   </div>
                 </div>

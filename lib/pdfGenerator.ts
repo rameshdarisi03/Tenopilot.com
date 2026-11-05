@@ -800,29 +800,44 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
 
   // Embedded Owner Signature (If uploaded) OR Elegant Calligraphic Fallback
   let imageEmbedded = false;
-  if (data.signatureUrl && typeof data.signatureUrl === "string" && data.signatureUrl.includes("base64,")) {
+  if (data.signatureUrl && typeof data.signatureUrl === "string" && data.signatureUrl.trim().length > 0) {
     try {
-      const base64Data = data.signatureUrl.split("base64,")[1];
-      const imageBytes = Buffer.from(base64Data, "base64");
-      let embeddedImg;
-      if (data.signatureUrl.includes("image/jpeg") || data.signatureUrl.includes("image/jpg")) {
-        embeddedImg = await pdfDoc.embedJpg(imageBytes);
-      } else {
-        try {
-          embeddedImg = await pdfDoc.embedPng(imageBytes);
-        } catch {
-          embeddedImg = await pdfDoc.embedJpg(imageBytes);
+      let imageBytes: Uint8Array | null = null;
+      if (data.signatureUrl.startsWith("http://") || data.signatureUrl.startsWith("https://")) {
+        const res = await fetch(data.signatureUrl);
+        if (res.ok) {
+          const ab = await res.arrayBuffer();
+          imageBytes = new Uint8Array(ab);
         }
+      } else {
+        const rawBase64 = data.signatureUrl.includes("base64,")
+          ? data.signatureUrl.split("base64,")[1]
+          : data.signatureUrl;
+        imageBytes = Buffer.from(rawBase64, "base64");
       }
-      if (embeddedImg) {
-        const imgDims = embeddedImg.scaleToFit(140, 40);
-        page.drawImage(embeddedImg, {
-          x: ownerSigX + (sigLineW - imgDims.width) / 2,
-          y: sigBoxY + 12,
-          width: imgDims.width,
-          height: imgDims.height,
-        });
-        imageEmbedded = true;
+
+      if (imageBytes && imageBytes.length > 0) {
+        let embeddedImg: any = null;
+        try {
+          embeddedImg = await pdfDoc.embedJpg(imageBytes);
+        } catch {
+          try {
+            embeddedImg = await pdfDoc.embedPng(imageBytes);
+          } catch (e2) {
+            console.warn("Could not embed signature as JPG or PNG:", e2);
+          }
+        }
+
+        if (embeddedImg) {
+          const imgDims = embeddedImg.scaleToFit(140, 38);
+          page.drawImage(embeddedImg, {
+            x: ownerSigX + (sigLineW - imgDims.width) / 2,
+            y: sigBoxY + 12,
+            width: imgDims.width,
+            height: imgDims.height,
+          });
+          imageEmbedded = true;
+        }
       }
     } catch (sigErr) {
       console.warn("Notice: could not embed owner signature image, using script signature fallback:", sigErr);

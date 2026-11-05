@@ -71,7 +71,10 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
     if (receiptItem.parkingAmount !== undefined) q.set("parkingAmount", String(receiptItem.parkingAmount));
     if (occupant.joiningDate) q.set("joiningDate", occupant.joiningDate);
     if (propertySettings.ownerName) q.set("ownerName", propertySettings.ownerName);
-    if (propertySettings.signatureUrl) q.set("signatureUrl", propertySettings.signatureUrl);
+    // For base64 data URLs, avoid URL overflow in GET query string; the server fetches signatureUrl directly from Firestore settings
+    if (propertySettings.signatureUrl && (propertySettings.signatureUrl.startsWith("http://") || propertySettings.signatureUrl.startsWith("https://"))) {
+      q.set("signatureUrl", propertySettings.signatureUrl);
+    }
 
     const url = `/api/receipt/pdf?${q.toString()}`;
     const a = document.createElement("a");
