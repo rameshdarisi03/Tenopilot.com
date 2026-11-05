@@ -208,25 +208,19 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
                 </div>
               </div>
 
-              {/* Resident Demographics (Omitted Residential Address & Office Address per user red strike-outs) */}
+              {/* Resident Demographics (Omitted Residential Address, Office Address & Check-in Date per user red strike-outs) */}
               <div className="space-y-2.5 mb-5 px-1">
                 <div className="flex items-baseline border-b border-slate-300 pb-1">
                   <span className="font-bold text-xs sm:text-sm text-[#142952] shrink-0">Guest Name :</span>
                   <span className="font-bold text-xs sm:text-sm text-slate-900 ml-2.5 truncate">{occupant.name}</span>
                 </div>
-                <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-300 pb-1">
-                  <div className="flex items-baseline">
-                    <span className="font-bold text-xs sm:text-sm text-[#142952] shrink-0">Check-in Date :</span>
-                    <span className="font-medium text-xs sm:text-sm text-slate-900 ml-2">{occupant.joiningDate || receiptItem.date}</span>
-                  </div>
-                  <div className="flex items-baseline">
-                    <span className="font-bold text-xs sm:text-sm text-[#142952] shrink-0">Billing Period :</span>
-                    <span className="font-medium text-xs sm:text-sm text-slate-900 ml-2">{receiptItem.month}</span>
-                  </div>
+                <div className="flex items-baseline border-b border-slate-300 pb-1">
+                  <span className="font-bold text-xs sm:text-sm text-[#142952] shrink-0">Billing Period :</span>
+                  <span className="font-medium text-xs sm:text-sm text-slate-900 ml-2">{receiptItem.month}</span>
                 </div>
               </div>
 
-              {/* Boxed Financial Grid (Omitted empty Balance blanks per user red strike-outs) */}
+              {/* Boxed Financial Grid (Hyphen '-' for zero values per user request) */}
               <div className="border border-slate-800 rounded-none overflow-hidden mb-5">
                 <div className="grid grid-cols-2 divide-x divide-slate-300 border-b border-slate-300 p-2.5 bg-slate-50/60 text-xs">
                   <div>
@@ -236,14 +230,14 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
                         ? `INR ${receiptItem.depositAmount.toLocaleString("en-IN")}`
                         : isDeposit
                         ? `INR ${Number(receiptItem.amount).toLocaleString("en-IN")}`
-                        : "Nil / Pre-Paid"}
+                        : "-"}
                     </span>
                   </div>
                   <div className="pl-3">
                     <span className="font-bold text-[#142952]">Rent : </span>
                     <span className="font-mono font-bold text-slate-900">
                       {isDeposit
-                        ? "Nil (Deposit Cycle)"
+                        ? "-"
                         : `INR ${(receiptItem.rentAmount !== undefined ? receiptItem.rentAmount : (receiptItem.parkingAmount ? Math.max(0, receiptItem.amount - receiptItem.parkingAmount) : receiptItem.amount)).toLocaleString("en-IN")}`}
                     </span>
                   </div>
@@ -254,12 +248,16 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
                     <span className="font-mono font-bold text-slate-900">
                       {receiptItem.parkingAmount && receiptItem.parkingAmount > 0
                         ? `INR ${receiptItem.parkingAmount.toLocaleString("en-IN")}`
-                        : "Nil / Free"}
+                        : "-"}
                     </span>
                   </div>
                   <div className="pl-3">
                     <span className="font-bold text-[#142952]">Maintenance : </span>
-                    <span className="font-medium text-slate-600">Nil (Included)</span>
+                    <span className="font-medium text-slate-600">
+                      {receiptItem.maintenanceAmount && receiptItem.maintenanceAmount > 0
+                        ? `INR ${receiptItem.maintenanceAmount.toLocaleString("en-IN")}`
+                        : "-"}
+                    </span>
                   </div>
                 </div>
                 {/* Total Received Highlight Bar */}
@@ -268,7 +266,7 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
                     TOTAL RECEIVED : <span className="font-mono font-black text-emerald-800">INR {formattedAmount}</span>
                   </span>
                   <span className="text-[11px] text-slate-700 font-medium">
-                    Mode: <strong className="text-slate-900">{receiptItem.mode || "UPI"}</strong> {receiptItem.paidTo ? `• A/C: ${receiptItem.paidTo}` : ""}
+                    Mode: <strong className="text-slate-900">{receiptItem.mode || "UPI"}</strong>
                   </span>
                 </div>
               </div>
@@ -302,9 +300,7 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
                 {/* Guest Signature */}
                 <div>
                   <div className="h-12 flex items-end justify-center mb-1">
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      Digitally Verified & Acknowledged
-                    </span>
+                    {/* Empty space for tenant / resident to physically or digitally sign */}
                   </div>
                   <div className="border-t border-slate-900 pt-1 text-center">
                     <p className="font-bold text-xs text-[#142952]">Guest Signature</p>

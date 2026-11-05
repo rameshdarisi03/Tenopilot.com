@@ -601,53 +601,27 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
 
   curY -= 34;
 
-  // 9. Check-in Date & Billing Period with clean underlines
-  const labelCheckin = "Check-in Date : ";
-  const valCheckin = data.joiningDate || data.paidDate;
-  page.drawText(labelCheckin, {
+  // 9. Billing Period with clean underline (Check-in Date omitted per user request)
+  const labelCycle = "Billing Period : ";
+  const valCycle = data.month || "Current Cycle";
+  page.drawText(labelCycle, {
     x: frameX + 22,
     y: curY,
     size: 10.5,
     font: fontBold,
     color: navyDeep,
   });
-  const labelCheckinW = fontBold.widthOfTextAtSize(labelCheckin, 10.5);
-  page.drawText(valCheckin, {
-    x: frameX + 22 + labelCheckinW + 4,
-    y: curY,
-    size: 10.5,
-    font: fontRegular,
-    color: slateDark,
-  });
-
-  const labelCycle = "Billing Period : ";
-  const valCycle = data.month || "Current Cycle";
-  const cycleFullW = fontBold.widthOfTextAtSize(labelCycle, 10.5) + fontRegular.widthOfTextAtSize(valCycle, 10.5) + 6;
-  const cycleX = frameX + frameW - 22 - cycleFullW;
-  page.drawText(labelCycle, {
-    x: cycleX,
-    y: curY,
-    size: 10.5,
-    font: fontBold,
-    color: navyDeep,
-  });
+  const labelCycleW = fontBold.widthOfTextAtSize(labelCycle, 10.5);
   page.drawText(valCycle, {
-    x: cycleX + fontBold.widthOfTextAtSize(labelCycle, 10.5) + 4,
+    x: frameX + 22 + labelCycleW + 4,
     y: curY,
     size: 10.5,
     font: fontRegular,
     color: slateDark,
   });
 
-  // Underlines
   page.drawLine({
-    start: { x: frameX + 22 + labelCheckinW, y: curY - 3 },
-    end: { x: frameX + 225, y: curY - 3 },
-    thickness: 0.8,
-    color: rgb(0.65, 0.70, 0.78),
-  });
-  page.drawLine({
-    start: { x: cycleX + fontBold.widthOfTextAtSize(labelCycle, 10.5), y: curY - 3 },
+    start: { x: frameX + 22 + labelCycleW, y: curY - 3 },
     end: { x: frameX + frameW - 22, y: curY - 3 },
     thickness: 0.8,
     color: rgb(0.65, 0.70, 0.78),
@@ -705,52 +679,58 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
     page.drawText("Settlement Status :", { x: midX + 14, y: r2Y, size: 10, font: fontBold, color: navyDeep });
     page.drawText("Bed Vacated & Ledger Finalized", { x: midX + 14, y: r2Y - 12, size: 8.5, font: fontBold, color: emeraldDark });
   } else if (data.isDeposit) {
-    // Deposit Grid
+    // Deposit Grid (Hyphen '-' for zero/non-applicable values per user request)
     page.drawText("Deposit :", { x: gridX + 14, y: r1Y, size: 11, font: fontBold, color: navyDeep });
     page.drawText(`INR ${Number(data.amount).toLocaleString("en-IN")}`, { x: gridX + 75, y: r1Y, size: 11, font: fontMono, color: slateDark });
 
     page.drawText("Rent :", { x: midX + 14, y: r1Y, size: 11, font: fontBold, color: navyDeep });
-    page.drawText("INR 0 (Deposit Cycle)", { x: midX + 65, y: r1Y, size: 10, font: fontRegular, color: slateMuted });
+    page.drawText("-", { x: midX + 65, y: r1Y, size: 11, font: fontBold, color: slateMuted });
 
-    page.drawText("Security Escrow :", { x: gridX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
-    page.drawText("Refundable on Move-Out", { x: gridX + 14, y: r2Y - 12, size: 8.5, font: fontRegular, color: emeraldDark });
+    page.drawText("Parking fee :", { x: gridX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
+    page.drawText("-", { x: gridX + 88, y: r2Y, size: 11, font: fontBold, color: slateMuted });
 
     page.drawText("Maintenance :", { x: midX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
-    page.drawText("Nil / Included", { x: midX + 96, y: r2Y, size: 9.5, font: fontRegular, color: slateMuted });
+    page.drawText("-", { x: midX + 96, y: r2Y, size: 11, font: fontBold, color: slateMuted });
   } else {
-    // Standard Rent Grid (Honoring User's Red Strike-outs)
+    // Standard Rent Grid (Hyphen '-' for zero values per user request)
     const effectiveRent = data.rentAmount !== undefined ? data.rentAmount : (data.parkingAmount ? Math.max(0, data.amount - data.parkingAmount) : data.amount);
     const effectiveDeposit = data.depositAmount || 0;
     const effectiveParking = data.parkingAmount || 0;
     const effectiveMaint = data.maintenanceAmount || 0;
 
     page.drawText("Deposit :", { x: gridX + 14, y: r1Y, size: 11, font: fontBold, color: navyDeep });
-    page.drawText(effectiveDeposit > 0 ? `INR ${Number(effectiveDeposit).toLocaleString("en-IN")}` : "Nil / Pre-Paid", {
+    page.drawText(effectiveDeposit > 0 ? `INR ${Number(effectiveDeposit).toLocaleString("en-IN")}` : "-", {
       x: gridX + 75,
       y: r1Y,
-      size: effectiveDeposit > 0 ? 11 : 9.5,
-      font: effectiveDeposit > 0 ? fontMono : fontRegular,
+      size: 11,
+      font: effectiveDeposit > 0 ? fontMono : fontBold,
       color: effectiveDeposit > 0 ? slateDark : slateMuted,
     });
 
     page.drawText("Rent :", { x: midX + 14, y: r1Y, size: 11, font: fontBold, color: navyDeep });
-    page.drawText(`INR ${Number(effectiveRent).toLocaleString("en-IN")}`, { x: midX + 65, y: r1Y, size: 11, font: fontMono, color: slateDark });
+    page.drawText(effectiveRent > 0 ? `INR ${Number(effectiveRent).toLocaleString("en-IN")}` : "-", {
+      x: midX + 65,
+      y: r1Y,
+      size: 11,
+      font: effectiveRent > 0 ? fontMono : fontBold,
+      color: effectiveRent > 0 ? slateDark : slateMuted,
+    });
 
     page.drawText("Parking fee :", { x: gridX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
-    page.drawText(effectiveParking > 0 ? `INR ${Number(effectiveParking).toLocaleString("en-IN")}` : "Nil / Free", {
+    page.drawText(effectiveParking > 0 ? `INR ${Number(effectiveParking).toLocaleString("en-IN")}` : "-", {
       x: gridX + 88,
       y: r2Y,
-      size: 10,
-      font: effectiveParking > 0 ? fontMono : fontRegular,
+      size: 11,
+      font: effectiveParking > 0 ? fontMono : fontBold,
       color: effectiveParking > 0 ? slateDark : slateMuted,
     });
 
     page.drawText("Maintenance :", { x: midX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
-    page.drawText(effectiveMaint > 0 ? `INR ${Number(effectiveMaint).toLocaleString("en-IN")}` : "Nil (Included)", {
+    page.drawText(effectiveMaint > 0 ? `INR ${Number(effectiveMaint).toLocaleString("en-IN")}` : "-", {
       x: midX + 96,
       y: r2Y,
-      size: 9.5,
-      font: effectiveMaint > 0 ? fontMono : fontRegular,
+      size: 11,
+      font: effectiveMaint > 0 ? fontMono : fontBold,
       color: effectiveMaint > 0 ? slateDark : slateMuted,
     });
   }
@@ -779,8 +759,7 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
     color: emeraldDark,
   });
 
-  const payDest = data.paidTo ? ` • A/C: ${data.paidTo}` : "";
-  const modeStr = `Mode: ${data.paymentMode || "UPI"}${payDest}`;
+  const modeStr = `Mode: ${data.paymentMode || "UPI"}`;
   const modeW = fontBold.widthOfTextAtSize(modeStr, 9);
   page.drawText(modeStr, {
     x: gridX + gridW - 14 - modeW,
@@ -880,15 +859,7 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
     color: slateMuted,
   });
 
-  // Right: Guest Signature
-  page.drawText("Digitally Verified & Acknowledged", {
-    x: guestSigX + 16,
-    y: sigBoxY + 16,
-    size: 9,
-    font: fontBold,
-    color: emeraldDark,
-  });
-
+  // Right: Guest Signature (Box left completely empty for resident/occupant physical or digital signature)
   page.drawLine({
     start: { x: guestSigX, y: sigBoxY + 10 },
     end: { x: guestSigX + sigLineW, y: sigBoxY + 10 },
@@ -904,8 +875,8 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
     color: navyDeep,
   });
 
-  page.drawText("Resident / Occupant Acknowledgment", {
-    x: guestSigX + 18,
+  page.drawText("Tenant / Resident Confirmation", {
+    x: guestSigX + 28,
     y: sigBoxY - 18,
     size: 8,
     font: fontRegular,
