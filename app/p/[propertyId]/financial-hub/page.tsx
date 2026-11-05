@@ -43,6 +43,10 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronUp,
+  Mail,
+  RotateCcw,
+  Loader2,
+  Ban,
 } from "lucide-react";
 import {
   partnerStore,
@@ -57,7 +61,7 @@ import { CATEGORIZED_ICON_LIBRARY, RenderDynamicCategoryIcon, ReceiptRupeeIcon }
 import { useCollectionsViewMode } from "@/hooks/useCollectionsViewMode";
 import { CollectionsCardSwitcher } from "@/components/dashboard/CollectionsCardSwitcher";
 import { CollectionsHelpPopover } from "@/components/dashboard/CollectionsHelpPopover";
-import { occupantStore } from "@/constants/mockOccupants";
+import { occupantStore, Occupant, PaymentHistoryItem } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import {
@@ -71,7 +75,49 @@ import { staffStore, UserRole } from "@/lib/staffStore";
 import { ThemedAccountSelect } from "@/components/dashboard/ThemedAccountSelect";
 import { useRouter } from "next/navigation";
 import { buildWhatsAppUrl } from "@/utils/security";
-import { subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
+import { subscribeOccupantsFromFirestore, updateOccupantInFirestore } from "@/lib/firestoreService";
+import { RentReceiptModal } from "@/components/RentReceiptModal";
+import { VoidReceiptModal } from "@/components/dashboard/VoidReceiptModal";
+import { useAuth } from "@/providers/AuthProvider";
+
+export interface DepositTransactionItem {
+  id: string;
+  receiptNo: string;
+  date: string;
+  isoDate: string;
+  timestamp?: number;
+  occupantId: string;
+  occupantName: string;
+  occupantPhone?: string;
+  occupantEmail?: string;
+  roomNumber: string;
+  bedCode: string;
+  type: "COLLECTED" | "REFUNDED";
+  amount: number;
+  mode: string;
+  paidTo: string;
+  status: "PAID" | "VOIDED";
+  isVoided: boolean;
+  voidReason?: string;
+  replacesReceiptNo?: string;
+  replacedByReceiptNo?: string;
+  rawPaymentItem: PaymentHistoryItem;
+  rawOccupant?: Occupant;
+}
+
+// 💬 Official WhatsApp Brand SVG Icon (Thumb-friendly & authentic)
+function WhatsAppBrandIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.889-9.885 9.889m0-18.067c-4.508 0-8.177 3.668-8.18 8.179 0 1.44.377 2.846 1.094 4.088l.17.294-.724 2.647 2.709-.711.284.169a8.14 8.14 0 004.647 1.412h.003c4.507 0 8.178-3.669 8.18-8.18 0-2.186-.851-4.24-2.398-5.787A8.136 8.136 0 0012.051 3.718z" />
+    </svg>
+  );
+}
 
 const COLOR_SWATCHES = [
   { name: "Terracotta", hex: "#964407" },
@@ -361,6 +407,7 @@ export default function FinancialHubPage({
   const [categories, setCategories] = useState<ExpenseCategoryConfig[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccountConfig[]>([]);
   const router = useRouter();
+  const { profile } = useAuth();
 
   // Auto-reset paying account based on partner count (Empty by default for 2+ partners)
   useEffect(() => {
@@ -693,6 +740,7 @@ export default function FinancialHubPage({
     let depositsRefunded = 0;
     let pendingDeposits = 0;
     let activeDepositsHeld = 0;
+    const depositTransactions: DepositTransactionItem[] = [];
 
     // 1. Pending Deposit & Deposit in Hand (Escrow) for Active & Notice residents
     activeAndNotice.forEach((occ) => {
@@ -707,10 +755,10 @@ export default function FinancialHubPage({
     allOccupants.forEach((occ) => {
       const rawHistory = occ.paymentHistory || [];
       const history = rawHistory.filter(
-        (pm) => pm.status !== "VOIDED" && (pm as any).status !== "FAILED" && (pm as any).status !== "CANCELLED"
+        (pm) => (pm as any).status !== "FAILED" && (pm as any).status !== "CANCELLED"
       );
 
-      history.forEach((pm) => {
+      history.forEach((pm, idx) => {
         const rawDate = pm.date || "";
         if (!rawDate) return;
         const isoDate = parseDateToIso(rawDate, (pm as any).timestamp);
@@ -724,11 +772,42 @@ export default function FinancialHubPage({
         const isRefund = rNo.startsWith("REF-") || mStr.includes("refund");
         const isDep = !isRefund && (mStr.includes("deposit") || rNo.toLowerCase().includes("dep") || ((pm as any).depositAmount && (pm as any).depositAmount > 0));
 
-        if (isDep) {
-          depositsCollected += pm.amount;
-        } else if (isRefund) {
-          depositsRefunded += pm.amount;
+        if (!isDep && !isRefund) return;
+
+        const isItemVoided = pm.status === "VOIDED";
+
+        if (!isItemVoided) {
+          if (isDep) {
+            depositsCollected += pm.amount;
+          } else if (isRefund) {
+            depositsRefunded += pm.amount;
+          }
         }
+
+        depositTransactions.push({
+          id: `${occ.id}-dep-${idx}-${pm.receiptNo || pm.date}`,
+          receiptNo: pm.receiptNo || (isRefund ? `REF-${idx + 101}` : `DEP-${idx + 101}`),
+          date: pm.date || "Active Cycle",
+          isoDate,
+          timestamp: (pm as any).timestamp,
+          occupantId: occ.id,
+          occupantName: occ.name,
+          occupantPhone: occ.phone,
+          occupantEmail: occ.email,
+          roomNumber: occ.roomNumber,
+          bedCode: occ.bedCode,
+          type: isRefund ? "REFUNDED" : "COLLECTED",
+          amount: pm.amount,
+          mode: pm.mode || "UPI",
+          paidTo: pm.paidTo || "Main Business Account",
+          status: isItemVoided ? "VOIDED" : "PAID",
+          isVoided: isItemVoided,
+          voidReason: (pm as any).voidReason,
+          replacesReceiptNo: (pm as any).replacesReceiptNo,
+          replacedByReceiptNo: (pm as any).replacedByReceiptNo,
+          rawPaymentItem: pm,
+          rawOccupant: occ,
+        });
       });
     });
 
@@ -744,10 +823,45 @@ export default function FinancialHubPage({
           );
           if (!hasHistRefund) {
             depositsRefunded += log.depositRefunded;
+
+            const dummyItem: PaymentHistoryItem = {
+              id: `compl-ref-${log.id}`,
+              receiptNo: `REF-CHK-${log.id.slice(-4)}`,
+              month: "Security Deposit Refund (Check-Out)",
+              date: log.checkOutDate || "Recent",
+              amount: log.depositRefunded,
+              mode: (log as any).refundMode || "Bank / UPI",
+              paidTo: "Resident Account",
+              status: "PAID",
+            };
+
+            depositTransactions.push({
+              id: `compl-${log.id}-refund`,
+              receiptNo: `REF-CHK-${log.id.slice(-4)}`,
+              date: log.checkOutDate || "Recent",
+              isoDate: logDate || "2026-10-26",
+              occupantId: log.occupantId,
+              occupantName: (log as any).occupantName || occ?.name || "Resident",
+              occupantPhone: occ?.phone,
+              occupantEmail: occ?.email,
+              roomNumber: log.roomNumber || occ?.roomNumber || "N/A",
+              bedCode: log.bedCode || occ?.bedCode || "N/A",
+              type: "REFUNDED",
+              amount: log.depositRefunded,
+              mode: (log as any).refundMode || "Bank / UPI",
+              paidTo: "Resident Account",
+              status: "PAID",
+              isVoided: false,
+              rawPaymentItem: dummyItem,
+              rawOccupant: occ,
+            });
           }
         }
       }
     });
+
+    // Sort newest first
+    depositTransactions.sort((a, b) => b.isoDate.localeCompare(a.isoDate));
 
     return {
       depositsCollected,
@@ -755,12 +869,18 @@ export default function FinancialHubPage({
       pendingDeposits,
       activeDepositsHeld,
       activeAndNotice,
+      depositTransactions,
       label,
     };
   };
 
   const [revenueMetrics, setRevenueMetrics] = useState(computeLiveRevenueData);
   const [depositMetrics, setDepositMetrics] = useState(computeLiveDepositData);
+
+  const refreshFinancialMetrics = () => {
+    setRevenueMetrics(computeLiveRevenueData());
+    setDepositMetrics(computeLiveDepositData());
+  };
 
   // Sync state whenever timeline filter or custom dates change
   useEffect(() => {
@@ -770,8 +890,7 @@ export default function FinancialHubPage({
     setHighestCat(expenseStore.getHighestCategory(propertyId, startDate, endDate));
     setTotalSpent(expenseStore.getTotalSpentThisMonth(propertyId, startDate, endDate));
     setPartnerContributions(expenseStore.getPartnerPersonalContributions(propertyId, startDate, endDate));
-    setRevenueMetrics(computeLiveRevenueData());
-    setDepositMetrics(computeLiveDepositData());
+    refreshFinancialMetrics();
   }, [selectedTimelineFilter, customStartDate, customEndDate, propertyId]);
 
   // Dynamic Rent & Gross Collections Calculations (100% SSOT matching Overview, Property Map, and Tenants)
@@ -1028,8 +1147,246 @@ export default function FinancialHubPage({
   // -------------------------------------------------------------
   // DEPOSITS PILLAR ENGINE & ESCROW CUSTODY CALCULATIONS
   // -------------------------------------------------------------
+  const [depositViewMode, setDepositViewMode] = useState<"TRANSACTIONS" | "REGISTER">("TRANSACTIONS");
+  const [depositLedgerFilter, setDepositLedgerFilter] = useState<"ALL" | "COLLECTED" | "REFUNDED">("ALL");
+  const [depositLedgerSearch, setDepositLedgerSearch] = useState("");
   const [depositSearchQuery, setDepositSearchQuery] = useState("");
   const [depositStatusFilter, setDepositStatusFilter] = useState<"ALL" | "PAID" | "PENDING">("ALL");
+
+  // Interactive Receipt & Void Modals State for Deposits Tab
+  const [selectedReceiptForModal, setSelectedReceiptForModal] = useState<{
+    receipt: PaymentHistoryItem;
+    occupant: Occupant;
+  } | null>(null);
+  const [voidReceiptTarget, setVoidReceiptTarget] = useState<{
+    receipt: PaymentHistoryItem;
+    occupant: Occupant;
+  } | null>(null);
+  const [activeDispatchTarget, setActiveDispatchTarget] = useState<{
+    receiptId: string;
+    channel: "WHATSAPP" | "EMAIL";
+  } | null>(null);
+  const [isDispatchingReceipt, setIsDispatchingReceipt] = useState(false);
+
+  // Filtered deposit transactions strictly respecting the top-right timeline filter
+  const filteredDepositTransactions = useMemo(() => {
+    const list = (depositMetrics as any).depositTransactions as DepositTransactionItem[] || [];
+    return list.filter((item) => {
+      // Type filter
+      if (depositLedgerFilter === "COLLECTED" && item.type !== "COLLECTED") return false;
+      if (depositLedgerFilter === "REFUNDED" && item.type !== "REFUNDED") return false;
+
+      // Search filter
+      if (depositLedgerSearch.trim()) {
+        const q = depositLedgerSearch.toLowerCase().trim();
+        const matchName = (item.occupantName || "").toLowerCase().includes(q);
+        const matchRoom = (item.roomNumber || "").toLowerCase().includes(q);
+        const matchBed = (item.bedCode || "").toLowerCase().includes(q);
+        const matchReceipt = (item.receiptNo || "").toLowerCase().includes(q);
+        const matchPhone = (item.occupantPhone || "").toLowerCase().includes(q);
+        if (!matchName && !matchRoom && !matchBed && !matchReceipt && !matchPhone) return false;
+      }
+
+      return true;
+    });
+  }, [depositMetrics, depositLedgerFilter, depositLedgerSearch]);
+
+  // Counts for ledger sub-filters
+  const depositLedgerCounts = useMemo(() => {
+    const list = (depositMetrics as any).depositTransactions as DepositTransactionItem[] || [];
+    let collectedCount = 0;
+    let refundedCount = 0;
+    list.forEach((t) => {
+      if (t.type === "COLLECTED") collectedCount++;
+      else if (t.type === "REFUNDED") refundedCount++;
+    });
+    return { all: list.length, collected: collectedCount, refunded: refundedCount };
+  }, [depositMetrics]);
+
+  // 1-Click CSV Exporter for Timeline-Filtered Deposit Transactions
+  const exportDepositTransactionsToCSV = () => {
+    const transactions = filteredDepositTransactions;
+    if (transactions.length === 0) {
+      triggerToast("⚠️ No deposit transactions to export for this period.");
+      return;
+    }
+
+    const { label, startDate, endDate } = resolveActiveDateBounds();
+    const rows: string[] = [
+      `"TENOPILOT DEPOSIT ACTIVITY LEDGER"`,
+      `"Property:","${(propertySettings.propertyName || "Property").replace(/"/g, '""')}"`,
+      `"Timeline Filter:","${label}"`,
+      `"Generated On:","${new Date().toLocaleString("en-IN")}"`,
+      ``,
+      `"Receipt No","Date","Resident Name","Phone","Room","Bed","Activity Type","Amount (INR)","Mode","Paid To / Channel","Status"`,
+    ];
+
+    transactions.forEach((t) => {
+      rows.push(
+        `"${t.receiptNo}","${t.date}","${(t.occupantName || "").replace(/"/g, '""')}","${t.occupantPhone || ""}","${t.roomNumber}","${t.bedCode}","${t.type}","${t.amount}","${t.mode}","${t.paidTo}","${t.status}"`
+      );
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(rows.join("\n"));
+    const link = document.createElement("a");
+    link.setAttribute("href", csvContent);
+    link.setAttribute("download", `TenoPilot-Deposit-Activity-${propertyId}-${startDate}-to-${endDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    triggerToast(`📊 Deposit transactions for ${label} downloaded as CSV!`);
+  };
+
+  // Dual-Channel E-Receipt Dispatcher (WhatsApp & Email with PDF)
+  const dispatchElectronicReceipt = async (
+    item: DepositTransactionItem,
+    channel: "WHATSAPP" | "EMAIL"
+  ) => {
+    if (!item.rawOccupant) {
+      triggerToast("⚠️ Resident record not found for receipt dispatch.");
+      return;
+    }
+
+    const occ = item.rawOccupant;
+    const cleanReceiptNo = item.receiptNo.replace(/^#+/, "");
+    setActiveDispatchTarget({ receiptId: item.id, channel });
+    setIsDispatchingReceipt(true);
+
+    const rawEmail = (occ.email || "").trim().toLowerCase();
+    const hasRealEmail = Boolean(
+      rawEmail &&
+      rawEmail.includes("@") &&
+      !rawEmail.includes("resident.tenopilot.com") &&
+      !rawEmail.includes("example.com") &&
+      !rawEmail.includes("tenopilot.auth") &&
+      !rawEmail.startsWith("phone_")
+    );
+    const destEmail = hasRealEmail ? rawEmail : "";
+
+    if (channel === "EMAIL" && !destEmail) {
+      setIsDispatchingReceipt(false);
+      setActiveDispatchTarget(null);
+      triggerToast("⚠️ This resident does not have a registered email address. Please send via WhatsApp or add their email.");
+      return;
+    }
+
+    try {
+      if (channel === "WHATSAPP") {
+        const res = await fetch("/api/whatsapp/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            propertyId,
+            userId: profile?.uid,
+            userEmail: profile?.email,
+            messages: [
+              {
+                toPhone: occ.phone,
+                recipientName: occ.name,
+                propertyId,
+                propertyName: propertySettings.propertyName || "TenoPilot PG",
+                type: "PAYMENT_RECEIPT",
+                params: {
+                  receiptId: cleanReceiptNo,
+                  amount: item.amount,
+                  depositAmount: item.amount,
+                  rentAmount: 0,
+                  roomNumber: occ.roomNumber,
+                  bedCode: occ.bedCode,
+                  paymentMode: item.mode,
+                  dueDate: item.date,
+                  paidDate: item.date,
+                  month: item.type === "REFUNDED" ? "Security Deposit Refund" : "Security Deposit",
+                  bankLabel: item.paidTo || propertySettings.propertyName,
+                  managerPhone: propertySettings.managerPhone,
+                },
+              },
+            ],
+          }),
+        });
+        const resData = await res.json().catch(() => ({}));
+        if (res.ok && (resData.success || resData.successfulCount > 0)) {
+          triggerToast(`⚡ Sent official WhatsApp receipt to ${occ.name}!`);
+        } else {
+          triggerToast(resData?.error || "⚠️ Failed to dispatch WhatsApp receipt.");
+        }
+      } else if (channel === "EMAIL") {
+        const res = await fetch("/api/email/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            propertyId,
+            userId: profile?.uid,
+            userEmail: profile?.email,
+            messages: [
+              {
+                toEmail: destEmail,
+                recipientName: occ.name,
+                propertyId,
+                propertyName: propertySettings.propertyName || "TenoPilot PG",
+                replyToEmail: profile?.email,
+                type: "PAYMENT_RECEIPT",
+                params: {
+                  receiptId: cleanReceiptNo,
+                  amount: item.amount,
+                  depositAmount: item.amount,
+                  rentAmount: 0,
+                  roomNumber: occ.roomNumber,
+                  bedCode: occ.bedCode,
+                  paymentMode: item.mode,
+                  dueDate: item.date,
+                  paidDate: item.date,
+                  month: item.type === "REFUNDED" ? "Security Deposit Refund" : "Security Deposit",
+                  bankLabel: item.paidTo || propertySettings.propertyName,
+                  managerPhone: propertySettings.managerPhone,
+                },
+              },
+            ],
+          }),
+        });
+        const resData = await res.json().catch(() => ({}));
+        if (res.ok && (resData.success || resData.successfulCount > 0)) {
+          triggerToast(`✉️ Sent official receipt with PDF to ${destEmail}!`);
+        } else {
+          triggerToast(resData?.error || "⚠️ Failed to dispatch Email receipt.");
+        }
+      }
+    } catch (err: any) {
+      triggerToast(err?.message || "Network exception sending receipt.");
+    } finally {
+      setIsDispatchingReceipt(false);
+      setActiveDispatchTarget(null);
+    }
+  };
+
+  // Void Receipt Handler with Instant Real-Time Ledger Recalibration
+  const handleVoidReceiptSuccess = async (
+    updatedHistory: PaymentHistoryItem[]
+  ) => {
+    if (!voidReceiptTarget || !voidReceiptTarget.occupant) return;
+    const targetOcc = voidReceiptTarget.occupant;
+
+    const updatedOccupant: Occupant = {
+      ...targetOcc,
+      paymentHistory: updatedHistory,
+    };
+
+    // Update in local SSOT store
+    occupantStore.updateOccupant(updatedOccupant, propertyId);
+
+    // Save to Firestore
+    try {
+      await updateOccupantInFirestore(propertyId, targetOcc.id, {
+        paymentHistory: updatedHistory,
+      });
+    } catch (e) {
+      console.warn("Notice updating occupant payment history in Firestore:", e);
+    }
+
+    triggerToast(`✓ Receipt ${voidReceiptTarget.receipt.receiptNo} marked as VOIDED.`);
+    setVoidReceiptTarget(null);
+    refreshFinancialMetrics();
+  };
 
   // Filtered occupants list for Deposits table (Reactively syncs with depositMetrics)
   const filteredDepositOccupants = useMemo(() => {
@@ -3997,187 +4354,682 @@ export default function FinancialHubPage({
                 </div>
               </div>
 
-              {/* 2. Interactive Tenant Security Deposit Register Table */}
-              <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 shadow-xs space-y-4">
-                {/* Header and Filter/Export Bar */}
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-gray-100 pb-4">
-                  <div>
-                    <h3 className="font-serif font-bold text-lg sm:text-xl text-gray-900 flex items-center gap-2">
-                      <ShieldCheck className="w-5 h-5 text-[#c2652a]" />
-                      Tenant Security Deposit Register
-                    </h3>
-                    <p className="text-xs text-gray-500 font-medium mt-0.5">
-                      Audit escrow custody and individual deposit clearance status for all residents
-                    </p>
-                  </div>
-
-                  {/* Filter Pills + Search + CSV Button */}
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    {/* Status Filter Pills */}
-                    <div className="inline-flex rounded-xl bg-gray-100 p-1 text-xs font-semibold">
-                      <button
-                        type="button"
-                        onClick={() => setDepositStatusFilter("ALL")}
-                        className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                          depositStatusFilter === "ALL"
-                            ? "bg-white text-gray-900 font-bold shadow-2xs"
-                            : "text-gray-600 hover:text-gray-900"
-                        }`}
-                      >
-                        All ({depositCounts.total})
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDepositStatusFilter("PAID")}
-                        className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                          depositStatusFilter === "PAID"
-                            ? "bg-emerald-600 text-white font-bold shadow-2xs"
-                            : "text-gray-600 hover:text-gray-900"
-                        }`}
-                      >
-                        Paid ({depositCounts.paidCount})
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDepositStatusFilter("PENDING")}
-                        className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                          depositStatusFilter === "PENDING"
-                            ? "bg-amber-600 text-white font-bold shadow-2xs"
-                            : "text-gray-600 hover:text-gray-900"
-                        }`}
-                      >
-                        Pending ({depositCounts.pendingCount})
-                      </button>
-                    </div>
-
-                    {/* Search Box */}
-                    <div className="relative min-w-[200px] sm:min-w-[240px]">
-                      <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="text"
-                        value={depositSearchQuery}
-                        onChange={(e) => setDepositSearchQuery(e.target.value)}
-                        placeholder="Search resident, room, phone..."
-                        className="w-full pl-9 pr-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#c2652a] focus:bg-white"
-                      />
-                      {depositSearchQuery && (
-                        <button
-                          type="button"
-                          onClick={() => setDepositSearchQuery("")}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-
-                    {/* 1-Click CSV Export */}
-                    <button
-                      type="button"
-                      onClick={exportDepositRegisterToCSV}
-                      className="px-3.5 py-1.5 rounded-xl bg-white border border-gray-200 hover:border-[#c2652a] text-gray-700 hover:text-[#c2652a] font-bold text-xs transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-                      title="Download Deposit Register as CSV"
-                    >
-                      <Download className="w-3.5 h-3.5 text-[#c2652a]" />
-                      <span>Export CSV</span>
-                    </button>
-                  </div>
+              {/* 🎛️ Sub-Tab View Switcher: Deposit Activity Ledger vs All Residents Escrow */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-2.5 rounded-2xl sm:rounded-3xl border border-gray-200/90 shadow-2xs">
+                <div className="grid grid-cols-2 p-1 bg-gray-100/90 rounded-xl sm:rounded-2xl text-xs font-semibold gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setDepositViewMode("TRANSACTIONS")}
+                    className={`py-2 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 sm:gap-2 ${
+                      depositViewMode === "TRANSACTIONS"
+                        ? "bg-white text-gray-900 font-bold shadow-2xs"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                  >
+                    <Receipt className="w-3.5 h-3.5 text-[#c2652a]" />
+                    <span className="truncate">Deposit Transactions</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-orange-100 text-[#c2652a] font-mono font-bold shrink-0">
+                      {depositLedgerCounts.all}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDepositViewMode("REGISTER")}
+                    className={`py-2 px-3 sm:px-4 rounded-lg sm:rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 sm:gap-2 ${
+                      depositViewMode === "REGISTER"
+                        ? "bg-white text-gray-900 font-bold shadow-2xs"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="truncate">All Residents Escrow</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-gray-200 text-gray-700 font-mono font-bold shrink-0">
+                      {depositCounts.total}
+                    </span>
+                  </button>
                 </div>
 
-                {/* Table Area */}
-                <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-                  <table className="min-w-[700px] w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-gray-200 text-[10px] font-bold uppercase tracking-wider text-gray-500 bg-gray-50/50">
-                        <th className="py-3 px-4 rounded-l-xl">Resident</th>
-                        <th className="py-3 px-4">Room & Bed</th>
-                        <th className="py-3 px-4">Joining Date</th>
-                        <th className="py-3 px-4 text-right">Required</th>
-                        <th className="py-3 px-4 text-right">Paid</th>
-                        <th className="py-3 px-4 text-right">Pending</th>
-                        <th className="py-3 px-4 text-center">Status</th>
-                        <th className="py-3 px-4 text-right rounded-r-xl">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 font-medium">
-                      {filteredDepositOccupants.length === 0 ? (
-                        <tr>
-                          <td colSpan={8} className="py-12 text-center text-gray-500">
-                            <div className="max-w-xs mx-auto space-y-2">
-                              <ShieldCheck className="w-8 h-8 text-gray-300 mx-auto" />
-                              <p className="font-semibold text-gray-700 text-sm">No residents found</p>
-                              <p className="text-[11px] text-gray-400">
-                                Try adjusting your search query or status filter.
-                              </p>
-                            </div>
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredDepositOccupants.map((occ) => {
-                          const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
-                          const req = stmt.securityDepositRequired || 0;
-                          const paid = stmt.totalDepositPaid || (stmt.isDepositCleared ? req : 0);
-                          const rem = stmt.remainingDepositDue !== undefined ? stmt.remainingDepositDue : Math.max(0, req - paid);
-
-                          return (
-                            <tr key={occ.id} className="hover:bg-gray-50/60 transition-colors">
-                              <td className="py-3.5 px-4 font-bold text-gray-900">
-                                <div className="flex items-center gap-2.5">
-                                  <div className="w-8 h-8 rounded-full bg-orange-100 text-[#c2652a] font-bold flex items-center justify-center text-xs shrink-0">
-                                    {occ.name.charAt(0)}
-                                  </div>
-                                  <div className="min-w-0">
-                                    <p className="truncate max-w-[150px] text-gray-900 font-bold">{occ.name}</p>
-                                    <p className="text-[10px] text-gray-400 font-mono font-normal truncate">{occ.phone}</p>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="py-3.5 px-4 text-gray-600 font-medium whitespace-nowrap">
-                                Room {occ.roomNumber} ({occ.bedCode})
-                              </td>
-                              <td className="py-3.5 px-4 text-gray-500 font-mono whitespace-nowrap">
-                                {occ.joiningDate || "Active"}
-                              </td>
-                              <td className="py-3.5 px-4 text-right font-bold text-gray-900 font-mono whitespace-nowrap">
-                                ₹{req.toLocaleString("en-IN")}
-                              </td>
-                              <td className="py-3.5 px-4 text-right font-bold text-emerald-700 font-mono whitespace-nowrap">
-                                ₹{paid.toLocaleString("en-IN")}
-                              </td>
-                              <td className="py-3.5 px-4 text-right font-bold font-mono whitespace-nowrap">
-                                {rem > 0 ? (
-                                  <span className="text-amber-700">₹{rem.toLocaleString("en-IN")}</span>
-                                ) : (
-                                  <span className="text-gray-400">₹0</span>
-                                )}
-                              </td>
-                              <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                                <span
-                                  className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
-                                    stmt.isDepositCleared
-                                      ? "bg-emerald-100 text-emerald-900 border border-emerald-200"
-                                      : "bg-amber-100 text-amber-900 border border-amber-200"
-                                  }`}
-                                >
-                                  {stmt.isDepositCleared ? "✓ DEPOSIT PAID" : "⚠️ PENDING"}
-                                </span>
-                              </td>
-                              <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                                <Link
-                                  href={`/p/${propertyId}/tenants/${occ.id}`}
-                                  className="text-xs font-bold text-[#c2652a] hover:underline"
-                                >
-                                  View Tenant ➔
-                                </Link>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
+                <div className="text-[11px] text-gray-500 font-medium px-3 flex items-center gap-1.5 self-center sm:self-auto">
+                  <Calendar className="w-3.5 h-3.5 text-[#c2652a]" />
+                  <span>Timeline: <strong className="text-gray-800 font-bold">{activeDateBounds.label}</strong></span>
                 </div>
               </div>
+
+              {/* ========================================================= */}
+              {/* VIEW 1: TIMELINE-FILTERED DEPOSIT ACTIVITY LEDGER          */}
+              {/* ========================================================= */}
+              {depositViewMode === "TRANSACTIONS" && (
+                <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 shadow-xs space-y-4 animate-in fade-in">
+                  {/* Header and Filter/Export Bar */}
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+                    <div>
+                      <h3 className="font-serif font-bold text-lg sm:text-xl text-gray-900 flex items-center gap-2">
+                        <Receipt className="w-5 h-5 text-[#c2652a]" />
+                        <span>Deposit Activity Ledger</span>
+                      </h3>
+                      <p className="text-xs text-gray-500 font-medium mt-0.5">
+                        Live deposit collections and refunds for <strong>{activeDateBounds.label}</strong>
+                      </p>
+                    </div>
+
+                    {/* Sub-Filter Pills + Search + CSV Button */}
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      {/* Sub-Filters */}
+                      <div className="inline-flex rounded-xl bg-gray-100 p-1 text-xs font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => setDepositLedgerFilter("ALL")}
+                          className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                            depositLedgerFilter === "ALL"
+                              ? "bg-white text-gray-900 font-bold shadow-2xs"
+                              : "text-gray-600 hover:text-gray-900"
+                          }`}
+                        >
+                          All ({depositLedgerCounts.all})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDepositLedgerFilter("COLLECTED")}
+                          className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                            depositLedgerFilter === "COLLECTED"
+                              ? "bg-emerald-600 text-white font-bold shadow-2xs"
+                              : "text-gray-600 hover:text-gray-900"
+                          }`}
+                        >
+                          Collected ({depositLedgerCounts.collected})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDepositLedgerFilter("REFUNDED")}
+                          className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                            depositLedgerFilter === "REFUNDED"
+                              ? "bg-orange-600 text-white font-bold shadow-2xs"
+                              : "text-gray-600 hover:text-gray-900"
+                          }`}
+                        >
+                          Refunded ({depositLedgerCounts.refunded})
+                        </button>
+                      </div>
+
+                      {/* Search Box */}
+                      <div className="relative min-w-[200px] sm:min-w-[240px]">
+                        <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          value={depositLedgerSearch}
+                          onChange={(e) => setDepositLedgerSearch(e.target.value)}
+                          placeholder="Search resident, room, receipt..."
+                          className="w-full pl-9 pr-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#c2652a] focus:bg-white"
+                        />
+                        {depositLedgerSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setDepositLedgerSearch("")}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
+                      {/* 1-Click CSV Export */}
+                      <button
+                        type="button"
+                        onClick={exportDepositTransactionsToCSV}
+                        className="px-3.5 py-1.5 rounded-xl bg-white border border-gray-200 hover:border-[#c2652a] text-gray-700 hover:text-[#c2652a] font-bold text-xs transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                        title="Download Deposit Activity CSV"
+                      >
+                        <Download className="w-3.5 h-3.5 text-[#c2652a]" />
+                        <span>Export CSV</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Content Area */}
+                  {filteredDepositTransactions.length === 0 ? (
+                    <div className="py-12 text-center text-gray-500 space-y-2">
+                      <Receipt className="w-8 h-8 text-gray-300 mx-auto" />
+                      <p className="font-semibold text-gray-700 text-sm">No deposit transactions in {activeDateBounds.label}</p>
+                      <p className="text-[11px] text-gray-400 max-w-sm mx-auto">
+                        No security deposits were collected or refunded during this period. Try adjusting your timeline filter at the top right.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* 📱 MOBILE VIEW: Full-Width 1-Hand Native Cards (Zero Horizontal Swipe Needed!) */}
+                      <div className="space-y-3 block md:hidden">
+                        {filteredDepositTransactions.map((item) => (
+                          <div
+                            key={item.id}
+                            className={`p-4 rounded-2xl border shadow-2xs space-y-3 transition-all ${
+                              item.isVoided
+                                ? "bg-rose-50/20 border-rose-200/80 opacity-75"
+                                : "bg-white border-gray-200/90 hover:border-gray-300"
+                            }`}
+                          >
+                            {/* Row 1: Resident & Room + Amount (Green for Collected, Orange for Refunded) */}
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  {item.isVoided && <Ban className="w-3.5 h-3.5 text-rose-500 shrink-0" />}
+                                  <h4 className={`font-bold text-xs text-gray-900 truncate ${item.isVoided ? "line-through text-gray-500" : ""}`}>
+                                    {item.occupantName}
+                                  </h4>
+                                </div>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md">
+                                    Rm {item.roomNumber} ({item.bedCode})
+                                  </span>
+                                  <span
+                                    className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full border ${
+                                      item.isVoided
+                                        ? "bg-rose-100 text-rose-800 border-rose-200"
+                                        : item.type === "COLLECTED"
+                                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                        : "bg-orange-50 text-orange-800 border-orange-200"
+                                    }`}
+                                  >
+                                    {item.isVoided ? "VOIDED" : item.type === "COLLECTED" ? "Collected" : "Refunded"}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Amount: Green for collected, Orange for refunded, line-through if voided */}
+                              <div className="text-right shrink-0">
+                                <div
+                                  className={`font-mono font-bold text-base tabular-nums ${
+                                    item.isVoided
+                                      ? "text-gray-400 line-through"
+                                      : item.type === "COLLECTED"
+                                      ? "text-emerald-700"
+                                      : "text-orange-600"
+                                  }`}
+                                >
+                                  ₹{item.amount.toLocaleString("en-IN")}
+                                </div>
+                                <span className="text-[10px] text-gray-400 font-mono block">
+                                  #{item.receiptNo.replace(/^#+/, "")}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Row 2: Date & Payment Account Details */}
+                            <div className="flex items-center justify-between text-[11px] text-gray-500 pt-2 border-t border-gray-100 font-medium">
+                              <span className="font-mono text-gray-500">{item.date}</span>
+                              <div className="flex items-center gap-1.5 text-gray-600 truncate max-w-[200px]">
+                                <span className="font-semibold text-gray-800">{item.mode}</span>
+                                <span className="text-gray-300">•</span>
+                                <span className="truncate text-gray-500">{item.paidTo}</span>
+                              </div>
+                            </div>
+
+                            {/* Row 3: Action Shortcuts (1-Hand Thumb-Friendly Grid - Zero Horizontal Scroll) */}
+                            <div className="pt-1">
+                              {item.isVoided ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (item.rawOccupant) {
+                                      setSelectedReceiptForModal({ receipt: item.rawPaymentItem, occupant: item.rawOccupant });
+                                    } else {
+                                      triggerToast("⚠️ Resident record details not available for this entry.");
+                                    }
+                                  }}
+                                  className="w-full py-2 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 transition-all"
+                                  title="View / Download PDF Receipt"
+                                >
+                                  <Download className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                                  <span>View / Download PDF Receipt</span>
+                                </button>
+                              ) : (
+                                <div className="grid grid-cols-4 gap-1.5">
+                                  {/* 1. PDF Button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (item.rawOccupant) {
+                                        setSelectedReceiptForModal({ receipt: item.rawPaymentItem, occupant: item.rawOccupant });
+                                      } else {
+                                        triggerToast("⚠️ Resident record details not available for this entry.");
+                                      }
+                                    }}
+                                    className="py-2 px-1 rounded-xl bg-amber-50/80 hover:bg-amber-100 text-amber-900 border border-amber-200 text-[10px] font-bold flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 cursor-pointer shadow-2xs active:scale-95 transition-all"
+                                    title="View / Download PDF Receipt"
+                                  >
+                                    <Download className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                                    <span className="truncate">PDF</span>
+                                  </button>
+
+                                  {/* 2. WhatsApp Button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => dispatchElectronicReceipt(item, "WHATSAPP")}
+                                    disabled={isDispatchingReceipt}
+                                    className={`py-2 px-1 rounded-xl border text-[10px] font-bold flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                                      isDispatchingReceipt && activeDispatchTarget?.receiptId === item.id && activeDispatchTarget?.channel === "WHATSAPP"
+                                        ? "bg-emerald-100 border-emerald-400 text-emerald-800 ring-2 ring-emerald-300"
+                                        : "bg-emerald-50/80 hover:bg-emerald-100 text-emerald-800 border-emerald-200 disabled:opacity-50"
+                                    }`}
+                                    title="Send Official Receipt via WhatsApp"
+                                  >
+                                    {isDispatchingReceipt && activeDispatchTarget?.receiptId === item.id && activeDispatchTarget?.channel === "WHATSAPP" ? (
+                                      <Loader2 className="w-3.5 h-3.5 text-emerald-700 animate-spin shrink-0" />
+                                    ) : (
+                                      <WhatsAppBrandIcon className="w-3.5 h-3.5 text-[#25D366] shrink-0" />
+                                    )}
+                                    <span className="truncate">WhatsApp</span>
+                                  </button>
+
+                                  {/* 3. Email Button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => dispatchElectronicReceipt(item, "EMAIL")}
+                                    disabled={isDispatchingReceipt}
+                                    className={`py-2 px-1 rounded-xl border text-[10px] font-bold flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                                      isDispatchingReceipt && activeDispatchTarget?.receiptId === item.id && activeDispatchTarget?.channel === "EMAIL"
+                                        ? "bg-blue-100 border-blue-400 text-blue-800 ring-2 ring-blue-300"
+                                        : "bg-blue-50/80 hover:bg-blue-100 text-blue-800 border-blue-200 disabled:opacity-50"
+                                    }`}
+                                    title="Send PDF Receipt via Email"
+                                  >
+                                    {isDispatchingReceipt && activeDispatchTarget?.receiptId === item.id && activeDispatchTarget?.channel === "EMAIL" ? (
+                                      <Loader2 className="w-3.5 h-3.5 text-blue-700 animate-spin shrink-0" />
+                                    ) : (
+                                      <Mail className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                    )}
+                                    <span className="truncate">Email</span>
+                                  </button>
+
+                                  {/* 4. Void Button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (item.rawOccupant) {
+                                        setVoidReceiptTarget({ receipt: item.rawPaymentItem, occupant: item.rawOccupant });
+                                      } else {
+                                        triggerToast("⚠️ Resident record details not available to void.");
+                                      }
+                                    }}
+                                    className="py-2 px-1 rounded-xl bg-rose-50/80 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-bold flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 cursor-pointer shadow-2xs active:scale-95 transition-all"
+                                    title="Void / Cancel Receipt"
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                    <span className="truncate">Void</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Void Details Banner if Voided */}
+                            {item.isVoided && (
+                              <div className="p-2 rounded-xl bg-rose-50/70 border border-rose-200 text-[10px] text-rose-900 font-medium space-y-0.5">
+                                <span className="font-bold">⚠️ Voided Receipt Record</span>
+                                {item.voidReason && <p className="text-gray-600 truncate">Reason: {item.voidReason}</p>}
+                                {item.replacedByReceiptNo && (
+                                  <p className="text-emerald-700 font-bold">Replaced by #{item.replacedByReceiptNo.replace(/^#+/, "")}</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* 💻 DESKTOP & TABLET VIEW: Full Spacious Table */}
+                      <div className="hidden md:block overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead>
+                            <tr className="border-b border-gray-200 text-[10px] font-bold uppercase tracking-wider text-gray-500 bg-gray-50/50">
+                              <th className="py-3 px-4 rounded-l-xl">Date & Time</th>
+                              <th className="py-3 px-4">Resident</th>
+                              <th className="py-3 px-4">Room Location</th>
+                              <th className="py-3 px-4">Activity Type</th>
+                              <th className="py-3 px-4">Payment Channel</th>
+                              <th className="py-3 px-4">Receipt #</th>
+                              <th className="py-3 px-4 text-right">Amount</th>
+                              <th className="py-3 px-4 rounded-r-xl text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 font-medium">
+                            {filteredDepositTransactions.map((item) => (
+                              <tr
+                                key={item.id}
+                                className={`transition-colors ${
+                                  item.isVoided ? "bg-rose-50/20 opacity-70 hover:bg-rose-50/30" : "hover:bg-gray-50/60"
+                                }`}
+                              >
+                                <td className="py-3.5 px-4 text-gray-500 font-mono whitespace-nowrap">
+                                  {item.date}
+                                </td>
+                                <td className="py-3.5 px-4 font-bold text-gray-900">
+                                  <div className="flex items-center gap-1.5">
+                                    {item.isVoided && <Ban className="w-3.5 h-3.5 text-rose-500 shrink-0" />}
+                                    <span className={item.isVoided ? "line-through text-gray-500" : ""}>{item.occupantName}</span>
+                                  </div>
+                                </td>
+                                <td className="py-3.5 px-4 text-gray-600 whitespace-nowrap">
+                                  Room {item.roomNumber} ({item.bedCode})
+                                </td>
+                                <td className="py-3.5 px-4 whitespace-nowrap">
+                                  <span
+                                    className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                                      item.isVoided
+                                        ? "bg-rose-100 text-rose-800 border-rose-200"
+                                        : item.type === "COLLECTED"
+                                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                        : "bg-orange-50 text-orange-800 border-orange-200"
+                                    }`}
+                                  >
+                                    {item.isVoided ? "VOIDED" : item.type === "COLLECTED" ? "Collected" : "Refunded"}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 text-gray-600">
+                                  <div className="font-semibold text-gray-900">{item.mode}</div>
+                                  <div className="text-[10px] text-gray-400 font-medium truncate max-w-[140px]">{item.paidTo}</div>
+                                </td>
+                                <td className="py-3.5 px-4 font-mono text-gray-500 whitespace-nowrap">
+                                  #{item.receiptNo.replace(/^#+/, "")}
+                                </td>
+                                {/* Amount: Green for collected, Orange for refunded */}
+                                <td className="py-3.5 px-4 text-right font-mono font-bold whitespace-nowrap">
+                                  <span
+                                    className={`text-sm tabular-nums ${
+                                      item.isVoided
+                                        ? "text-gray-400 line-through"
+                                        : item.type === "COLLECTED"
+                                        ? "text-emerald-700"
+                                        : "text-orange-600"
+                                    }`}
+                                  >
+                                    ₹{item.amount.toLocaleString("en-IN")}
+                                  </span>
+                                </td>
+                                {/* Actions Column */}
+                                <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    {/* PDF */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (item.rawOccupant) {
+                                          setSelectedReceiptForModal({ receipt: item.rawPaymentItem, occupant: item.rawOccupant });
+                                        } else {
+                                          triggerToast("⚠️ Resident record details not available for this entry.");
+                                        }
+                                      }}
+                                      className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition-all"
+                                      title="View / Download PDF Receipt"
+                                    >
+                                      <Download className="w-3 h-3 text-amber-600" />
+                                      <span>PDF</span>
+                                    </button>
+
+                                    {!item.isVoided && (
+                                      <>
+                                        {/* WhatsApp */}
+                                        <button
+                                          type="button"
+                                          onClick={() => dispatchElectronicReceipt(item, "WHATSAPP")}
+                                          disabled={isDispatchingReceipt}
+                                          className={`px-2 py-1 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs ${
+                                            isDispatchingReceipt && activeDispatchTarget?.receiptId === item.id && activeDispatchTarget?.channel === "WHATSAPP"
+                                              ? "bg-emerald-100 border-emerald-400 text-emerald-800 ring-2 ring-emerald-300"
+                                              : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 disabled:opacity-50"
+                                          }`}
+                                          title="Send Official Receipt via WhatsApp"
+                                        >
+                                          {isDispatchingReceipt && activeDispatchTarget?.receiptId === item.id && activeDispatchTarget?.channel === "WHATSAPP" ? (
+                                            <>
+                                              <Loader2 className="w-3 h-3 text-emerald-700 animate-spin" />
+                                              <span>Sending...</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <WhatsAppBrandIcon className="w-3 h-3 text-[#25D366]" />
+                                              <span>WhatsApp</span>
+                                            </>
+                                          )}
+                                        </button>
+
+                                        {/* Email */}
+                                        <button
+                                          type="button"
+                                          onClick={() => dispatchElectronicReceipt(item, "EMAIL")}
+                                          disabled={isDispatchingReceipt}
+                                          className={`px-2 py-1 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs ${
+                                            isDispatchingReceipt && activeDispatchTarget?.receiptId === item.id && activeDispatchTarget?.channel === "EMAIL"
+                                              ? "bg-blue-100 border-blue-400 text-blue-800 ring-2 ring-blue-300"
+                                              : "bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 disabled:opacity-50"
+                                          }`}
+                                          title="Send PDF Receipt via Email"
+                                        >
+                                          {isDispatchingReceipt && activeDispatchTarget?.receiptId === item.id && activeDispatchTarget?.channel === "EMAIL" ? (
+                                            <>
+                                              <Loader2 className="w-3 h-3 text-blue-700 animate-spin" />
+                                              <span>Sending...</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Mail className="w-3 h-3 text-blue-600" />
+                                              <span>Email</span>
+                                            </>
+                                          )}
+                                        </button>
+
+                                        {/* Void */}
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            if (item.rawOccupant) {
+                                              setVoidReceiptTarget({ receipt: item.rawPaymentItem, occupant: item.rawOccupant });
+                                            } else {
+                                              triggerToast("⚠️ Resident record details not available to void.");
+                                            }
+                                          }}
+                                          className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition-all"
+                                          title="Void / Replace Receipt"
+                                        >
+                                          <RotateCcw className="w-3 h-3 text-rose-600" />
+                                          <span>Void</span>
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* ========================================================= */}
+              {/* VIEW 2: LIFETIME ALL RESIDENTS ESCROW REGISTER             */}
+              {/* ========================================================= */}
+              {depositViewMode === "REGISTER" && (
+                <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 shadow-xs space-y-4 animate-in fade-in">
+                  {/* Header and Filter/Export Bar */}
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+                    <div>
+                      <h3 className="font-serif font-bold text-lg sm:text-xl text-gray-900 flex items-center gap-2">
+                        <ShieldCheck className="w-5 h-5 text-[#c2652a]" />
+                        <span>All Residents Security Deposit Register</span>
+                      </h3>
+                      <p className="text-xs text-gray-500 font-medium mt-0.5">
+                        Audit escrow custody and individual deposit clearance status for all active residents
+                      </p>
+                    </div>
+
+                    {/* Filter Pills + Search + CSV Button */}
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      {/* Status Filter Pills */}
+                      <div className="inline-flex rounded-xl bg-gray-100 p-1 text-xs font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => setDepositStatusFilter("ALL")}
+                          className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                            depositStatusFilter === "ALL"
+                              ? "bg-white text-gray-900 font-bold shadow-2xs"
+                              : "text-gray-600 hover:text-gray-900"
+                          }`}
+                        >
+                          All ({depositCounts.total})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDepositStatusFilter("PAID")}
+                          className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                            depositStatusFilter === "PAID"
+                              ? "bg-emerald-600 text-white font-bold shadow-2xs"
+                              : "text-gray-600 hover:text-gray-900"
+                          }`}
+                        >
+                          Paid ({depositCounts.paidCount})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDepositStatusFilter("PENDING")}
+                          className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                            depositStatusFilter === "PENDING"
+                              ? "bg-amber-600 text-white font-bold shadow-2xs"
+                              : "text-gray-600 hover:text-gray-900"
+                          }`}
+                        >
+                          Pending ({depositCounts.pendingCount})
+                        </button>
+                      </div>
+
+                      {/* Search Box */}
+                      <div className="relative min-w-[200px] sm:min-w-[240px]">
+                        <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          value={depositSearchQuery}
+                          onChange={(e) => setDepositSearchQuery(e.target.value)}
+                          placeholder="Search resident, room, phone..."
+                          className="w-full pl-9 pr-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#c2652a] focus:bg-white"
+                        />
+                        {depositSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setDepositSearchQuery("")}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
+                      {/* 1-Click CSV Export */}
+                      <button
+                        type="button"
+                        onClick={exportDepositRegisterToCSV}
+                        className="px-3.5 py-1.5 rounded-xl bg-white border border-gray-200 hover:border-[#c2652a] text-gray-700 hover:text-[#c2652a] font-bold text-xs transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                        title="Download Deposit Register as CSV"
+                      >
+                        <Download className="w-3.5 h-3.5 text-[#c2652a]" />
+                        <span>Export CSV</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Table Area */}
+                  <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+                    <table className="min-w-[700px] w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-gray-200 text-[10px] font-bold uppercase tracking-wider text-gray-500 bg-gray-50/50">
+                          <th className="py-3 px-4 rounded-l-xl">Resident</th>
+                          <th className="py-3 px-4">Room & Bed</th>
+                          <th className="py-3 px-4">Joining Date</th>
+                          <th className="py-3 px-4 text-right">Required</th>
+                          <th className="py-3 px-4 text-right">Paid</th>
+                          <th className="py-3 px-4 text-right">Pending</th>
+                          <th className="py-3 px-4 text-center">Status</th>
+                          <th className="py-3 px-4 text-right rounded-r-xl">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 font-medium">
+                        {filteredDepositOccupants.length === 0 ? (
+                          <tr>
+                            <td colSpan={8} className="py-12 text-center text-gray-500">
+                              <div className="max-w-xs mx-auto space-y-2">
+                                <ShieldCheck className="w-8 h-8 text-gray-300 mx-auto" />
+                                <p className="font-semibold text-gray-700 text-sm">No residents found</p>
+                                <p className="text-[11px] text-gray-400">
+                                  Try adjusting your search query or status filter.
+                                </p>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredDepositOccupants.map((occ) => {
+                            const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
+                            const req = stmt.securityDepositRequired || 0;
+                            const paid = stmt.totalDepositPaid || (stmt.isDepositCleared ? req : 0);
+                            const rem = stmt.remainingDepositDue !== undefined ? stmt.remainingDepositDue : Math.max(0, req - paid);
+
+                            return (
+                              <tr key={occ.id} className="hover:bg-gray-50/60 transition-colors">
+                                <td className="py-3.5 px-4 font-bold text-gray-900">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-full bg-orange-100 text-[#c2652a] font-bold flex items-center justify-center text-xs shrink-0">
+                                      {occ.name.charAt(0)}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="truncate max-w-[150px] text-gray-900 font-bold">{occ.name}</p>
+                                      <p className="text-[10px] text-gray-400 font-mono font-normal truncate">{occ.phone}</p>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-3.5 px-4 text-gray-600 font-medium whitespace-nowrap">
+                                  Room {occ.roomNumber} ({occ.bedCode})
+                                </td>
+                                <td className="py-3.5 px-4 text-gray-500 font-mono whitespace-nowrap">
+                                  {occ.joiningDate || "Active"}
+                                </td>
+                                <td className="py-3.5 px-4 text-right font-bold text-gray-900 font-mono whitespace-nowrap">
+                                  ₹{req.toLocaleString("en-IN")}
+                                </td>
+                                <td className="py-3.5 px-4 text-right font-bold text-emerald-700 font-mono whitespace-nowrap">
+                                  ₹{paid.toLocaleString("en-IN")}
+                                </td>
+                                <td className="py-3.5 px-4 text-right font-bold font-mono whitespace-nowrap">
+                                  {rem > 0 ? (
+                                    <span className="text-amber-700">₹{rem.toLocaleString("en-IN")}</span>
+                                  ) : (
+                                    <span className="text-gray-400">₹0</span>
+                                  )}
+                                </td>
+                                <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                                  <span
+                                    className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                                      stmt.isDepositCleared
+                                        ? "bg-emerald-100 text-emerald-900 border border-emerald-200"
+                                        : "bg-amber-100 text-amber-900 border border-amber-200"
+                                    }`}
+                                  >
+                                    {stmt.isDepositCleared ? "✓ DEPOSIT PAID" : "⚠️ PENDING"}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                  <Link
+                                    href={`/p/${propertyId}/tenants/${occ.id}`}
+                                    className="text-xs font-bold text-[#c2652a] hover:underline"
+                                  >
+                                    View Tenant ➔
+                                  </Link>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -5617,6 +6469,36 @@ export default function FinancialHubPage({
             </form>
           </div>
         </div>
+      )}
+
+      {/* 📄 Full Interactive Rent / Deposit Receipt Modal */}
+      {selectedReceiptForModal && (
+        <RentReceiptModal
+          isOpen={!!selectedReceiptForModal}
+          onClose={() => setSelectedReceiptForModal(null)}
+          receiptItem={selectedReceiptForModal.receipt}
+          occupant={selectedReceiptForModal.occupant}
+          propertySettings={propertySettings}
+          onVoidReceipt={(rcpt) => {
+            const occ = selectedReceiptForModal.occupant;
+            setSelectedReceiptForModal(null);
+            setVoidReceiptTarget({ receipt: rcpt, occupant: occ });
+          }}
+        />
+      )}
+
+      {/* 🚫 Void & Replace Receipt Modal */}
+      {voidReceiptTarget && (
+        <VoidReceiptModal
+          isOpen={!!voidReceiptTarget}
+          receipt={voidReceiptTarget.receipt}
+          occupant={voidReceiptTarget.occupant}
+          propertySettings={propertySettings}
+          propertyId={propertyId}
+          userProfile={profile}
+          onClose={() => setVoidReceiptTarget(null)}
+          onSuccess={handleVoidReceiptSuccess}
+        />
       )}
 
       {/* Floating Luxury Toast Notification Banner */}
