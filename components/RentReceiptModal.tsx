@@ -6,7 +6,7 @@ import { PropertySettingsData } from "@/constants/propertySettings";
 import { Printer, Download, CheckCircle2, ShieldCheck, Building2, Calendar, CreditCard, User, Sparkles, X, FileText, Eye, ZoomIn, RotateCcw, AlertTriangle } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-import { resolveBillingCycleMonth } from "@/lib/pdfGenerator";
+import { resolveBillingCycleMonth, resolveTenantBillingDates } from "@/lib/pdfGenerator";
 
 interface RentReceiptModalProps {
   isOpen: boolean;
@@ -175,6 +175,12 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
       if (receiptItem.additionalCharges && (receiptItem.additionalCharges as any[]).length > 0) {
         q.set("additionalCharges", JSON.stringify(receiptItem.additionalCharges));
       }
+    } else {
+      if (propertySettings.billingCycleDates) q.set("billingCycleDates", propertySettings.billingCycleDates);
+      const arr = occupant.priorArrears || occupant.arrearsBalance;
+      if (arr) q.set("priorArrears", String(arr));
+      if (occupant.parkingSlot) q.set("parkingSlot", occupant.parkingSlot);
+      if (balDue > 0) q.set("balanceDue", String(balDue));
     }
     if (occupant.joiningDate) q.set("joiningDate", occupant.joiningDate);
     if (propertySettings.ownerName) q.set("ownerName", propertySettings.ownerName);
@@ -192,6 +198,61 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
     document.body.removeChild(a);
     setTimeout(() => setIsGeneratingPdf(false), 800);
   };
+
+  const cycleInfo = resolveTenantBillingDates(
+    propertySettings.billingCycleDates,
+    occupant.joiningDate,
+    receiptItem.month,
+    receiptItem.date
+  );
+
+  const tenantItems: { title: string; sub?: string; amount: number; isArrears?: boolean }[] = [];
+  if (effectiveDepositAmount > 0 || isDeposit) {
+    tenantItems.push({
+      title: "Security Deposit",
+      amount: effectiveDepositAmount || receiptItem.amount,
+    });
+  }
+  if (!isDeposit && effectiveRentAmount > 0) {
+    tenantItems.push({
+      title: `Rent for ${cycleInfo.billingMonthName}`,
+      sub: `(${cycleInfo.billingCycleRange})`,
+      amount: effectiveRentAmount,
+    });
+  }
+  if (effectiveParkingAmount > 0) {
+    tenantItems.push({
+      title: "Parking Charges",
+      sub: occupant.parkingSlot ? `(${occupant.parkingSlot})` : undefined,
+      amount: effectiveParkingAmount,
+    });
+  }
+  const currentArrears = occupant.priorArrears || occupant.arrearsBalance || 0;
+  if (currentArrears > 0) {
+    tenantItems.push({
+      title: "Prior Arrears (Unpaid dues from previous cycle)",
+      amount: currentArrears,
+      isArrears: true,
+    });
+  }
+  if (effectiveMaintenanceAmount > 0) {
+    tenantItems.push({
+      title: "Maintenance & Facility Charges",
+      amount: effectiveMaintenanceAmount,
+    });
+  }
+  if (tenantItems.length === 0) {
+    tenantItems.push({
+      title: `Rent for ${cycleInfo.billingMonthName}`,
+      sub: `(${cycleInfo.billingCycleRange})`,
+      amount: receiptItem.amount,
+    });
+  }
+
+  const tenantTotalBillable = tenantItems.reduce((acc, it) => acc + it.amount, 0);
+  const tenantBalanceRemaining = Math.max(0, tenantTotalBillable - receiptItem.amount);
+  const tenantIsPartial = tenantBalanceRemaining > 0;
+  const tenantIsMultiItem = tenantItems.length > 1;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
@@ -533,17 +594,20 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
               </div>
             </div>
           ) : (
-            /* Authentic Traditional Double-Bordered Receipt Slip */
+            /* 🟠 Dedicated Modern Orange Tenant Rental & Security Deposit Receipt Canvas */
             <div
               ref={receiptRef}
-              className="bg-white p-2 sm:p-3 border-2 border-slate-900 shadow-md relative overflow-hidden max-w-2xl mx-auto"
-              style={{ minHeight: "640px" }}
+              className="bg-white rounded-3xl shadow-xl relative overflow-hidden p-6 sm:p-10 max-w-2xl mx-auto flex flex-col justify-between"
+              style={{
+                minHeight: "840px",
+                backgroundImage: "url('/tenant_receipt_bg.jpg')",
+                backgroundSize: "100% 100%",
+                backgroundRepeat: "no-repeat",
+              }}
             >
-            {/* Inner Border of Double Border */}
-            <div className="border border-slate-900 p-5 sm:p-7 relative">
               {/* VOIDED Diagonal Watermark */}
               {isVoided && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 select-none">
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20 select-none">
                   <span className="text-red-500/15 font-black text-5xl sm:text-6xl -rotate-45 tracking-widest border-8 border-red-500/15 p-6 rounded-3xl uppercase">
                     VOIDED / CANCELLED
                   </span>
@@ -552,7 +616,7 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
 
               {/* VOIDED Notice Banner */}
               {isVoided && (
-                <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 flex items-start gap-2">
+                <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 flex items-start gap-2 relative z-20">
                   <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                   <div>
                     <p className="font-bold text-xs text-rose-950">CANCELLED / VOIDED RECEIPT</p>
@@ -564,229 +628,169 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
                 </div>
               )}
 
-              {/* Item 1: PG Name (Centered, bold uppercase) */}
-              <h1 className="text-lg sm:text-2xl font-serif font-black text-slate-950 uppercase tracking-wide text-center">
-                {pName}
-              </h1>
-
-              {/* Item 2: Property Address (Centered) */}
-              <p className="text-xs text-slate-700 text-center max-w-lg mx-auto mt-1 leading-relaxed">
-                {pAddress}
-              </p>
-
-              {/* Item 3: Mob Contact (Centered) */}
-              <p className="font-bold text-xs text-[#142952] text-center mt-1">
-                Mob : {managerPhone}
-              </p>
-
-              {/* Crisp Dividing Rule */}
-              <div className="border-b border-slate-700 my-3.5" />
-
-              {/* Receipt Meta Row: Receipt No | Room | Date */}
-              <div className="flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm font-bold text-slate-900 mb-3.5 px-1">
-                <div>Receipt No.: <span className="font-mono text-slate-800">{receiptItem.receiptNo}</span></div>
-                <div>Room: <span className="font-mono text-slate-800">{occupant.roomNumber} ({occupant.bedCode})</span></div>
-                <div>Date: <span className="font-mono text-slate-800">{receiptItem.date}</span></div>
-              </div>
-
-              {/* Pill Subheader Banner: [ GUEST DETAILS / RESIDENT DETAILS / SETTLEMENT DETAILS ] */}
-              <div className="flex justify-center mb-4">
-                <div className="px-5 py-1 bg-[#142952] text-white text-[11px] font-black uppercase tracking-wider rounded-md shadow-2xs">
-                  {isGuest
-                    ? isSettlement
-                      ? "GUEST CHECKOUT RECEIPT"
-                      : "GUEST STAY INVOICE / RECEIPT"
-                    : isSettlement
-                    ? "SETTLEMENT & NO-DUES DETAILS"
-                    : isDeposit
-                    ? "SECURITY DEPOSIT DETAILS"
-                    : "RESIDENT DETAILS"}
-                </div>
-              </div>
-
-              {/* Resident / Guest Demographics */}
-              <div className="space-y-2.5 mb-5 px-1">
-                <div className="flex items-baseline border-b border-slate-300 pb-1">
-                  <span className="font-bold text-xs sm:text-sm text-[#142952] shrink-0">{isGuest ? "Guest Name :" : "Resident Name :"}</span>
-                  <span className="font-bold text-xs sm:text-sm text-slate-900 ml-2.5 truncate">{occupant.name}</span>
-                </div>
-                <div className="flex items-baseline border-b border-slate-300 pb-1">
-                  <span className="font-bold text-xs sm:text-sm text-[#142952] shrink-0">{isGuest ? "Stay Period :" : "Billing Period :"}</span>
-                  <span className="font-medium text-xs sm:text-sm text-slate-900 ml-2">
-                    {isGuest
-                      ? (checkInDate && checkOutDate ? `${checkInDate} to ${checkOutDate}${stayDays ? ` (${stayDays} Days Stay)` : ""}` : (receiptItem.month || "Short-term Stay"))
-                      : displayBillingMonth}
-                  </span>
-                </div>
-              </div>
-
-              {/* Boxed Financial Grid */}
-              {isGuest && isSettlement ? (
-                <div className="border border-slate-800 rounded-none overflow-hidden mb-5">
-                  <div className="grid grid-cols-2 divide-x divide-slate-300 border-b border-slate-300 p-2.5 bg-slate-50/60 text-xs">
-                    <div>
-                      <span className="font-bold text-[#142952]">Total Stay Tariff : </span>
-                      <span className="font-mono font-bold text-slate-900">INR {Number(occupant.rentAmount || receiptItem.amount).toLocaleString("en-IN")}</span>
-                    </div>
-                    <div className="pl-3">
-                      <span className="font-bold text-[#142952]">Total Received : </span>
-                      <span className="font-mono font-bold text-emerald-800">INR {Number(receiptItem.amount).toLocaleString("en-IN")}</span>
-                    </div>
+              <div>
+                {/* 1. Header Bar: Document Title on Left, Receipt No on Right */}
+                <div className="flex items-center justify-between mb-5 relative z-10 pt-1">
+                  <div>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                      {isDeposit ? "Security Deposit Receipt" : isSettlement ? "Settlement Receipt" : "Rental Receipt"}
+                    </h1>
                   </div>
-                  <div className="grid grid-cols-2 divide-x divide-slate-300 border-b border-slate-300 p-2.5 bg-slate-50/60 text-xs">
-                    <div>
-                      <span className="font-bold text-[#142952]">Key & Handover : </span>
-                      <span className="font-bold text-emerald-700">Returned & Cleared</span>
-                    </div>
-                    <div className="pl-3">
-                      <span className="font-bold text-[#142952]">Deductions / Damages : </span>
-                      <span className="font-medium text-slate-600">-</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-50 border-t border-slate-300 text-xs sm:text-sm font-bold">
-                    <span className="text-[#142952] font-black">
-                      SETTLEMENT STATUS : <span className="font-mono font-black text-emerald-800">ZERO DUES / FULLY SETTLED</span>
-                    </span>
-                    <span className="text-[11px] text-slate-700 font-medium">
-                      Status: <strong className="text-slate-900">Account Closed</strong>
-                    </span>
+
+                  <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-orange-50/95 border border-orange-200 shadow-2xs">
+                    <span className="text-[10.5px] font-bold text-amber-900 uppercase tracking-wider">Receipt No.</span>
+                    <span className="text-xs font-black font-mono text-orange-600">{receiptItem.receiptNo}</span>
                   </div>
                 </div>
-              ) : isGuest ? (
-                <div className="border border-slate-800 rounded-none overflow-hidden mb-5">
-                  <div className="grid grid-cols-2 divide-x divide-slate-300 border-b border-slate-300 p-2.5 bg-slate-50/60 text-xs">
-                    <div>
-                      <span className="font-bold text-[#142952]">Stay Tariff : </span>
-                      <span className="font-mono font-bold text-slate-900">INR {Number(effectiveRentAmount || receiptItem.amount).toLocaleString("en-IN")}</span>
+
+                {/* 2. Hero Card: Property Details & Tenant Profile */}
+                <div className="bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5 shadow-xs relative z-10">
+                  {/* Property Column */}
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center shrink-0 text-orange-600">
+                      <Building2 className="w-5 h-5" />
                     </div>
-                    <div className="pl-3">
-                      <span className="font-bold text-[#142952]">Daily Rate : </span>
-                      <span className="font-mono font-bold text-slate-900">{dailyRate ? `INR ${dailyRate.toLocaleString("en-IN")} / day` : "-"}</span>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-amber-900 block mb-0.5">Property</span>
+                      <h2 className={`${getPgNameClass(pName)} font-extrabold text-slate-900 leading-snug break-words mb-1`}>
+                        {pName}
+                      </h2>
+                      {formatSmartAddress(pAddress).map((line, idx) => (
+                        <p key={idx} className="text-[11.5px] text-slate-500 leading-tight">
+                          {line}
+                        </p>
+                      ))}
+                      {managerPhone && (
+                        <p className="text-[11.5px] font-semibold text-orange-600 mt-1 flex items-center gap-1">
+                          <span>📞</span> {managerPhone}
+                        </p>
+                      )}
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 divide-x divide-slate-300 border-b border-slate-300 p-2.5 bg-slate-50/60 text-xs">
+
+                  {/* Tenant Column */}
+                  <div className="flex items-start gap-3 sm:border-l sm:border-slate-100 sm:pl-4">
+                    <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center shrink-0 text-orange-600">
+                      <User className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-amber-900 block mb-0.5">Tenant</span>
+                      <h2 className="text-base sm:text-lg font-extrabold text-slate-900 leading-snug truncate mb-1">
+                        {occupant.name}
+                      </h2>
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-50 border border-orange-200 text-amber-900 font-extrabold text-xs mt-1">
+                        <span>Room {occupant.roomNumber}</span>
+                        <span>|</span>
+                        <span>Bed {occupant.bedCode.replace(/^Bed\s*/i, "")}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Itemized Particulars & Ledger Table */}
+                <div className="border border-orange-200 rounded-xl overflow-hidden mb-5 bg-white relative z-10 shadow-xs">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-orange-50/90 border-b border-orange-200 text-amber-950 font-bold text-[11px] uppercase tracking-wider">
+                        <th className="py-2.5 px-4 w-[65%]">Particulars</th>
+                        <th className="py-2.5 px-4 text-right w-[35%]">Amount (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-800 font-medium">
+                      {tenantItems.map((it, idx) => (
+                        <tr key={idx} className="bg-white">
+                          <td className="py-2.5 px-4">
+                            <div className={`font-bold ${it.isArrears ? "text-rose-700 font-black" : "text-slate-900"}`}>{it.title}</div>
+                            {it.sub && <div className="text-[11px] text-slate-500 mt-0.5">{it.sub}</div>}
+                          </td>
+                          <td className={`py-2.5 px-4 text-right font-bold ${it.isArrears ? "text-rose-700 font-black" : "text-slate-900"}`}>
+                            ₹{Number(it.amount).toLocaleString("en-IN")}
+                          </td>
+                        </tr>
+                      ))}
+
+                      {tenantIsMultiItem && (
+                        <tr className="bg-amber-50/60 font-bold text-amber-950 border-t border-orange-200 text-xs">
+                          <td className="py-2 px-4">Total Payable / Billable Charges</td>
+                          <td className="py-2 px-4 text-right">₹{Number(tenantTotalBillable).toLocaleString("en-IN")}</td>
+                        </tr>
+                      )}
+
+                      {tenantIsPartial && (
+                        <>
+                          <tr className="bg-slate-50/40 text-slate-600">
+                            <td className="py-2 px-4 font-semibold">Payment Received on {receiptItem.date}</td>
+                            <td className="py-2 px-4 text-right font-bold text-slate-900">₹{Number(receiptItem.amount).toLocaleString("en-IN")}</td>
+                          </tr>
+                          <tr className="bg-rose-50/60 text-rose-700 font-black">
+                            <td className="py-2 px-4">Balance Remaining</td>
+                            <td className="py-2 px-4 text-right">₹{Number(tenantBalanceRemaining).toLocaleString("en-IN")}</td>
+                          </tr>
+                        </>
+                      )}
+
+                      <tr className="bg-orange-50/80 border-t border-orange-200 font-extrabold text-amber-950 text-sm">
+                        <td className="py-2.5 px-4 text-amber-900">Total Paid</td>
+                        <td className="py-2.5 px-4 text-right text-orange-600 font-black text-base">₹{formattedAmount}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* 4. Bottom Meta Cards Strip (3 Cards) */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 relative z-10">
+                  <div className="bg-white/90 backdrop-blur-xs border border-orange-200 rounded-xl p-3 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
+                      <Calendar className="w-4 h-4" />
+                    </div>
                     <div>
-                      <span className="font-bold text-[#142952]">Security Deposit : </span>
-                      <span className="font-mono font-bold text-slate-900">
-                        {effectiveDepositAmount > 0 ? `INR ${effectiveDepositAmount.toLocaleString("en-IN")}` : "-"}
+                      <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block">Payment Date</span>
+                      <span className="text-xs font-bold text-slate-900">{receiptItem.date}</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-white/90 backdrop-blur-xs border border-orange-200 rounded-xl p-3 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
+                      <CreditCard className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block">Payment Mode</span>
+                      <span className="text-xs font-bold text-slate-900">{receiptItem.mode || "UPI"}</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-white/90 backdrop-blur-xs border border-orange-200 rounded-xl p-3 flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${tenantIsPartial ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>
+                      <CheckCircle2 className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block">Payment Status</span>
+                      <span className={`text-xs font-bold ${tenantIsPartial ? "text-amber-600" : "text-emerald-700"}`}>
+                        {isDeposit ? "Deposit Received" : tenantIsPartial ? "Partially Paid" : "Paid"}
                       </span>
                     </div>
-                    <div className="pl-3">
-                      <span className="font-bold text-[#142952]">Room / Bed : </span>
-                      <span className="font-bold text-slate-800">Room {occupant.roomNumber} ({occupant.bedCode})</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-emerald-50 border-t border-emerald-300 text-xs sm:text-sm font-bold">
-                    <span className="text-emerald-950 font-black">
-                      TOTAL RECEIVED : <span className="font-mono font-black text-emerald-800">INR {formattedAmount}</span>
-                    </span>
-                    <span className="text-[11px] text-slate-700 font-medium">
-                      Mode: <strong className="text-slate-900">{receiptItem.mode || "UPI"}</strong>
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className="border border-slate-800 rounded-none overflow-hidden mb-5">
-                  <div className="grid grid-cols-2 divide-x divide-slate-300 border-b border-slate-300 p-2.5 bg-slate-50/60 text-xs">
-                    <div>
-                      <span className="font-bold text-[#142952]">Deposit : </span>
-                      <span className="font-mono font-bold text-slate-900">
-                        {effectiveDepositAmount > 0
-                          ? `INR ${effectiveDepositAmount.toLocaleString("en-IN")}`
-                          : "-"}
-                      </span>
-                    </div>
-                    <div className="pl-3">
-                      <span className="font-bold text-[#142952]">Rent : </span>
-                      <span className="font-mono font-bold text-slate-900">
-                        {effectiveRentAmount > 0
-                          ? `INR ${effectiveRentAmount.toLocaleString("en-IN")}`
-                          : "-"}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 divide-x divide-slate-300 border-b border-slate-300 p-2.5 bg-slate-50/60 text-xs">
-                    <div>
-                      <span className="font-bold text-[#142952]">Parking fee : </span>
-                      <span className="font-mono font-bold text-slate-900">
-                        {effectiveParkingAmount > 0
-                          ? `INR ${effectiveParkingAmount.toLocaleString("en-IN")}`
-                          : "-"}
-                      </span>
-                    </div>
-                    <div className="pl-3">
-                      <span className="font-bold text-[#142952]">Maintenance : </span>
-                      <span className="font-medium text-slate-600">
-                        {effectiveMaintenanceAmount > 0
-                          ? `INR ${effectiveMaintenanceAmount.toLocaleString("en-IN")}`
-                          : "-"}
-                      </span>
-                    </div>
-                  </div>
-                  {/* Total Received Highlight Bar */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-emerald-50 border-t border-emerald-300 text-xs sm:text-sm font-bold">
-                    <span className="text-emerald-950 font-black">
-                      TOTAL RECEIVED : <span className="font-mono font-black text-emerald-800">INR {formattedAmount}</span>
-                    </span>
-                    <span className="text-[11px] text-slate-700 font-medium">
-                      Mode: <strong className="text-slate-900">{receiptItem.mode || "UPI"}</strong>
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Item 4: Signatures Section */}
-              <div className="grid grid-cols-2 gap-6 sm:gap-10 pt-8 sm:pt-10 mb-8 sm:mb-10">
-                {/* Box 4: Owners Signature */}
-                <div>
-                  <div className="h-14 flex items-end justify-center mb-1.5">
-                    {propertySettings.signatureUrl ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
-                        src={propertySettings.signatureUrl}
-                        alt="Owner Signature"
-                        className="max-h-full max-w-[150px] object-contain"
-                      />
-                    ) : (
-                      <span className="font-serif italic font-bold text-lg text-blue-900 tracking-wider">
-                        {propertySettings.ownerName || pName}
-                      </span>
-                    )}
-                  </div>
-                  <div className="border-t border-slate-900 pt-1.5 text-center">
-                    <p className="font-bold text-xs text-[#142952]">Owners Signature</p>
-                    <p className="text-[9px] text-slate-500">
-                      {propertySettings.ownerName ? `Authorized Signatory • ${propertySettings.ownerName}` : "Authorized Signatory • Property Management"}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Guest Signature */}
-                <div>
-                  <div className="h-14 flex items-end justify-center mb-1.5">
-                    {/* Empty space for tenant / resident to physically or digitally sign */}
-                  </div>
-                  <div className="border-t border-slate-900 pt-1.5 text-center">
-                    <p className="font-bold text-xs text-[#142952]">Guest Signature</p>
-                    <p className="text-[9px] text-slate-500">{isGuest ? "Guest Acknowledgement" : "Tenant / Resident Confirmation"}</p>
                   </div>
                 </div>
               </div>
 
-              {/* Bottom Notice Board Rule */}
-              <div className="border-t border-slate-400 pt-2 text-center text-[10px] sm:text-xs font-bold text-[#142952]">
-                ★ Guests are subject to the rules and regulations outlined on the notice board. ★
-              </div>
-
-              {/* Income Tax HRA Exemption Micro-Declaration (Only for long-term tenants; omitted for guests) */}
-              {!isGuest && (
-                <div className="mt-2 text-center text-[8px] text-slate-400">
-                  Authentic electronic receipt issued via TenoPilot Property OS • Valid for Income Tax HRA Exemption under Sec 10(13A)
+              {/* 5. Seamless Footer on Dark Wave */}
+              <div className="relative z-10 pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-[10px] text-slate-300">
+                <div className="text-center sm:text-left leading-relaxed">
+                  <p className="text-slate-300">This is a computer-generated receipt and does not require a physical signature. For any queries, contact your PG administrator.</p>
+                  <p className="font-semibold text-amber-300/90 mt-0.5">★ Valid for Income Tax HRA Exemption under Sec 10(13A) of Income Tax Act • Landlord PAN available on request ★</p>
                 </div>
-              )}
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[10px] text-slate-400">Powered by</span>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/tenopilot_orange_mark.jpg" alt="TenoPilot" className="w-4 h-4 rounded-xs object-cover" />
+                  <div className="text-right">
+                    <span className="font-extrabold text-white text-xs">Tenopilot<span className="text-orange-500">.com</span></span>
+                    <p className="text-[8.5px] text-slate-400">PG Management Platform</p>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          )}
         </div>
       </div>
 

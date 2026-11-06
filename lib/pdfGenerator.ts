@@ -48,6 +48,10 @@ export interface ReceiptPdfData {
   depositAmount?: number;
   maintenanceAmount?: number;
   parkingAmount?: number;
+  parkingSlot?: string;
+  priorArrears?: number;
+  priorArrearsMonth?: string;
+  billingCycleDates?: string;
   settlementDetails?: {
     initialDeposit?: number;
     unpaidDeposit?: number;
@@ -103,6 +107,74 @@ export function resolveBillingCycleMonth(month?: string, dateStr?: string, joini
     }
   }
   return new Date().toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+}
+
+export function resolveTenantBillingDates(
+  cycleSetting?: string,
+  joiningDateStr?: string,
+  monthStr?: string,
+  receiptDateStr?: string
+): { billingMonthName: string; billingCycleRange: string } {
+  const isAnniversary = cycleSetting === "Anniversary Date";
+  const monthsMap: Record<string, number> = {
+    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+  };
+  let refDate = new Date();
+  if (receiptDateStr) {
+    const d = new Date(receiptDateStr);
+    if (!isNaN(d.getTime())) refDate = d;
+  }
+  let targetYear = refDate.getFullYear();
+  let targetMonth = refDate.getMonth();
+
+  if (monthStr && !monthStr.toLowerCase().includes("deposit")) {
+    const mLower = monthStr.toLowerCase();
+    for (const [abbr, idx] of Object.entries(monthsMap)) {
+      if (mLower.includes(abbr)) {
+        targetMonth = idx;
+        const yearMatch = monthStr.match(/20\d{2}/);
+        if (yearMatch) targetYear = parseInt(yearMatch[0], 10);
+        break;
+      }
+    }
+  }
+
+  const monthName = new Date(targetYear, targetMonth, 1).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+  const fmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+
+  if (isAnniversary && joiningDateStr) {
+    const jDate = new Date(joiningDateStr);
+    if (!isNaN(jDate.getTime())) {
+      const joinDay = jDate.getDate();
+      const startDate = new Date(targetYear, targetMonth, joinDay);
+      const endDate = new Date(targetYear, targetMonth + 1, joinDay - 1);
+      return {
+        billingMonthName: monthName,
+        billingCycleRange: `${fmt(startDate)} – ${fmt(endDate)}`
+      };
+    }
+  }
+
+  // 1st to End of Month
+  if (joiningDateStr) {
+    const jDate = new Date(joiningDateStr);
+    if (!isNaN(jDate.getTime()) && jDate.getFullYear() === targetYear && jDate.getMonth() === targetMonth && jDate.getDate() > 1) {
+      const startDate = jDate;
+      const lastDay = new Date(targetYear, targetMonth + 1, 0);
+      return {
+        billingMonthName: monthName,
+        billingCycleRange: `${fmt(startDate)} – ${fmt(lastDay)}`
+      };
+    }
+  }
+
+  const firstDay = new Date(targetYear, targetMonth, 1);
+  const lastDay = new Date(targetYear, targetMonth + 1, 0);
+  return {
+    billingMonthName: monthName,
+    billingCycleRange: `${fmt(firstDay)} – ${fmt(lastDay)}`
+  };
 }
 
 /**
@@ -1029,682 +1101,590 @@ export async function generateGuestStayReceiptPdfBuffer(data: ReceiptPdfData): P
   return await pdfDoc.save();
 }
 
-/**
- * Generates an official, beautiful A4 PDF receipt buffer using pdf-lib
- * Suitable for instant serverless PDF download and WhatsApp Document attachment.
- */
-export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Uint8Array> {
-  if (data.isGuest) {
-    return generateGuestStayReceiptPdfBuffer(data);
-  }
+export function formatSmartAddress(address?: string): string[] {
+  if (!address) return [];
+  const parts = address.split(',').map(p => p.trim()).filter(Boolean);
+  if (parts.length <= 1) return [address];
+  if (parts.length === 2) return [parts[0] + ',', parts[1]];
+  if (parts.length === 3) return [parts[0] + ', ' + parts[1] + ',', parts[2]];
+  const mid = Math.ceil(parts.length / 2);
+  const line1 = parts.slice(0, mid).join(', ') + ',';
+  const line2 = parts.slice(mid).join(', ');
+  return [line1, line2];
+}
 
-  const pdfDoc = await PDFDocument.create();
+/**
+ * Generates an official, executive Tenant Rental & Security Deposit Receipt PDF buffer using pdf-lib.
+ * Utilizes the custom TenoPilot Architectural Template and Signature Orange Theme.
+ */
+export async function generateTenantRentalReceiptPdfBuffer(data: ReceiptPdfData): Promise<Uint8Array> {
   const width = 595.28;
   const height = 841.89; // Standard A4 dimensions
-  const page = pdfDoc.addPage([width, height]);
+
+  let pdfDoc: PDFDocument | null = null;
+  let page: any = null;
+  let loadedFromTemplate = false;
+
+  if (typeof window === "undefined") {
+    try {
+      const fs = await import("fs");
+      const path = await import("path");
+      const templatePath = path.join(process.cwd(), "public", "tenant_receipt_template.pdf");
+      if (fs.existsSync(templatePath)) {
+        const templateBytes = fs.readFileSync(templatePath);
+        pdfDoc = await PDFDocument.load(templateBytes);
+        page = pdfDoc.getPages()[0];
+        loadedFromTemplate = true;
+      }
+    } catch (e) {
+      // fallback
+    }
+  }
+
+  if (!loadedFromTemplate || !pdfDoc || !page) {
+    pdfDoc = await PDFDocument.create();
+    page = pdfDoc.addPage([width, height]);
+    if (typeof window === "undefined") {
+      try {
+        const fs = await import("fs");
+        const path = await import("path");
+        const bgImgPath = path.join(process.cwd(), "public", "tenant_receipt_bg.jpg");
+        if (fs.existsSync(bgImgPath)) {
+          const bgBytes = fs.readFileSync(bgImgPath);
+          const bgImg = await pdfDoc.embedJpg(bgBytes);
+          page.drawImage(bgImg, { x: 0, y: 0, width, height });
+        }
+      } catch (e) {
+        // fallback to blank
+      }
+    }
+  }
 
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontMono = await pdfDoc.embedFont(StandardFonts.CourierBold);
-  const fontOblique = await pdfDoc.embedFont(StandardFonts.TimesRomanBoldItalic);
 
-  // Classic Navy & Slate Color Palette
-  const navyDeep = rgb(0.08, 0.16, 0.32);     // #142952
-  const slateDark = rgb(0.12, 0.14, 0.18);    // #1f242e
-  const slateMuted = rgb(0.42, 0.46, 0.54);   // #6b758a
-  const gridBorder = rgb(0.20, 0.28, 0.42);   // #33476b
-  const emeraldBg = rgb(0.93, 0.98, 0.95);    // #eefaf2
-  const emeraldDark = rgb(0.04, 0.48, 0.32);  // #0a7a52
+  // Palette
+  const darkSlate = rgb(0.12, 0.16, 0.23);
+  const mutedSlate = rgb(0.39, 0.45, 0.55);
+  const warmOrange = rgb(0.92, 0.35, 0.05);
+  const terracotta = rgb(0.60, 0.20, 0.07);
+  const creamBorder = rgb(0.99, 0.84, 0.67);
+  const creamBg = rgb(1.0, 0.97, 0.93);
+  const white = rgb(1.0, 1.0, 1.0);
+  const redArrears = rgb(0.73, 0.11, 0.11);
+  const emeraldGreen = rgb(0.02, 0.59, 0.41);
 
-  // Authentic Voucher Frame Boundaries
-  const frameX = 46;
-  const frameY = 50;
-  const frameW = width - frameX - 38;
-  const frameH = height - frameY - 45;
+  // 1. Header Bar: Document Title on Left, Receipt No on Right
+  const title = data.isDeposit
+    ? "Security Deposit Receipt"
+    : data.isSettlement
+    ? "Settlement Receipt"
+    : "Rental Receipt";
 
-  // 1. Classic Perforated Voucher Stub Guide on Left Margin
-  const stubX = frameX - 15;
-  for (let y = frameY + 10; y < frameY + frameH - 10; y += 12) {
-    page.drawLine({
-      start: { x: stubX, y },
-      end: { x: stubX, y: y + 6 },
-      thickness: 1,
-      color: rgb(0.78, 0.80, 0.84),
-    });
-  }
-
-  // 2. Authentic Double Outer Border
-  page.drawRectangle({
-    x: frameX,
-    y: frameY,
-    width: frameW,
-    height: frameH,
-    borderColor: navyDeep,
-    borderWidth: 1.8,
+  page.drawText(title, {
+    x: 42,
+    y: height - 52,
+    size: 20,
+    font: fontBold,
+    color: darkSlate,
   });
 
+  // Receipt No Pill on Top Right
+  const receiptNoStr = data.receiptNo || "RCP-001";
+  const rPillW = 145;
+  const rPillH = 22;
+  const rPillX = width - 42 - rPillW;
+  const rPillY = height - 58;
+
   page.drawRectangle({
-    x: frameX + 4,
-    y: frameY + 4,
-    width: frameW - 8,
-    height: frameH - 8,
-    borderColor: navyDeep,
-    borderWidth: 0.8,
+    x: rPillX,
+    y: rPillY,
+    width: rPillW,
+    height: rPillH,
+    color: creamBg,
+    borderColor: creamBorder,
+    borderWidth: 1,
+    borderRadius: 11,
   });
 
-  // Vertical tracker starting from top of frame
-  let curY = frameY + frameH - 32;
+  page.drawText("RECEIPT NO.", {
+    x: rPillX + 10,
+    y: rPillY + 7,
+    size: 7.5,
+    font: fontBold,
+    color: terracotta,
+  });
 
-  // 3. Header Box 1: PG Name (Centered, auto-fitting font scale)
-  const pName = (data.propertyName || "TenoPilot Coliving PG").toUpperCase();
-  let pNameSize = 17.5;
-  while (pNameSize > 11 && fontBold.widthOfTextAtSize(pName, pNameSize) > (frameW - 40)) {
-    pNameSize -= 0.5;
-  }
-  const pNameW = fontBold.widthOfTextAtSize(pName, pNameSize);
+  page.drawText(receiptNoStr, {
+    x: rPillX + 70,
+    y: rPillY + 7,
+    size: 8.5,
+    font: fontMono,
+    color: warmOrange,
+  });
+
+  // 2. Hero Card: Property & Tenant Profile
+  const heroX = 40;
+  const heroY = height - 150;
+  const heroW = width - 80;
+  const heroH = 78;
+
+  page.drawRectangle({
+    x: heroX,
+    y: heroY,
+    width: heroW,
+    height: heroH,
+    color: white,
+    borderColor: rgb(0.88, 0.91, 0.94),
+    borderWidth: 1,
+    borderRadius: 12,
+  });
+
+  // Property Column
+  page.drawText("PROPERTY", {
+    x: heroX + 16,
+    y: heroY + heroH - 16,
+    size: 7,
+    font: fontBold,
+    color: terracotta,
+  });
+
+  const pName = data.propertyName || "Sunrise PG";
+  const pNameSize = pName.length > 28 ? 11 : pName.length > 18 ? 13 : 15;
   page.drawText(pName, {
-    x: frameX + (frameW - pNameW) / 2,
-    y: curY,
+    x: heroX + 16,
+    y: heroY + heroH - 32,
     size: pNameSize,
     font: fontBold,
-    color: navyDeep,
+    color: rgb(0.06, 0.09, 0.16),
   });
 
-  curY -= 20;
-
-  // 4. Header Box 2: Property Address (Centered, dynamic multi-line wrapping)
-  const rawAddress = data.propertyAddress || "Verified Student & Professional Accommodation";
-  const words = rawAddress.split(" ");
-  const addrLines: string[] = [];
-  let curLine = "";
-  for (const w of words) {
-    if ((curLine + " " + w).trim().length > 64) {
-      addrLines.push(curLine.trim());
-      curLine = w;
-    } else {
-      curLine = curLine ? curLine + " " + w : w;
-    }
-  }
-  if (curLine) addrLines.push(curLine.trim());
-
-  for (const line of addrLines) {
-    const lineW = fontRegular.widthOfTextAtSize(line, 9.5);
-    page.drawText(line, {
-      x: frameX + (frameW - lineW) / 2,
-      y: curY,
-      size: 9.5,
+  const addrLines = formatSmartAddress(data.propertyAddress || "Kakiri Street, Whitefield, Bangalore");
+  if (addrLines[0]) {
+    page.drawText(addrLines[0], {
+      x: heroX + 16,
+      y: heroY + heroH - 46,
+      size: 8,
       font: fontRegular,
-      color: slateDark,
+      color: mutedSlate,
     });
-    curY -= 14;
+  }
+  if (addrLines[1]) {
+    page.drawText(addrLines[1], {
+      x: heroX + 16,
+      y: heroY + heroH - 57,
+      size: 8,
+      font: fontRegular,
+      color: mutedSlate,
+    });
+  }
+  if (data.managerPhone) {
+    page.drawText("Ph: " + data.managerPhone, {
+      x: heroX + 16,
+      y: heroY + heroH - 69,
+      size: 8,
+      font: fontBold,
+      color: warmOrange,
+    });
   }
 
-  curY -= 2;
-
-  // 5. Header Box 3: Manager Contact Mobile (Centered)
-  const mobText = `Mob : ${data.managerPhone || "+91 92066 51295"}`;
-  const mobW = fontBold.widthOfTextAtSize(mobText, 10.5);
-  page.drawText(mobText, {
-    x: frameX + (frameW - mobW) / 2,
-    y: curY,
-    size: 10.5,
-    font: fontBold,
-    color: navyDeep,
-  });
-
-  curY -= 20;
-
-  // Horizontal dividing line
+  // Divider line
+  const divX = heroX + heroW * 0.58;
   page.drawLine({
-    start: { x: frameX + 12, y: curY },
-    end: { x: frameX + frameW - 12, y: curY },
+    start: { x: divX, y: heroY + 10 },
+    end: { x: divX, y: heroY + heroH - 10 },
     thickness: 1,
-    color: gridBorder,
+    color: rgb(0.94, 0.96, 0.98),
   });
 
-  curY -= 22;
-
-  // 6. Meta Line: Receipt No | Room | Date
-  const rcptStr = `Receipt No.:  ${data.receiptNo}`;
-  page.drawText(rcptStr, {
-    x: frameX + 18,
-    y: curY,
-    size: 10.5,
+  // Tenant Column
+  page.drawText("TENANT", {
+    x: divX + 16,
+    y: heroY + heroH - 16,
+    size: 7,
     font: fontBold,
-    color: slateDark,
+    color: terracotta,
   });
 
-  const roomDisplay = data.bedCode
-    ? `Room:  ${data.roomNumber} (${data.bedCode})`
-    : `Room:  ${data.roomNumber}`;
-  const roomW = fontBold.widthOfTextAtSize(roomDisplay, 10.5);
-  page.drawText(roomDisplay, {
-    x: frameX + (frameW - roomW) / 2,
-    y: curY,
-    size: 10.5,
+  page.drawText(data.residentName || "Resident", {
+    x: divX + 16,
+    y: heroY + heroH - 32,
+    size: 14,
     font: fontBold,
-    color: slateDark,
+    color: rgb(0.06, 0.09, 0.16),
   });
 
-  const dateStr = `Date:  ${data.paidDate}`;
-  const dateW = fontBold.widthOfTextAtSize(dateStr, 10.5);
-  page.drawText(dateStr, {
-    x: frameX + frameW - 18 - dateW,
-    y: curY,
-    size: 10.5,
-    font: fontBold,
-    color: slateDark,
-  });
-
-  curY -= 32;
-
-  // Detect whether this receipt is for Security Deposit
-  const isDeposit = Boolean(
-    data.isDeposit ||
-    data.receiptNo?.startsWith("DEP") ||
-    data.month?.toLowerCase().includes("deposit") ||
-    (data.depositAmount !== undefined && data.depositAmount > 0 && (!data.rentAmount || data.rentAmount === 0))
-  );
-
-  // Detect whether this receipt is for a Short-Term Guest
-  const isGuest = Boolean(
-    data.isGuest ||
-    data.stayType === "Guest" ||
-    data.receiptNo?.startsWith("REF-GUEST") ||
-    data.receiptNo?.startsWith("RCP-GUEST") ||
-    data.receiptNo?.includes("GUEST") ||
-    data.month?.toLowerCase().includes("guest") ||
-    data.month?.toLowerCase().includes("short stay")
-  );
-
-  // 7. Pill Banner: [ GUEST DETAILS / RESIDENT DETAILS / SETTLEMENT DETAILS ]
-  const pillTitle = isGuest
-    ? data.isSettlement
-      ? "GUEST CHECKOUT RECEIPT"
-      : "GUEST STAY INVOICE / RECEIPT"
-    : data.isSettlement
-    ? "SETTLEMENT & NO-DUES DETAILS"
-    : isDeposit
-    ? "SECURITY DEPOSIT DETAILS"
-    : "RESIDENT DETAILS";
-
-  const pillW = Math.max(150, fontBold.widthOfTextAtSize(pillTitle, 10) + 36);
-  const pillH = 22;
-  const pillX = frameX + (frameW - pillW) / 2;
+  // Room Bed Badge
+  const roomBedStr = "Room " + (data.roomNumber || "N/A") + " | Bed " + (data.bedCode || "B").replace(/^Bed\s*/i, "");
+  const badgeW = fontBold.widthOfTextAtSize(roomBedStr, 8.5) + 16;
   page.drawRectangle({
-    x: pillX,
-    y: curY - 4,
-    width: pillW,
-    height: pillH,
-    color: navyDeep,
+    x: divX + 16,
+    y: heroY + heroH - 58,
+    width: badgeW,
+    height: 18,
+    color: creamBg,
+    borderColor: creamBorder,
+    borderWidth: 1,
+    borderRadius: 9,
   });
-
-  const pTitleW = fontBold.widthOfTextAtSize(pillTitle, 10);
-  page.drawText(pillTitle, {
-    x: pillX + (pillW - pTitleW) / 2,
-    y: curY + 3,
-    size: 10,
+  page.drawText(roomBedStr, {
+    x: divX + 24,
+    y: heroY + heroH - 53,
+    size: 8.5,
     font: fontBold,
-    color: rgb(1, 1, 1),
+    color: terracotta,
   });
 
-  curY -= 36;
+  // 3. Particulars & Table
+  const tableX = 40;
+  let curY = heroY - 20;
+  const tableW = width - 80;
 
-  // 8. Resident / Guest Name with clean underline
-  const labelName = isGuest ? "Guest Name : " : "Resident Name : ";
-  const valName = data.residentName || (isGuest ? "Guest" : "Resident");
-  page.drawText(labelName, {
-    x: frameX + 22,
-    y: curY,
-    size: 11,
-    font: fontBold,
-    color: navyDeep,
-  });
-  const labelNameW = fontBold.widthOfTextAtSize(labelName, 11);
-  page.drawText(valName, {
-    x: frameX + 22 + labelNameW + 4,
-    y: curY,
-    size: 11,
-    font: fontBold,
-    color: slateDark,
-  });
+  const cycle = resolveTenantBillingDates(data.billingCycleDates, data.joiningDate, data.month, data.paidDate);
 
-  page.drawLine({
-    start: { x: frameX + 22 + labelNameW, y: curY - 3 },
-    end: { x: frameX + frameW - 22, y: curY - 3 },
-    thickness: 0.8,
-    color: rgb(0.65, 0.70, 0.78),
-  });
-
-  curY -= 34;
-
-  // 9. Stay Period (for guests) or Billing Period (for long-term tenants)
-  const labelCycle = isGuest ? "Stay Period : " : "Billing Period : ";
-  let valCycle = "";
-  if (isGuest) {
-    if (data.checkInDate && data.checkOutDate) {
-      const durText = data.stayDurationDays ? ` (${data.stayDurationDays} ${data.stayDurationDays === 1 ? "Day" : "Days"} Stay)` : "";
-      valCycle = `${data.checkInDate} to ${data.checkOutDate}${durText}`;
-    } else if (data.checkInDate) {
-      valCycle = `From ${data.checkInDate} (Short Stay)`;
-    } else {
-      valCycle = data.month && !data.month.toLowerCase().includes("cycle") ? data.month : "Short-term Stay";
-    }
-  } else {
-    valCycle = resolveBillingCycleMonth(data.month, data.paidDate, data.joiningDate);
+  const items: { title: string; sub?: string; amount: number; isArrears?: boolean }[] = [];
+  if (data.isDeposit || (data.depositAmount && data.depositAmount > 0)) {
+    items.push({
+      title: "Security Deposit",
+      amount: data.depositAmount || data.amount,
+    });
   }
-
-  page.drawText(labelCycle, {
-    x: frameX + 22,
-    y: curY,
-    size: 10.5,
-    font: fontBold,
-    color: navyDeep,
-  });
-  const labelCycleW = fontBold.widthOfTextAtSize(labelCycle, 10.5);
-  page.drawText(valCycle, {
-    x: frameX + 22 + labelCycleW + 4,
-    y: curY,
-    size: 10.5,
-    font: fontRegular,
-    color: slateDark,
-  });
-
-  page.drawLine({
-    start: { x: frameX + 22 + labelCycleW, y: curY - 3 },
-    end: { x: frameX + frameW - 22, y: curY - 3 },
-    thickness: 0.8,
-    color: rgb(0.65, 0.70, 0.78),
-  });
-
-  curY -= 40;
-
-  // 10. Financial Box (Structured Grid)
-  const gridX = frameX + 16;
-  const gridW = frameW - 32;
-  const gridH = 126;
-  const gridY = curY - gridH;
-
-  page.drawRectangle({
-    x: gridX,
-    y: gridY,
-    width: gridW,
-    height: gridH,
-    borderColor: navyDeep,
-    borderWidth: 1.2,
-  });
-
-  // Vertical Middle Separator in Grid
-  const midX = gridX + gridW / 2;
-  page.drawLine({
-    start: { x: midX, y: gridY + 36 },
-    end: { x: midX, y: gridY + gridH },
-    thickness: 0.8,
-    color: rgb(0.65, 0.70, 0.78),
-  });
-
-  // Horizontal Grid Row Divider
-  page.drawLine({
-    start: { x: gridX, y: gridY + gridH - 44 },
-    end: { x: gridX + gridW, y: gridY + gridH - 44 },
-    thickness: 0.8,
-    color: rgb(0.65, 0.70, 0.78),
-  });
-
-  const r1Y = gridY + gridH - 28;
-  const r2Y = gridY + gridH - 72;
-
-  if (isGuest && data.isSettlement) {
-    // 🟣 Dedicated Guest Checkout & Settlement Grid (Clean, transparent, no misleading deductions!)
-    const totalTariff = data.settlementDetails?.totalTariff || data.rentAmount || data.amount;
-    const totalPaid = data.settlementDetails?.totalPaid || data.amount;
-    const totalDeds = data.settlementDetails?.totalDeductions ?? 0;
-
-    page.drawText("Total Stay Tariff :", { x: gridX + 14, y: r1Y, size: 10.5, font: fontBold, color: navyDeep });
-    page.drawText(`INR ${Number(totalTariff).toLocaleString("en-IN")}`, { x: gridX + 115, y: r1Y, size: 10.5, font: fontMono, color: slateDark });
-
-    page.drawText("Total Received :", { x: midX + 14, y: r1Y, size: 10.5, font: fontBold, color: navyDeep });
-    page.drawText(`INR ${Number(totalPaid).toLocaleString("en-IN")}`, { x: midX + 105, y: r1Y, size: 10.5, font: fontMono, color: emeraldDark });
-
-    page.drawText("Key & Handover :", { x: gridX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
-    page.drawText("Returned & Cleared", { x: gridX + 115, y: r2Y, size: 10, font: fontBold, color: emeraldDark });
-
-    page.drawText("Deductions / Damages :", { x: midX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
-    page.drawText(totalDeds > 0 ? `INR ${Number(totalDeds).toLocaleString("en-IN")}` : "-", {
-      x: midX + 145,
-      y: r2Y,
-      size: 10.5,
-      font: totalDeds > 0 ? fontMono : fontBold,
-      color: totalDeds > 0 ? rgb(0.7, 0.2, 0.2) : slateMuted,
+  if (!data.isDeposit && data.rentAmount && data.rentAmount > 0) {
+    items.push({
+      title: "Rent for " + cycle.billingMonthName,
+      sub: "(" + cycle.billingCycleRange + ")",
+      amount: data.rentAmount,
     });
-  } else if (isGuest) {
-    // 🟣 Dedicated Guest Stay Invoice Grid (Tariff, Daily Rate, Security Deposit, Room/Bed)
-    const stayTariff = data.rentAmount ?? data.amount;
-    const dailyRate = data.dailyRate;
-    const keyDeposit = data.depositAmount || 0;
-
-    page.drawText("Stay Tariff :", { x: gridX + 14, y: r1Y, size: 10.5, font: fontBold, color: navyDeep });
-    page.drawText(`INR ${Number(stayTariff).toLocaleString("en-IN")}`, { x: gridX + 85, y: r1Y, size: 10.5, font: fontMono, color: slateDark });
-
-    page.drawText("Daily Rate :", { x: midX + 14, y: r1Y, size: 10.5, font: fontBold, color: navyDeep });
-    page.drawText(dailyRate ? `INR ${Number(dailyRate).toLocaleString("en-IN")} / day` : "-", {
-      x: midX + 85,
-      y: r1Y,
-      size: 10.5,
-      font: dailyRate ? fontMono : fontBold,
-      color: dailyRate ? slateDark : slateMuted,
+  }
+  if (data.parkingAmount && data.parkingAmount > 0) {
+    items.push({
+      title: "Parking Charges",
+      sub: data.parkingSlot ? "(" + data.parkingSlot + ")" : undefined,
+      amount: data.parkingAmount,
     });
-
-    page.drawText("Security Deposit :", { x: gridX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
-    page.drawText(keyDeposit > 0 ? `INR ${Number(keyDeposit).toLocaleString("en-IN")}` : "-", {
-      x: gridX + 115,
-      y: r2Y,
-      size: 10.5,
-      font: keyDeposit > 0 ? fontMono : fontBold,
-      color: keyDeposit > 0 ? slateDark : slateMuted,
+  }
+  if (data.priorArrears && data.priorArrears > 0) {
+    items.push({
+      title: "Prior Arrears (Unpaid dues from " + (data.priorArrearsMonth || "Previous Month") + ")",
+      amount: data.priorArrears,
+      isArrears: true,
     });
-
-    page.drawText("Room / Bed :", { x: midX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
-    page.drawText(`Room ${data.roomNumber} (${data.bedCode})`, { x: midX + 85, y: r2Y, size: 10.5, font: fontBold, color: slateDark });
-  } else if (data.isSettlement && data.settlementDetails) {
-    // Settlement Grid
-    page.drawText("Initial Deposit Held :", { x: gridX + 14, y: r1Y, size: 10.5, font: fontBold, color: navyDeep });
-    page.drawText(`INR ${Number(data.settlementDetails.initialDeposit || 0).toLocaleString("en-IN")}`, { x: gridX + 130, y: r1Y, size: 10.5, font: fontMono, color: slateDark });
-
-    const totalDeds = (data.settlementDetails.totalDeductions ?? ((data.settlementDetails.unpaidRent || 0) + (data.settlementDetails.repairs || 0) + (data.settlementDetails.maintenance || 0)));
-    page.drawText("Total Deductions :", { x: midX + 14, y: r1Y, size: 10.5, font: fontBold, color: navyDeep });
-    page.drawText(`INR ${Number(totalDeds).toLocaleString("en-IN")}`, { x: midX + 125, y: r1Y, size: 10.5, font: fontMono, color: rgb(0.7, 0.2, 0.2) });
-
-    const totalMaintCharges = (data.settlementDetails.maintenance || 0) + (data.settlementDetails.repairs || 0);
-    page.drawText("Unpaid Rent :", { x: gridX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
-    page.drawText(data.settlementDetails.unpaidRent && data.settlementDetails.unpaidRent > 0 ? `INR ${Number(data.settlementDetails.unpaidRent).toLocaleString("en-IN")}` : "-", {
-      x: gridX + 88,
-      y: r2Y,
-      size: 10.5,
-      font: data.settlementDetails.unpaidRent && data.settlementDetails.unpaidRent > 0 ? fontMono : fontBold,
-      color: data.settlementDetails.unpaidRent && data.settlementDetails.unpaidRent > 0 ? slateDark : slateMuted,
+  }
+  if (data.maintenanceAmount && data.maintenanceAmount > 0) {
+    items.push({
+      title: "Maintenance & Facility Charges",
+      amount: data.maintenanceAmount,
     });
-
-    page.drawText("Maintenance :", { x: midX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
-    page.drawText(totalMaintCharges > 0 ? `INR ${Number(totalMaintCharges).toLocaleString("en-IN")}` : "-", {
-      x: midX + 96,
-      y: r2Y,
-      size: 10.5,
-      font: totalMaintCharges > 0 ? fontMono : fontBold,
-      color: totalMaintCharges > 0 ? slateDark : slateMuted,
-    });
-  } else if (isDeposit) {
-    // Deposit Grid (Hyphen '-' for zero/non-applicable values per user request)
-    const depositAmt = data.depositAmount && data.depositAmount > 0 ? data.depositAmount : data.amount;
-    page.drawText("Deposit :", { x: gridX + 14, y: r1Y, size: 11, font: fontBold, color: navyDeep });
-    page.drawText(`INR ${Number(depositAmt).toLocaleString("en-IN")}`, { x: gridX + 75, y: r1Y, size: 11, font: fontMono, color: slateDark });
-
-    page.drawText("Rent :", { x: midX + 14, y: r1Y, size: 11, font: fontBold, color: navyDeep });
-    page.drawText("-", { x: midX + 65, y: r1Y, size: 11, font: fontBold, color: slateMuted });
-
-    page.drawText("Parking fee :", { x: gridX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
-    page.drawText("-", { x: gridX + 88, y: r2Y, size: 11, font: fontBold, color: slateMuted });
-
-    page.drawText("Maintenance :", { x: midX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
-    page.drawText("-", { x: midX + 96, y: r2Y, size: 11, font: fontBold, color: slateMuted });
-  } else {
-    // Standard Rent Grid (Hyphen '-' for zero values per user request)
-    const effectiveDeposit = data.depositAmount || 0;
-    const effectiveParking = data.parkingAmount || 0;
-    const effectiveMaint = data.maintenanceAmount || 0;
-    const effectiveRent = data.rentAmount !== undefined
-      ? data.rentAmount
-      : Math.max(0, data.amount - effectiveDeposit - effectiveParking - effectiveMaint);
-
-    page.drawText("Deposit :", { x: gridX + 14, y: r1Y, size: 11, font: fontBold, color: navyDeep });
-    page.drawText(effectiveDeposit > 0 ? `INR ${Number(effectiveDeposit).toLocaleString("en-IN")}` : "-", {
-      x: gridX + 75,
-      y: r1Y,
-      size: 11,
-      font: effectiveDeposit > 0 ? fontMono : fontBold,
-      color: effectiveDeposit > 0 ? slateDark : slateMuted,
-    });
-
-    page.drawText("Rent :", { x: midX + 14, y: r1Y, size: 11, font: fontBold, color: navyDeep });
-    page.drawText(effectiveRent > 0 ? `INR ${Number(effectiveRent).toLocaleString("en-IN")}` : "-", {
-      x: midX + 65,
-      y: r1Y,
-      size: 11,
-      font: effectiveRent > 0 ? fontMono : fontBold,
-      color: effectiveRent > 0 ? slateDark : slateMuted,
-    });
-
-    page.drawText("Parking fee :", { x: gridX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
-    page.drawText(effectiveParking > 0 ? `INR ${Number(effectiveParking).toLocaleString("en-IN")}` : "-", {
-      x: gridX + 88,
-      y: r2Y,
-      size: 11,
-      font: effectiveParking > 0 ? fontMono : fontBold,
-      color: effectiveParking > 0 ? slateDark : slateMuted,
-    });
-
-    page.drawText("Maintenance :", { x: midX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
-    page.drawText(effectiveMaint > 0 ? `INR ${Number(effectiveMaint).toLocaleString("en-IN")}` : "-", {
-      x: midX + 96,
-      y: r2Y,
-      size: 11,
-      font: effectiveMaint > 0 ? fontMono : fontBold,
-      color: effectiveMaint > 0 ? slateDark : slateMuted,
+  }
+  if (items.length === 0) {
+    items.push({
+      title: "Rent for " + cycle.billingMonthName,
+      sub: "(" + cycle.billingCycleRange + ")",
+      amount: data.amount,
     });
   }
 
-  // Row 3: Highlighted Total Received & Cleared Bar
-  const netRefund = Number(data.settlementDetails?.netRefunded ?? (data.amount > 0 ? data.amount : 0));
-  const netDeficit = Number(data.settlementDetails?.netDeficit ?? 0);
+  const totalBillable = items.reduce((s, it) => s + it.amount, 0);
+  const paidAmount = data.amount;
+  const balanceRemaining = Math.max(0, totalBillable - paidAmount);
+  const isPartial = balanceRemaining > 0;
+  const isMultiItem = items.length > 1;
 
-  let totText = "";
-  let barBg = emeraldBg;
-  let barBorder = rgb(0.55, 0.85, 0.70);
-  let barColor = emeraldDark;
-
-  if (isGuest && data.isSettlement) {
-    if (netRefund > 0) {
-      totText = `NET REFUNDED :  INR ${netRefund.toLocaleString("en-IN")}`;
-    } else if (netDeficit > 0) {
-      totText = `NET DUE FROM GUEST :  INR ${netDeficit.toLocaleString("en-IN")}`;
-      barColor = rgb(0.75, 0.15, 0.15);
-      barBg = rgb(0.98, 0.92, 0.92);
-      barBorder = rgb(0.9, 0.6, 0.6);
-    } else {
-      totText = "SETTLEMENT STATUS :  ZERO DUES / FULLY SETTLED";
-      barColor = navyDeep;
-      barBg = rgb(0.94, 0.96, 0.99);
-      barBorder = rgb(0.7, 0.8, 0.9);
-    }
-  } else if (data.isSettlement) {
-    totText = `NET REFUNDED :  INR ${Number(data.amount || 0).toLocaleString("en-IN")}`;
-  } else {
-    totText = `TOTAL RECEIVED :  INR ${Number(data.amount || 0).toLocaleString("en-IN")}`;
-  }
-
-  const r3H = 36;
+  // Header row
+  const thH = 26;
   page.drawRectangle({
-    x: gridX,
-    y: gridY,
-    width: gridW,
-    height: r3H,
-    color: barBg,
-    borderColor: barBorder,
+    x: tableX,
+    y: curY - thH,
+    width: tableW,
+    height: thH,
+    color: creamBg,
+    borderColor: creamBorder,
     borderWidth: 1,
   });
-
-  page.drawText(totText, {
-    x: gridX + 14,
-    y: gridY + 12,
-    size: 11,
+  page.drawText("PARTICULARS", {
+    x: tableX + 16,
+    y: curY - 17,
+    size: 8,
     font: fontBold,
-    color: barColor,
+    color: terracotta,
+  });
+  page.drawText("AMOUNT (INR)", {
+    x: tableX + tableW - 80,
+    y: curY - 17,
+    size: 8,
+    font: fontBold,
+    color: terracotta,
+  });
+  curY -= thH;
+
+  // Table rows
+  for (const it of items) {
+    const rowH = it.sub ? 38 : 28;
+    page.drawRectangle({
+      x: tableX,
+      y: curY - rowH,
+      width: tableW,
+      height: rowH,
+      color: white,
+      borderColor: rgb(0.96, 0.97, 0.98),
+      borderWidth: 1,
+    });
+
+    const itemColor = it.isArrears ? redArrears : rgb(0.06, 0.09, 0.16);
+    page.drawText(it.title, {
+      x: tableX + 16,
+      y: it.sub ? curY - 16 : curY - 18,
+      size: 9.5,
+      font: fontBold,
+      color: itemColor,
+    });
+
+    if (it.sub) {
+      page.drawText(it.sub, {
+        x: tableX + 16,
+        y: curY - 28,
+        size: 8,
+        font: fontRegular,
+        color: mutedSlate,
+      });
+    }
+
+    const amtStr = "Rs. " + Number(it.amount).toLocaleString("en-IN");
+    const amtW = fontBold.widthOfTextAtSize(amtStr, 10);
+    page.drawText(amtStr, {
+      x: tableX + tableW - 16 - amtW,
+      y: curY - 18,
+      size: 10,
+      font: fontBold,
+      color: itemColor,
+    });
+
+    curY -= rowH;
+  }
+
+  // Subtotal row if multi item
+  if (isMultiItem) {
+    const subH = 26;
+    page.drawRectangle({
+      x: tableX,
+      y: curY - subH,
+      width: tableW,
+      height: subH,
+      color: rgb(1.0, 0.98, 0.92),
+      borderColor: creamBorder,
+      borderWidth: 1,
+    });
+    page.drawText("Total Payable / Billable Charges", {
+      x: tableX + 16,
+      y: curY - 17,
+      size: 8.5,
+      font: fontBold,
+      color: rgb(0.57, 0.25, 0.05),
+    });
+    const subStr = "Rs. " + Number(totalBillable).toLocaleString("en-IN");
+    const subW = fontBold.widthOfTextAtSize(subStr, 9.5);
+    page.drawText(subStr, {
+      x: tableX + tableW - 16 - subW,
+      y: curY - 17,
+      size: 9.5,
+      font: fontBold,
+      color: rgb(0.57, 0.25, 0.05),
+    });
+    curY -= subH;
+  }
+
+  // Partial payment rows
+  if (isPartial) {
+    // Payment received row
+    const rcvH = 24;
+    page.drawRectangle({
+      x: tableX,
+      y: curY - rcvH,
+      width: tableW,
+      height: rcvH,
+      color: white,
+      borderColor: rgb(0.96, 0.97, 0.98),
+      borderWidth: 1,
+    });
+    page.drawText("Payment Received on " + (data.paidDate || "N/A"), {
+      x: tableX + 16,
+      y: curY - 16,
+      size: 8.5,
+      font: fontRegular,
+      color: mutedSlate,
+    });
+    const rcvStr = "Rs. " + Number(paidAmount).toLocaleString("en-IN");
+    const rcvW = fontBold.widthOfTextAtSize(rcvStr, 9.5);
+    page.drawText(rcvStr, {
+      x: tableX + tableW - 16 - rcvW,
+      y: curY - 16,
+      size: 9.5,
+      font: fontBold,
+      color: rgb(0.06, 0.09, 0.16),
+    });
+    curY -= rcvH;
+
+    // Balance Remaining row
+    const balH = 24;
+    page.drawRectangle({
+      x: tableX,
+      y: curY - balH,
+      width: tableW,
+      height: balH,
+      color: rgb(0.99, 0.95, 0.95),
+      borderColor: rgb(0.99, 0.88, 0.88),
+      borderWidth: 1,
+    });
+    page.drawText("Balance Remaining", {
+      x: tableX + 16,
+      y: curY - 16,
+      size: 8.5,
+      font: fontBold,
+      color: redArrears,
+    });
+    const balStr = "Rs. " + Number(balanceRemaining).toLocaleString("en-IN");
+    const balW = fontBold.widthOfTextAtSize(balStr, 9.5);
+    page.drawText(balStr, {
+      x: tableX + tableW - 16 - balW,
+      y: curY - 16,
+      size: 9.5,
+      font: fontBold,
+      color: redArrears,
+    });
+    curY -= balH;
+  }
+
+  // Total Paid Row
+  const totalH = 32;
+  page.drawRectangle({
+    x: tableX,
+    y: curY - totalH,
+    width: tableW,
+    height: totalH,
+    color: creamBg,
+    borderColor: creamBorder,
+    borderWidth: 1,
+  });
+  page.drawText("Total Paid", {
+    x: tableX + 16,
+    y: curY - 21,
+    size: 10,
+    font: fontBold,
+    color: terracotta,
+  });
+  const totStr = "Rs. " + Number(paidAmount).toLocaleString("en-IN");
+  const totW = fontBold.widthOfTextAtSize(totStr, 13);
+  page.drawText(totStr, {
+    x: tableX + tableW - 16 - totW,
+    y: curY - 21,
+    size: 13,
+    font: fontBold,
+    color: warmOrange,
+  });
+  curY -= totalH;
+
+  // 4. Bottom 3 Meta Cards
+  const cardsY = curY - 28;
+  const cardGap = 12;
+  const cardW = (tableW - 2 * cardGap) / 3;
+  const cardH = 42;
+
+  const statusLabel = data.isDeposit ? "Deposit Received" : isPartial ? "Partially Paid" : "Paid";
+  const metaCards = [
+    { label: "PAYMENT DATE", val: data.paidDate || "01 Nov 2026", color: darkSlate },
+    { label: "PAYMENT MODE", val: data.paymentMode || "UPI", color: darkSlate },
+    { label: "PAYMENT STATUS", val: statusLabel, color: isPartial ? rgb(0.79, 0.54, 0.02) : emeraldGreen },
+  ];
+
+  for (let i = 0; i < 3; i++) {
+    const cX = tableX + i * (cardW + cardGap);
+    page.drawRectangle({
+      x: cX,
+      y: cardsY - cardH,
+      width: cardW,
+      height: cardH,
+      color: white,
+      borderColor: creamBorder,
+      borderWidth: 1,
+      borderRadius: 8,
+    });
+
+    page.drawText(metaCards[i].label, {
+      x: cX + 12,
+      y: cardsY - 16,
+      size: 6.5,
+      font: fontBold,
+      color: mutedSlate,
+    });
+
+    page.drawText(metaCards[i].val, {
+      x: cX + 12,
+      y: cardsY - 30,
+      size: 9.5,
+      font: fontBold,
+      color: metaCards[i].color,
+    });
+  }
+
+  // 5. Seamless Footer on the Dark Wave
+  page.drawText("This is a computer-generated receipt and does not require a physical signature. For any queries, contact your PG administrator.", {
+    x: 42,
+    y: 38,
+    size: 7.2,
+    font: fontRegular,
+    color: rgb(0.80, 0.84, 0.88),
   });
 
-  const modeStr = (isGuest && data.isSettlement && netRefund === 0 && netDeficit === 0)
-    ? "Status: Account Closed"
-    : `Mode: ${data.paymentMode || "UPI"}`;
-  const modeW = fontBold.widthOfTextAtSize(modeStr, 9);
-  page.drawText(modeStr, {
-    x: gridX + gridW - 14 - modeW,
-    y: gridY + 13,
-    size: 9,
+  page.drawText("* Valid for Income Tax HRA Exemption under Sec 10(13A) of Income Tax Act - Landlord PAN available on request *", {
+    x: 42,
+    y: 26,
+    size: 7.2,
     font: fontBold,
-    color: slateDark,
+    color: rgb(0.99, 0.73, 0.45),
   });
 
-  // 11. Signatures Section (Brought down so signatures don't hug the financial border)
-  curY = gridY - 80;
-
-  const sigLineW = 195;
-  const ownerSigX = frameX + 24;
-  const guestSigX = frameX + frameW - 24 - sigLineW;
-  const sigBoxY = curY;
-
-  // Embedded Owner Signature (If uploaded) OR Elegant Calligraphic Fallback
-  let imageEmbedded = false;
-  if (data.signatureUrl && typeof data.signatureUrl === "string" && data.signatureUrl.trim().length > 0) {
+  // Footer Right: Logo & Branding
+  if (typeof window === "undefined") {
     try {
-      let imageBytes: Uint8Array | null = null;
-      if (data.signatureUrl.startsWith("http://") || data.signatureUrl.startsWith("https://")) {
-        const res = await fetch(data.signatureUrl);
-        if (res.ok) {
-          const ab = await res.arrayBuffer();
-          imageBytes = new Uint8Array(ab);
-        }
-      } else {
-        const rawBase64 = data.signatureUrl.includes("base64,")
-          ? data.signatureUrl.split("base64,")[1]
-          : data.signatureUrl;
-        imageBytes = Buffer.from(rawBase64, "base64");
+      const fs = await import("fs");
+      const path = await import("path");
+      const logoPath = path.join(process.cwd(), "public", "tenopilot_orange_mark.jpg");
+      if (fs.existsSync(logoPath)) {
+        const logoImg = await pdfDoc.embedJpg(fs.readFileSync(logoPath));
+        page.drawImage(logoImg, {
+          x: width - 150,
+          y: 24,
+          width: 16,
+          height: 16,
+        });
       }
-
-      if (imageBytes && imageBytes.length > 0) {
-        let embeddedImg: any = null;
-        try {
-          embeddedImg = await pdfDoc.embedJpg(imageBytes);
-        } catch {
-          try {
-            embeddedImg = await pdfDoc.embedPng(imageBytes);
-          } catch (e2) {
-            console.warn("Could not embed signature as JPG or PNG:", e2);
-          }
-        }
-
-        if (embeddedImg) {
-          const imgDims = embeddedImg.scaleToFit(140, 38);
-          page.drawImage(embeddedImg, {
-            x: ownerSigX + (sigLineW - imgDims.width) / 2,
-            y: sigBoxY + 14,
-            width: imgDims.width,
-            height: imgDims.height,
-          });
-          imageEmbedded = true;
-        }
-      }
-    } catch (sigErr) {
-      console.warn("Notice: could not embed owner signature image, using script signature fallback:", sigErr);
+    } catch (e) {
+      // fallback
     }
   }
 
-  if (!imageEmbedded) {
-    const ownerNameText = data.ownerName || data.propertyName || "Authorized Desk";
-    page.drawText(ownerNameText, {
-      x: ownerSigX + 12,
-      y: sigBoxY + 18,
-      size: 15,
-      font: fontOblique,
-      color: rgb(0.08, 0.22, 0.52),
-    });
-  }
-
-  // Left Underline: Owners Signature
-  page.drawLine({
-    start: { x: ownerSigX, y: sigBoxY + 10 },
-    end: { x: ownerSigX + sigLineW, y: sigBoxY + 10 },
-    thickness: 1,
-    color: navyDeep,
-  });
-
-  page.drawText("Owners Signature", {
-    x: ownerSigX + 32,
-    y: sigBoxY - 5,
-    size: 10,
-    font: fontBold,
-    color: navyDeep,
-  });
-
-  const ownerTitle = data.ownerName ? `Authorized Signatory • ${data.ownerName}` : "Authorized Signatory • Property Management";
-  page.drawText(ownerTitle, {
-    x: ownerSigX + 8,
-    y: sigBoxY - 18,
-    size: 8,
-    font: fontRegular,
-    color: slateMuted,
-  });
-
-  // Right: Guest Signature (Box left completely empty for resident/occupant physical or digital signature)
-  page.drawLine({
-    start: { x: guestSigX, y: sigBoxY + 10 },
-    end: { x: guestSigX + sigLineW, y: sigBoxY + 10 },
-    thickness: 1,
-    color: navyDeep,
-  });
-
-  page.drawText("Guest Signature", {
-    x: guestSigX + 46,
-    y: sigBoxY - 5,
-    size: 10,
-    font: fontBold,
-    color: navyDeep,
-  });
-
-  page.drawText(isGuest ? "Guest Acknowledgement" : "Tenant / Resident Confirmation", {
-    x: guestSigX + (isGuest ? 44 : 28),
-    y: sigBoxY - 18,
-    size: 8,
-    font: fontRegular,
-    color: slateMuted,
-  });
-
-  curY = sigBoxY - 58;
-
-  // 12. Notice Board Footer
-  page.drawLine({
-    start: { x: frameX + 12, y: curY + 16 },
-    end: { x: frameX + frameW - 12, y: curY + 16 },
-    thickness: 0.8,
-    color: gridBorder,
-  });
-
-  const ruleText = "*   Guests are subject to the rules and regulations outlined on the notice board.   *";
-  const ruleW = fontBold.widthOfTextAtSize(ruleText, 9.5);
-  page.drawText(ruleText, {
-    x: frameX + (frameW - ruleW) / 2,
-    y: curY,
+  page.drawText("Tenopilot.com", {
+    x: width - 128,
+    y: 33,
     size: 9.5,
     font: fontBold,
-    color: navyDeep,
+    color: white,
   });
 
-  // Micro Income Tax HRA Exemption declaration at bottom (only for long-term tenants; omitted for guests per user instruction)
-  if (!isGuest) {
-    const compText = "Authentic electronic receipt issued via TenoPilot Property OS • Valid for Income Tax HRA Exemption under Sec 10(13A)";
-    const compW = fontRegular.widthOfTextAtSize(compText, 7.5);
-    page.drawText(compText, {
-      x: frameX + (frameW - compW) / 2,
-      y: frameY + 12,
-      size: 7.5,
-      font: fontRegular,
-      color: slateMuted,
-    });
-  }
+  page.drawText("PG Management Platform", {
+    x: width - 128,
+    y: 24,
+    size: 6.5,
+    font: fontRegular,
+    color: rgb(0.68, 0.73, 0.80),
+  });
 
-  // 13. VOIDED Watermark (If cancelled)
+  // VOIDED Watermark if cancelled
   if (data.isVoided) {
     page.drawText("VOIDED / CANCELLED", {
-      x: frameX + 35,
-      y: frameY + frameH / 2 - 40,
+      x: 70,
+      y: height / 2 - 40,
       size: 46,
       font: fontBold,
       color: rgb(0.85, 0.2, 0.2),
@@ -1714,4 +1694,15 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
   }
 
   return await pdfDoc.save();
+}
+
+/**
+ * Generates an official, beautiful A4 PDF receipt buffer using pdf-lib
+ * Dispatches to Dedicated Guest Stay Receipt (Purple) or Tenant Rental Receipt (Orange).
+ */
+export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Uint8Array> {
+  if (data.isGuest) {
+    return generateGuestStayReceiptPdfBuffer(data);
+  }
+  return generateTenantRentalReceiptPdfBuffer(data);
 }

@@ -66,6 +66,11 @@ export async function GET(req: NextRequest) {
     const balanceDue = searchParams.get("balanceDue") !== null && searchParams.get("balanceDue") !== "" ? Number(searchParams.get("balanceDue")) : undefined;
     const totalStayAmount = searchParams.get("totalStayAmount") ? Number(searchParams.get("totalStayAmount")) : totalTariff;
 
+    let billingCycleDates = searchParams.get("billingCycleDates") || undefined;
+    const parkingSlot = searchParams.get("parkingSlot") || undefined;
+    const priorArrears = searchParams.get("priorArrears") ? Number(searchParams.get("priorArrears")) : undefined;
+    const priorArrearsMonth = searchParams.get("priorArrearsMonth") || undefined;
+
     let additionalCharges = [];
     try {
       const addChargesRaw = searchParams.get("additionalCharges");
@@ -84,6 +89,7 @@ export async function GET(req: NextRequest) {
           if (propertyName === "TenoPilot Coliving" && pData.propertyName) propertyName = pData.propertyName;
           if (propertyAddress === "Premium Student & Professional Housing" && pData.propertyAddress) propertyAddress = pData.propertyAddress;
           if (managerPhone === "+91 92066 51295" && pData.managerPhone) managerPhone = pData.managerPhone;
+          if (!billingCycleDates && pData.billingCycleDates) billingCycleDates = pData.billingCycleDates;
         }
       } catch (fsErr) {
         console.warn("Notice loading property settings for receipt PDF:", fsErr);
@@ -115,6 +121,10 @@ export async function GET(req: NextRequest) {
       rentAmount,
       depositAmount,
       parkingAmount,
+      parkingSlot,
+      priorArrears,
+      priorArrearsMonth,
+      billingCycleDates,
       maintenanceAmount,
       stayType,
       isGuest,

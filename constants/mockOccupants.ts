@@ -120,8 +120,10 @@ export interface Occupant {
   badDebtAmount?: number;
   partialPaidThisCycle?: number;
   arrearsBalance?: number;
+  priorArrears?: number;
   vehicleNumber?: string;
   vehicleNumbers?: string[];
+  parkingSlot?: string;
   parkingCharges?: number;
   isParkingException?: boolean;
   paymentHistory?: PaymentHistoryItem[];
