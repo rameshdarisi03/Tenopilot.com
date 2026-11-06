@@ -85,6 +85,7 @@ export interface Occupant {
   daysDiff: number; // Positive = future due, 0 = today, Negative = overdue
   vacatingDate?: string;
   guestCheckoutDate?: string;
+  stayDurationDays?: number;
   rentAmount: number;
   paymentStatus: "Paid" | "Due" | "Overdue";
   lifecycleStatus: "Active" | "Booked" | "Notice" | "Past";

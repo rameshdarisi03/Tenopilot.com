@@ -16,6 +16,12 @@ export interface ReceiptPdfData {
   paymentMode: string;
   paidTo?: string;
   month?: string;
+  stayType?: string;
+  isGuest?: boolean;
+  checkInDate?: string;
+  checkOutDate?: string;
+  stayDurationDays?: number;
+  dailyRate?: number;
   isDeposit?: boolean;
   isSettlement?: boolean;
   isVoided?: boolean;
@@ -35,6 +41,8 @@ export interface ReceiptPdfData {
     totalDeductions?: number;
     netRefunded?: number;
     netDeficit?: number;
+    totalTariff?: number;
+    totalPaid?: number;
     status?: string;
     notes?: string;
   };
@@ -578,12 +586,27 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
     (data.depositAmount !== undefined && data.depositAmount > 0 && (!data.rentAmount || data.rentAmount === 0))
   );
 
+  // Detect whether this receipt is for a Short-Term Guest
+  const isGuest = Boolean(
+    data.isGuest ||
+    data.stayType === "Guest" ||
+    data.receiptNo?.startsWith("REF-GUEST") ||
+    data.receiptNo?.startsWith("RCP-GUEST") ||
+    data.receiptNo?.includes("GUEST") ||
+    data.month?.toLowerCase().includes("guest") ||
+    data.month?.toLowerCase().includes("short stay")
+  );
+
   // 7. Pill Banner: [ GUEST DETAILS / RESIDENT DETAILS / SETTLEMENT DETAILS ]
-  const pillTitle = data.isSettlement
+  const pillTitle = isGuest
+    ? data.isSettlement
+      ? "GUEST CHECKOUT RECEIPT"
+      : "GUEST STAY INVOICE / RECEIPT"
+    : data.isSettlement
     ? "SETTLEMENT & NO-DUES DETAILS"
     : isDeposit
     ? "SECURITY DEPOSIT DETAILS"
-    : "GUEST DETAILS";
+    : "RESIDENT DETAILS";
 
   const pillW = Math.max(150, fontBold.widthOfTextAtSize(pillTitle, 10) + 36);
   const pillH = 22;
@@ -608,8 +631,8 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
   curY -= 36;
 
   // 8. Resident / Guest Name with clean underline
-  const labelName = "Guest Name : ";
-  const valName = data.residentName || "Resident";
+  const labelName = isGuest ? "Guest Name : " : "Resident Name : ";
+  const valName = data.residentName || (isGuest ? "Guest" : "Resident");
   page.drawText(labelName, {
     x: frameX + 22,
     y: curY,
@@ -635,9 +658,22 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
 
   curY -= 34;
 
-  // 9. Billing Period with clean underline (Check-in Date omitted per user request)
-  const labelCycle = "Billing Period : ";
-  const valCycle = resolveBillingCycleMonth(data.month, data.paidDate, data.joiningDate);
+  // 9. Stay Period (for guests) or Billing Period (for long-term tenants)
+  const labelCycle = isGuest ? "Stay Period : " : "Billing Period : ";
+  let valCycle = "";
+  if (isGuest) {
+    if (data.checkInDate && data.checkOutDate) {
+      const durText = data.stayDurationDays ? ` (${data.stayDurationDays} ${data.stayDurationDays === 1 ? "Day" : "Days"} Stay)` : "";
+      valCycle = `${data.checkInDate} to ${data.checkOutDate}${durText}`;
+    } else if (data.checkInDate) {
+      valCycle = `From ${data.checkInDate} (Short Stay)`;
+    } else {
+      valCycle = data.month && !data.month.toLowerCase().includes("cycle") ? data.month : "Short-term Stay";
+    }
+  } else {
+    valCycle = resolveBillingCycleMonth(data.month, data.paidDate, data.joiningDate);
+  }
+
   page.drawText(labelCycle, {
     x: frameX + 22,
     y: curY,
@@ -698,7 +734,59 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
   const r1Y = gridY + gridH - 28;
   const r2Y = gridY + gridH - 72;
 
-  if (data.isSettlement && data.settlementDetails) {
+  if (isGuest && data.isSettlement) {
+    // 🟣 Dedicated Guest Checkout & Settlement Grid (Clean, transparent, no misleading deductions!)
+    const totalTariff = data.settlementDetails?.totalTariff || data.rentAmount || data.amount;
+    const totalPaid = data.settlementDetails?.totalPaid || data.amount;
+    const totalDeds = data.settlementDetails?.totalDeductions ?? 0;
+
+    page.drawText("Total Stay Tariff :", { x: gridX + 14, y: r1Y, size: 10.5, font: fontBold, color: navyDeep });
+    page.drawText(`INR ${Number(totalTariff).toLocaleString("en-IN")}`, { x: gridX + 115, y: r1Y, size: 10.5, font: fontMono, color: slateDark });
+
+    page.drawText("Total Received :", { x: midX + 14, y: r1Y, size: 10.5, font: fontBold, color: navyDeep });
+    page.drawText(`INR ${Number(totalPaid).toLocaleString("en-IN")}`, { x: midX + 105, y: r1Y, size: 10.5, font: fontMono, color: emeraldDark });
+
+    page.drawText("Key & Handover :", { x: gridX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
+    page.drawText("Returned & Cleared", { x: gridX + 115, y: r2Y, size: 10, font: fontBold, color: emeraldDark });
+
+    page.drawText("Deductions / Damages :", { x: midX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
+    page.drawText(totalDeds > 0 ? `INR ${Number(totalDeds).toLocaleString("en-IN")}` : "-", {
+      x: midX + 145,
+      y: r2Y,
+      size: 10.5,
+      font: totalDeds > 0 ? fontMono : fontBold,
+      color: totalDeds > 0 ? rgb(0.7, 0.2, 0.2) : slateMuted,
+    });
+  } else if (isGuest) {
+    // 🟣 Dedicated Guest Stay Invoice Grid (Tariff, Daily Rate, Security Deposit, Room/Bed)
+    const stayTariff = data.rentAmount ?? data.amount;
+    const dailyRate = data.dailyRate;
+    const keyDeposit = data.depositAmount || 0;
+
+    page.drawText("Stay Tariff :", { x: gridX + 14, y: r1Y, size: 10.5, font: fontBold, color: navyDeep });
+    page.drawText(`INR ${Number(stayTariff).toLocaleString("en-IN")}`, { x: gridX + 85, y: r1Y, size: 10.5, font: fontMono, color: slateDark });
+
+    page.drawText("Daily Rate :", { x: midX + 14, y: r1Y, size: 10.5, font: fontBold, color: navyDeep });
+    page.drawText(dailyRate ? `INR ${Number(dailyRate).toLocaleString("en-IN")} / day` : "-", {
+      x: midX + 85,
+      y: r1Y,
+      size: 10.5,
+      font: dailyRate ? fontMono : fontBold,
+      color: dailyRate ? slateDark : slateMuted,
+    });
+
+    page.drawText("Security Deposit :", { x: gridX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
+    page.drawText(keyDeposit > 0 ? `INR ${Number(keyDeposit).toLocaleString("en-IN")}` : "-", {
+      x: gridX + 115,
+      y: r2Y,
+      size: 10.5,
+      font: keyDeposit > 0 ? fontMono : fontBold,
+      color: keyDeposit > 0 ? slateDark : slateMuted,
+    });
+
+    page.drawText("Room / Bed :", { x: midX + 14, y: r2Y, size: 10.5, font: fontBold, color: navyDeep });
+    page.drawText(`Room ${data.roomNumber} (${data.bedCode})`, { x: midX + 85, y: r2Y, size: 10.5, font: fontBold, color: slateDark });
+  } else if (data.isSettlement && data.settlementDetails) {
     // Settlement Grid
     page.drawText("Initial Deposit Held :", { x: gridX + 14, y: r1Y, size: 10.5, font: fontBold, color: navyDeep });
     page.drawText(`INR ${Number(data.settlementDetails.initialDeposit || 0).toLocaleString("en-IN")}`, { x: gridX + 130, y: r1Y, size: 10.5, font: fontMono, color: slateDark });
@@ -786,30 +874,56 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
   }
 
   // Row 3: Highlighted Total Received & Cleared Bar
+  const netRefund = Number(data.settlementDetails?.netRefunded ?? (data.amount > 0 ? data.amount : 0));
+  const netDeficit = Number(data.settlementDetails?.netDeficit ?? 0);
+
+  let totText = "";
+  let barBg = emeraldBg;
+  let barBorder = rgb(0.55, 0.85, 0.70);
+  let barColor = emeraldDark;
+
+  if (isGuest && data.isSettlement) {
+    if (netRefund > 0) {
+      totText = `NET REFUNDED :  INR ${netRefund.toLocaleString("en-IN")}`;
+    } else if (netDeficit > 0) {
+      totText = `NET DUE FROM GUEST :  INR ${netDeficit.toLocaleString("en-IN")}`;
+      barColor = rgb(0.75, 0.15, 0.15);
+      barBg = rgb(0.98, 0.92, 0.92);
+      barBorder = rgb(0.9, 0.6, 0.6);
+    } else {
+      totText = "SETTLEMENT STATUS :  ZERO DUES / FULLY SETTLED";
+      barColor = navyDeep;
+      barBg = rgb(0.94, 0.96, 0.99);
+      barBorder = rgb(0.7, 0.8, 0.9);
+    }
+  } else if (data.isSettlement) {
+    totText = `NET REFUNDED :  INR ${Number(data.amount || 0).toLocaleString("en-IN")}`;
+  } else {
+    totText = `TOTAL RECEIVED :  INR ${Number(data.amount || 0).toLocaleString("en-IN")}`;
+  }
+
   const r3H = 36;
   page.drawRectangle({
     x: gridX,
     y: gridY,
     width: gridW,
     height: r3H,
-    color: emeraldBg,
-    borderColor: rgb(0.55, 0.85, 0.70),
+    color: barBg,
+    borderColor: barBorder,
     borderWidth: 1,
   });
-
-  const totText = data.isSettlement
-    ? `NET REFUNDED :  INR ${Number(data.amount || 0).toLocaleString("en-IN")}`
-    : `TOTAL RECEIVED :  INR ${Number(data.amount || 0).toLocaleString("en-IN")}`;
 
   page.drawText(totText, {
     x: gridX + 14,
     y: gridY + 12,
-    size: 11.5,
+    size: 11,
     font: fontBold,
-    color: emeraldDark,
+    color: barColor,
   });
 
-  const modeStr = `Mode: ${data.paymentMode || "UPI"}`;
+  const modeStr = (isGuest && data.isSettlement && netRefund === 0 && netDeficit === 0)
+    ? "Status: Account Closed"
+    : `Mode: ${data.paymentMode || "UPI"}`;
   const modeW = fontBold.widthOfTextAtSize(modeStr, 9);
   page.drawText(modeStr, {
     x: gridX + gridW - 14 - modeW,
@@ -925,8 +1039,8 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
     color: navyDeep,
   });
 
-  page.drawText("Tenant / Resident Confirmation", {
-    x: guestSigX + 28,
+  page.drawText(isGuest ? "Guest Acknowledgement" : "Tenant / Resident Confirmation", {
+    x: guestSigX + (isGuest ? 44 : 28),
     y: sigBoxY - 18,
     size: 8,
     font: fontRegular,
@@ -953,16 +1067,18 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
     color: navyDeep,
   });
 
-  // Micro Income Tax HRA Exemption declaration at bottom
-  const compText = "Authentic electronic receipt issued via TenoPilot Property OS • Valid for Income Tax HRA Exemption under Sec 10(13A)";
-  const compW = fontRegular.widthOfTextAtSize(compText, 7.5);
-  page.drawText(compText, {
-    x: frameX + (frameW - compW) / 2,
-    y: frameY + 12,
-    size: 7.5,
-    font: fontRegular,
-    color: slateMuted,
-  });
+  // Micro Income Tax HRA Exemption declaration at bottom (only for long-term tenants; omitted for guests per user instruction)
+  if (!isGuest) {
+    const compText = "Authentic electronic receipt issued via TenoPilot Property OS • Valid for Income Tax HRA Exemption under Sec 10(13A)";
+    const compW = fontRegular.widthOfTextAtSize(compText, 7.5);
+    page.drawText(compText, {
+      x: frameX + (frameW - compW) / 2,
+      y: frameY + 12,
+      size: 7.5,
+      font: fontRegular,
+      color: slateMuted,
+    });
+  }
 
   // 13. VOIDED Watermark (If cancelled)
   if (data.isVoided) {

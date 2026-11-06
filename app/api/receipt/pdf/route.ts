@@ -38,6 +38,19 @@ export async function GET(req: NextRequest) {
       month.toLowerCase().includes("deposit") ||
       Boolean(depositAmount && depositAmount > 0 && (!rentAmount || rentAmount === 0));
     const isSettlement = searchParams.get("isSettlement") === "true" || receiptNo.startsWith("REF") || receiptNo.startsWith("SETTLE");
+    const stayType = searchParams.get("stayType") || undefined;
+    const isGuest =
+      searchParams.get("isGuest") === "true" ||
+      stayType === "Guest" ||
+      receiptNo.includes("GUEST") ||
+      month.toLowerCase().includes("guest") ||
+      month.toLowerCase().includes("short stay");
+    const checkInDate = searchParams.get("checkInDate") || joiningDate || undefined;
+    const checkOutDate = searchParams.get("checkOutDate") || searchParams.get("checkoutDate") || undefined;
+    const stayDurationDays = searchParams.get("stayDurationDays") ? Number(searchParams.get("stayDurationDays")) : undefined;
+    const dailyRate = searchParams.get("dailyRate") ? Number(searchParams.get("dailyRate")) : undefined;
+    const totalTariff = searchParams.get("totalTariff") ? Number(searchParams.get("totalTariff")) : undefined;
+    const totalPaid = searchParams.get("totalPaid") ? Number(searchParams.get("totalPaid")) : undefined;
     const isVoided = searchParams.get("isVoided") === "true";
     const voidReason = searchParams.get("voidReason") || undefined;
     const replacesReceiptNo = searchParams.get("replacesReceiptNo") || undefined;
@@ -85,9 +98,15 @@ export async function GET(req: NextRequest) {
       depositAmount,
       parkingAmount,
       maintenanceAmount,
+      stayType,
+      isGuest,
+      checkInDate,
+      checkOutDate,
+      stayDurationDays,
+      dailyRate,
       settlementDetails: isSettlement
         ? {
-            initialDeposit: searchParams.get("initialDeposit") ? Number(searchParams.get("initialDeposit")) : amount,
+            initialDeposit: searchParams.get("initialDeposit") ? Number(searchParams.get("initialDeposit")) : (depositAmount || 0),
             unpaidDeposit: searchParams.get("unpaidDeposit") ? Number(searchParams.get("unpaidDeposit")) : 0,
             unpaidRent: searchParams.get("unpaidRent") ? Number(searchParams.get("unpaidRent")) : 0,
             repairs: searchParams.get("repairs") ? Number(searchParams.get("repairs")) : 0,
@@ -95,6 +114,8 @@ export async function GET(req: NextRequest) {
             totalDeductions: searchParams.get("totalDeductions") ? Number(searchParams.get("totalDeductions")) : 0,
             netRefunded: searchParams.get("netRefunded") ? Number(searchParams.get("netRefunded")) : amount,
             netDeficit: searchParams.get("netDeficit") ? Number(searchParams.get("netDeficit")) : 0,
+            totalTariff,
+            totalPaid,
             status: searchParams.get("status") || "SETTLED & CLOSED",
             notes: searchParams.get("notes") || undefined,
           }

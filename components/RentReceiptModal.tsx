@@ -44,6 +44,19 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
     receiptItem.month.toLowerCase().includes("settlement") ||
     receiptItem.month.toLowerCase().includes("refund");
 
+  const isGuest =
+    occupant.stayType === "Guest" ||
+    receiptItem.receiptNo.startsWith("REF-GUEST") ||
+    receiptItem.receiptNo.startsWith("RCP-GUEST") ||
+    receiptItem.receiptNo.includes("GUEST") ||
+    receiptItem.month?.toLowerCase().includes("guest") ||
+    receiptItem.month?.toLowerCase().includes("stay");
+
+  const checkInDate = occupant.joiningDate || receiptItem.date;
+  const checkOutDate = occupant.guestCheckoutDate || occupant.vacatingDate || occupant.dueDate || "";
+  const stayDays = occupant.stayDurationDays || (checkInDate && checkOutDate ? Math.max(1, Math.round((new Date(checkOutDate).getTime() - new Date(checkInDate).getTime()) / (1000 * 60 * 60 * 24))) : undefined);
+  const dailyRate = occupant.rentAmount && stayDays ? Math.round(occupant.rentAmount / stayDays) : undefined;
+
   const displayBillingMonth = resolveBillingCycleMonth(
     receiptItem.month,
     receiptItem.date,
@@ -106,6 +119,16 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
     q.set("depositAmount", String(effectiveDepositAmount));
     q.set("parkingAmount", String(effectiveParkingAmount));
     q.set("maintenanceAmount", String(effectiveMaintenanceAmount));
+    if (isGuest) {
+      q.set("isGuest", "true");
+      q.set("stayType", "Guest");
+      if (checkInDate) q.set("checkInDate", checkInDate);
+      if (checkOutDate) q.set("checkOutDate", checkOutDate);
+      if (stayDays) q.set("stayDurationDays", String(stayDays));
+      if (dailyRate) q.set("dailyRate", String(dailyRate));
+      q.set("totalTariff", String(occupant.rentAmount || receiptItem.amount));
+      q.set("totalPaid", String(receiptItem.amount));
+    }
     if (occupant.joiningDate) q.set("joiningDate", occupant.joiningDate);
     if (propertySettings.ownerName) q.set("ownerName", propertySettings.ownerName);
     // For base64 data URLs, avoid URL overflow in GET query string; the server fetches signatureUrl directly from Firestore settings
@@ -241,72 +264,150 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
               {/* Pill Subheader Banner: [ GUEST DETAILS / RESIDENT DETAILS / SETTLEMENT DETAILS ] */}
               <div className="flex justify-center mb-4">
                 <div className="px-5 py-1 bg-[#142952] text-white text-[11px] font-black uppercase tracking-wider rounded-md shadow-2xs">
-                  {isDeposit ? "SECURITY DEPOSIT DETAILS" : "GUEST DETAILS"}
+                  {isGuest
+                    ? isSettlement
+                      ? "GUEST CHECKOUT RECEIPT"
+                      : "GUEST STAY INVOICE / RECEIPT"
+                    : isSettlement
+                    ? "SETTLEMENT & NO-DUES DETAILS"
+                    : isDeposit
+                    ? "SECURITY DEPOSIT DETAILS"
+                    : "RESIDENT DETAILS"}
                 </div>
               </div>
 
-              {/* Resident Demographics (Omitted Residential Address, Office Address & Check-in Date per user red strike-outs) */}
+              {/* Resident / Guest Demographics */}
               <div className="space-y-2.5 mb-5 px-1">
                 <div className="flex items-baseline border-b border-slate-300 pb-1">
-                  <span className="font-bold text-xs sm:text-sm text-[#142952] shrink-0">Guest Name :</span>
+                  <span className="font-bold text-xs sm:text-sm text-[#142952] shrink-0">{isGuest ? "Guest Name :" : "Resident Name :"}</span>
                   <span className="font-bold text-xs sm:text-sm text-slate-900 ml-2.5 truncate">{occupant.name}</span>
                 </div>
                 <div className="flex items-baseline border-b border-slate-300 pb-1">
-                  <span className="font-bold text-xs sm:text-sm text-[#142952] shrink-0">Billing Period :</span>
-                  <span className="font-medium text-xs sm:text-sm text-slate-900 ml-2">{displayBillingMonth}</span>
-                </div>
-              </div>
-
-              {/* Boxed Financial Grid (Hyphen '-' for zero values per user request) */}
-              <div className="border border-slate-800 rounded-none overflow-hidden mb-5">
-                <div className="grid grid-cols-2 divide-x divide-slate-300 border-b border-slate-300 p-2.5 bg-slate-50/60 text-xs">
-                  <div>
-                    <span className="font-bold text-[#142952]">Deposit : </span>
-                    <span className="font-mono font-bold text-slate-900">
-                      {effectiveDepositAmount > 0
-                        ? `INR ${effectiveDepositAmount.toLocaleString("en-IN")}`
-                        : "-"}
-                    </span>
-                  </div>
-                  <div className="pl-3">
-                    <span className="font-bold text-[#142952]">Rent : </span>
-                    <span className="font-mono font-bold text-slate-900">
-                      {effectiveRentAmount > 0
-                        ? `INR ${effectiveRentAmount.toLocaleString("en-IN")}`
-                        : "-"}
-                    </span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 divide-x divide-slate-300 border-b border-slate-300 p-2.5 bg-slate-50/60 text-xs">
-                  <div>
-                    <span className="font-bold text-[#142952]">Parking fee : </span>
-                    <span className="font-mono font-bold text-slate-900">
-                      {effectiveParkingAmount > 0
-                        ? `INR ${effectiveParkingAmount.toLocaleString("en-IN")}`
-                        : "-"}
-                    </span>
-                  </div>
-                  <div className="pl-3">
-                    <span className="font-bold text-[#142952]">Maintenance : </span>
-                    <span className="font-medium text-slate-600">
-                      {effectiveMaintenanceAmount > 0
-                        ? `INR ${effectiveMaintenanceAmount.toLocaleString("en-IN")}`
-                        : "-"}
-                    </span>
-                  </div>
-                </div>
-                {/* Total Received Highlight Bar */}
-                <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-emerald-50 border-t border-emerald-300 text-xs sm:text-sm font-bold">
-                  <span className="text-emerald-950 font-black">
-                    TOTAL RECEIVED : <span className="font-mono font-black text-emerald-800">INR {formattedAmount}</span>
-                  </span>
-                  <span className="text-[11px] text-slate-700 font-medium">
-                    Mode: <strong className="text-slate-900">{receiptItem.mode || "UPI"}</strong>
+                  <span className="font-bold text-xs sm:text-sm text-[#142952] shrink-0">{isGuest ? "Stay Period :" : "Billing Period :"}</span>
+                  <span className="font-medium text-xs sm:text-sm text-slate-900 ml-2">
+                    {isGuest
+                      ? (checkInDate && checkOutDate ? `${checkInDate} to ${checkOutDate}${stayDays ? ` (${stayDays} Days Stay)` : ""}` : (receiptItem.month || "Short-term Stay"))
+                      : displayBillingMonth}
                   </span>
                 </div>
               </div>
 
-              {/* Item 4: Signatures Section (Brought down away from financial border) */}
+              {/* Boxed Financial Grid */}
+              {isGuest && isSettlement ? (
+                <div className="border border-slate-800 rounded-none overflow-hidden mb-5">
+                  <div className="grid grid-cols-2 divide-x divide-slate-300 border-b border-slate-300 p-2.5 bg-slate-50/60 text-xs">
+                    <div>
+                      <span className="font-bold text-[#142952]">Total Stay Tariff : </span>
+                      <span className="font-mono font-bold text-slate-900">INR {Number(occupant.rentAmount || receiptItem.amount).toLocaleString("en-IN")}</span>
+                    </div>
+                    <div className="pl-3">
+                      <span className="font-bold text-[#142952]">Total Received : </span>
+                      <span className="font-mono font-bold text-emerald-800">INR {Number(receiptItem.amount).toLocaleString("en-IN")}</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 divide-x divide-slate-300 border-b border-slate-300 p-2.5 bg-slate-50/60 text-xs">
+                    <div>
+                      <span className="font-bold text-[#142952]">Key & Handover : </span>
+                      <span className="font-bold text-emerald-700">Returned & Cleared</span>
+                    </div>
+                    <div className="pl-3">
+                      <span className="font-bold text-[#142952]">Deductions / Damages : </span>
+                      <span className="font-medium text-slate-600">-</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-50 border-t border-slate-300 text-xs sm:text-sm font-bold">
+                    <span className="text-[#142952] font-black">
+                      SETTLEMENT STATUS : <span className="font-mono font-black text-emerald-800">ZERO DUES / FULLY SETTLED</span>
+                    </span>
+                    <span className="text-[11px] text-slate-700 font-medium">
+                      Status: <strong className="text-slate-900">Account Closed</strong>
+                    </span>
+                  </div>
+                </div>
+              ) : isGuest ? (
+                <div className="border border-slate-800 rounded-none overflow-hidden mb-5">
+                  <div className="grid grid-cols-2 divide-x divide-slate-300 border-b border-slate-300 p-2.5 bg-slate-50/60 text-xs">
+                    <div>
+                      <span className="font-bold text-[#142952]">Stay Tariff : </span>
+                      <span className="font-mono font-bold text-slate-900">INR {Number(effectiveRentAmount || receiptItem.amount).toLocaleString("en-IN")}</span>
+                    </div>
+                    <div className="pl-3">
+                      <span className="font-bold text-[#142952]">Daily Rate : </span>
+                      <span className="font-mono font-bold text-slate-900">{dailyRate ? `INR ${dailyRate.toLocaleString("en-IN")} / day` : "-"}</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 divide-x divide-slate-300 border-b border-slate-300 p-2.5 bg-slate-50/60 text-xs">
+                    <div>
+                      <span className="font-bold text-[#142952]">Security Deposit : </span>
+                      <span className="font-mono font-bold text-slate-900">
+                        {effectiveDepositAmount > 0 ? `INR ${effectiveDepositAmount.toLocaleString("en-IN")}` : "-"}
+                      </span>
+                    </div>
+                    <div className="pl-3">
+                      <span className="font-bold text-[#142952]">Room / Bed : </span>
+                      <span className="font-bold text-slate-800">Room {occupant.roomNumber} ({occupant.bedCode})</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-emerald-50 border-t border-emerald-300 text-xs sm:text-sm font-bold">
+                    <span className="text-emerald-950 font-black">
+                      TOTAL RECEIVED : <span className="font-mono font-black text-emerald-800">INR {formattedAmount}</span>
+                    </span>
+                    <span className="text-[11px] text-slate-700 font-medium">
+                      Mode: <strong className="text-slate-900">{receiptItem.mode || "UPI"}</strong>
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="border border-slate-800 rounded-none overflow-hidden mb-5">
+                  <div className="grid grid-cols-2 divide-x divide-slate-300 border-b border-slate-300 p-2.5 bg-slate-50/60 text-xs">
+                    <div>
+                      <span className="font-bold text-[#142952]">Deposit : </span>
+                      <span className="font-mono font-bold text-slate-900">
+                        {effectiveDepositAmount > 0
+                          ? `INR ${effectiveDepositAmount.toLocaleString("en-IN")}`
+                          : "-"}
+                      </span>
+                    </div>
+                    <div className="pl-3">
+                      <span className="font-bold text-[#142952]">Rent : </span>
+                      <span className="font-mono font-bold text-slate-900">
+                        {effectiveRentAmount > 0
+                          ? `INR ${effectiveRentAmount.toLocaleString("en-IN")}`
+                          : "-"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 divide-x divide-slate-300 border-b border-slate-300 p-2.5 bg-slate-50/60 text-xs">
+                    <div>
+                      <span className="font-bold text-[#142952]">Parking fee : </span>
+                      <span className="font-mono font-bold text-slate-900">
+                        {effectiveParkingAmount > 0
+                          ? `INR ${effectiveParkingAmount.toLocaleString("en-IN")}`
+                          : "-"}
+                      </span>
+                    </div>
+                    <div className="pl-3">
+                      <span className="font-bold text-[#142952]">Maintenance : </span>
+                      <span className="font-medium text-slate-600">
+                        {effectiveMaintenanceAmount > 0
+                          ? `INR ${effectiveMaintenanceAmount.toLocaleString("en-IN")}`
+                          : "-"}
+                      </span>
+                    </div>
+                  </div>
+                  {/* Total Received Highlight Bar */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-emerald-50 border-t border-emerald-300 text-xs sm:text-sm font-bold">
+                    <span className="text-emerald-950 font-black">
+                      TOTAL RECEIVED : <span className="font-mono font-black text-emerald-800">INR {formattedAmount}</span>
+                    </span>
+                    <span className="text-[11px] text-slate-700 font-medium">
+                      Mode: <strong className="text-slate-900">{receiptItem.mode || "UPI"}</strong>
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Item 4: Signatures Section */}
               <div className="grid grid-cols-2 gap-6 sm:gap-10 pt-8 sm:pt-10 mb-8 sm:mb-10">
                 {/* Box 4: Owners Signature */}
                 <div>
@@ -339,7 +440,7 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
                   </div>
                   <div className="border-t border-slate-900 pt-1.5 text-center">
                     <p className="font-bold text-xs text-[#142952]">Guest Signature</p>
-                    <p className="text-[9px] text-slate-500">Tenant / Resident Confirmation</p>
+                    <p className="text-[9px] text-slate-500">{isGuest ? "Guest Acknowledgement" : "Tenant / Resident Confirmation"}</p>
                   </div>
                 </div>
               </div>
@@ -349,10 +450,12 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
                 ★ Guests are subject to the rules and regulations outlined on the notice board. ★
               </div>
 
-              {/* Income Tax HRA Exemption Micro-Declaration */}
-              <div className="mt-2 text-center text-[8px] text-slate-400">
-                Authentic electronic receipt issued via TenoPilot Property OS • Valid for Income Tax HRA Exemption under Sec 10(13A)
-              </div>
+              {/* Income Tax HRA Exemption Micro-Declaration (Only for long-term tenants; omitted for guests) */}
+              {!isGuest && (
+                <div className="mt-2 text-center text-[8px] text-slate-400">
+                  Authentic electronic receipt issued via TenoPilot Property OS • Valid for Income Tax HRA Exemption under Sec 10(13A)
+                </div>
+              )}
             </div>
           </div>
         </div>
