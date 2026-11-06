@@ -1743,6 +1743,229 @@ export default function ReportsAnalyticsPage({
     triggerToast("✓ Vacating & Notice Schedule downloaded!");
   };
 
+  const handleExportExpensesExcel = async () => {
+    try {
+      if (expenses.length === 0) {
+        triggerToast("ℹ️ No expenses recorded for the selected timeline.");
+        return;
+      }
+
+      triggerToast("⏳ Generating executive colorful Expense workbook...");
+      const propName = propertySettings.propertyName || "Sunshine PG";
+      const wb = createStyledWorkbook(`TenoPilot OS — ${propName}`);
+
+      // ==========================================
+      // SHEET 1: EXPENSE LEDGER (Slate / Charcoal Theme)
+      // Streamlined 6 lean columns for mobile-first PG owners
+      // ==========================================
+      const wsExp = wb.addWorksheet("Expense Ledger");
+      renderHeroBanner(
+        wsExp,
+        `${propName} — OPERATIONAL EXPENSES & BILLS LEDGER`,
+        `Report Window: ${activeDateBounds.label} • Generated: ${new Date().toLocaleString("en-IN")}`,
+        "F",
+        "FF1E293B"
+      );
+
+      const totalExp = expenses.reduce((acc, e) => acc + e.amount, 0);
+      const categoryWeightages = expenseStore.getCategoryWeightages(
+        propertyId,
+        activeDateBounds.startDate,
+        activeDateBounds.endDate
+      );
+      const highestCategory = categoryWeightages.length > 0 ? categoryWeightages[0] : { category: "None", amount: 0, percentage: 0 };
+      const partnerContributions = expenseStore.getPartnerPersonalContributions(
+        propertyId,
+        activeDateBounds.startDate,
+        activeDateBounds.endDate
+      );
+      const totalPartnerPaid = Object.values(partnerContributions).reduce((sum, val) => sum + val, 0);
+
+      renderMetadataCards(
+        wsExp,
+        [
+          { label: "Property", value: propName },
+          { label: "Timeline", value: activeDateBounds.label },
+          { label: "Total Expenses", value: `₹${totalExp.toLocaleString("en-IN")}` },
+          { label: "Vouchers Count", value: `${expenses.length}` },
+        ],
+        4
+      );
+
+      renderKpiCardsRow(wsExp, 6, [
+        {
+          label: "Total Expenses",
+          value: `₹${totalExp.toLocaleString("en-IN")}`,
+          subtext: activeDateBounds.label,
+          fillColorHex: "FFFEE2E2",
+          textColorHex: "FF991B1B",
+        },
+        {
+          label: "Bills & Vouchers",
+          value: `${expenses.length}`,
+          subtext: "Logged Receipts",
+          fillColorHex: "FFE0E7FF",
+          textColorHex: "FF3730A3",
+        },
+        {
+          label: "Top Category",
+          value: highestCategory.category,
+          subtext: `₹${highestCategory.amount.toLocaleString("en-IN")}`,
+          fillColorHex: "FFFFEDD5",
+          textColorHex: "FF9A3412",
+        },
+        {
+          label: "Partner Out-of-Pocket",
+          value: `₹${totalPartnerPaid.toLocaleString("en-IN")}`,
+          subtext: "Pending Reimbursement",
+          fillColorHex: "FFDCFCE7",
+          textColorHex: "FF166534",
+        },
+      ]);
+
+      const expCols: TableColumnDef[] = [
+        { header: "Expense Date", key: "date", width: 16, align: "center" },
+        { header: "Category", key: "category", width: 22 },
+        { header: "Vendor / Payee", key: "vendor", width: 22 },
+        { header: "Paid From / Account", key: "paidFrom", width: 24 },
+        { header: "Amount (₹)", key: "amount", width: 18, align: "right", isCurrency: true },
+        { header: "Notes / Details", key: "notes", width: 30 },
+      ];
+
+      const expRows = expenses.map((e) => ({
+        date: e.date || "N/A",
+        category: e.category || "General",
+        vendor: e.vendorName || "—",
+        paidFrom: e.paidFrom || "Main Business Account",
+        amount: e.amount || 0,
+        notes: e.notes || "—",
+      }));
+
+      const lastExpRow = renderStyledTable(wsExp, 11, expCols, expRows, "FF1E293B");
+      if (expRows.length > 0) {
+        renderTotalRow(wsExp, lastExpRow + 1, 5, lastExpRow, expCols);
+      }
+      autoFitColumnWidths(wsExp, 12, 10);
+      setupWorksheetView(wsExp, 11);
+
+      // ==========================================
+      // SHEET 2: CATEGORY & PARTNER AUDIT
+      // ==========================================
+      const wsAudit = wb.addWorksheet("Category & Partner Audit");
+      renderHeroBanner(
+        wsAudit,
+        `${propName} — EXPENSE CATEGORY & PARTNER AUDIT`,
+        `Report Window: ${activeDateBounds.label} • Spending Distribution & Reimbursements`,
+        "D",
+        "FF1E293B"
+      );
+
+      const categoryAuditCols: TableColumnDef[] = [
+        { header: "Category", key: "category", width: 26 },
+        { header: "Vouchers Count", key: "count", width: 16, align: "center" },
+        { header: "Total Spent (₹)", key: "amount", width: 22, align: "right", isCurrency: true },
+        { header: "% of Total", key: "percentage", width: 16, align: "center" },
+      ];
+
+      const catCounts: Record<string, number> = {};
+      expenses.forEach((e) => {
+        catCounts[e.category] = (catCounts[e.category] || 0) + 1;
+      });
+
+      const categoryAuditRows = categoryWeightages.map((c) => ({
+        category: c.category,
+        count: catCounts[c.category] || 0,
+        amount: c.amount,
+        percentage: `${c.percentage.toFixed(1)}%`,
+      }));
+
+      renderMetadataCards(
+        wsAudit,
+        [
+          { label: "Property", value: propName },
+          { label: "Window", value: activeDateBounds.label },
+          { label: "Categories Tracked", value: `${categoryWeightages.length}` },
+          { label: "Total Spent", value: `₹${totalExp.toLocaleString("en-IN")}` },
+        ],
+        4
+      );
+
+      renderKpiCardsRow(wsAudit, 6, [
+        {
+          label: "Total Spent",
+          value: `₹${totalExp.toLocaleString("en-IN")}`,
+          subtext: "Gross Operational Outflow",
+          fillColorHex: "FFFEE2E2",
+          textColorHex: "FF991B1B",
+        },
+        {
+          label: "Distinct Categories",
+          value: `${categoryWeightages.length}`,
+          subtext: "Expense Heads",
+          fillColorHex: "FFE0E7FF",
+          textColorHex: "FF3730A3",
+        },
+        {
+          label: "Highest Spend Head",
+          value: highestCategory.category,
+          subtext: `${highestCategory.percentage}% of Total`,
+          fillColorHex: "FFFFEDD5",
+          textColorHex: "FF9A3412",
+        },
+        {
+          label: "Partners Involved",
+          value: `${Object.keys(partnerContributions).length}`,
+          subtext: "Reimbursable Payers",
+          fillColorHex: "FFDCFCE7",
+          textColorHex: "FF166534",
+        },
+      ]);
+
+      const lastCatRow = renderStyledTable(wsAudit, 11, categoryAuditCols, categoryAuditRows, "FF1E293B");
+      if (categoryAuditRows.length > 0) {
+        renderTotalRow(wsAudit, lastCatRow + 1, 3, lastCatRow, categoryAuditCols);
+      }
+      autoFitColumnWidths(wsAudit, 14, 10);
+      setupWorksheetView(wsAudit, 11);
+
+      const propSafe = propName.replace(/[^a-zA-Z0-9]/g, "_");
+      await downloadWorkbookInBrowser(
+        wb,
+        `Expense_Ledger_${propSafe}_${activeDateBounds.startDate}_to_${activeDateBounds.endDate}.xlsx`
+      );
+      triggerToast("⚪ Colorful Expense Report (.xlsx) downloaded successfully!");
+    } catch (err: any) {
+      console.error("Expense Excel Generation Error:", err);
+      triggerToast(`⚠️ Failed to generate Excel report: ${err.message || "Unknown error"}`);
+    }
+  };
+
+  const handleExportExpensesCSV = () => {
+    if (expenses.length === 0) {
+      triggerToast("ℹ️ No expenses recorded for the selected timeline.");
+      return;
+    }
+
+    const rows = expenses.map((e) => ({
+      "Expense Date": e.date || "N/A",
+      "Category": e.category || "General",
+      "Vendor / Payee": e.vendorName || "—",
+      "Paid From / Account": e.paidFrom || "Main Business Account",
+      "Amount (INR)": e.amount || 0,
+      "Notes / Details": e.notes || "—",
+    }));
+
+    const csv = Papa.unparse(rows);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Expense_Ledger_${propertyId}_${activeDateBounds.startDate}_to_${activeDateBounds.endDate}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    triggerToast("✓ Expense Report CSV downloaded!");
+  };
+
   const handleExportFullExcelWorkbook = async () => {
     try {
       triggerToast("⏳ Generating executive colorful CA pack workbook...");
@@ -2108,6 +2331,7 @@ export default function ReportsAnalyticsPage({
 
       // ==========================================
       // SHEET 6: OPERATIONAL EXPENSES
+      // Streamlined 6 lean columns for mobile & CA clarity
       // ==========================================
       const wsExp = wb.addWorksheet("PG Expenses");
       renderHeroBanner(
@@ -2119,26 +2343,28 @@ export default function ReportsAnalyticsPage({
       );
 
       const expCols = [
-        { header: "Date", key: "date", width: 14, align: "center" as const },
+        { header: "Expense Date", key: "date", width: 16, align: "center" as const },
         { header: "Category", key: "category", width: 22 },
-        { header: "Paid From Account", key: "paidFrom", width: 22 },
-        { header: "Expense Amount", key: "amount", width: 18, align: "right" as const, isCurrency: true },
-        { header: "Notes & Reference", key: "notes", width: 30 },
+        { header: "Vendor / Payee", key: "vendor", width: 22 },
+        { header: "Paid From / Account", key: "paidFrom", width: 24 },
+        { header: "Amount (₹)", key: "amount", width: 18, align: "right" as const, isCurrency: true },
+        { header: "Notes / Details", key: "notes", width: 30 },
       ];
 
       const expRowsData = expenses.map((e) => ({
-        date: e.date,
-        category: e.category,
-        paidFrom: e.paidFrom,
-        amount: e.amount,
-        notes: e.notes || "",
+        date: e.date || "N/A",
+        category: e.category || "General",
+        vendor: e.vendorName || "—",
+        paidFrom: e.paidFrom || "Main Business Account",
+        amount: e.amount || 0,
+        notes: e.notes || "—",
       }));
 
       const lastExpRow = renderStyledTable(wsExp, 5, expCols, expRowsData, "FF1E293B");
       if (expRowsData.length > 0) {
-        renderTotalRow(wsExp, lastExpRow + 1, 6, lastExpRow, expCols);
+        renderTotalRow(wsExp, lastExpRow + 1, 5, lastExpRow, expCols);
       }
-      autoFitColumnWidths(wsExp);
+      autoFitColumnWidths(wsExp, 12, 10);
       setupWorksheetView(wsExp, 5);
 
       // =========================================================================
@@ -2605,23 +2831,37 @@ export default function ReportsAnalyticsPage({
                   </div>
 
                   {/* Export Box 4: Expense & Bill Report */}
-                  <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-gray-50 border border-gray-200 flex flex-col justify-between space-y-3 sm:space-y-4 hover:border-[#c2652a]/60 hover:bg-orange-50/20 transition-all group">
+                  <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-slate-50/50 border border-slate-200 flex flex-col justify-between space-y-3 sm:space-y-4 hover:border-slate-400 hover:bg-slate-50/80 transition-all group">
                     <div className="space-y-1.5 sm:space-y-2">
-                      <div className="w-9 sm:w-10 h-9 sm:h-10 rounded-xl bg-orange-100 text-[#c2652a] flex items-center justify-center font-bold">
-                        <ReceiptRupeeIcon className="w-4 sm:w-5 h-4 sm:h-5" />
+                      <div className="flex items-center justify-between">
+                        <div className="w-9 sm:w-10 h-9 sm:h-10 rounded-xl bg-slate-200 text-slate-800 flex items-center justify-center font-bold">
+                          <ReceiptRupeeIcon className="w-4 sm:w-5 h-4 sm:h-5" />
+                        </div>
+                        <span className="text-[10px] font-extrabold text-slate-800 bg-slate-200/80 border border-slate-300 px-2.5 py-0.5 rounded-full">
+                          2 TABS • COLORED
+                        </span>
                       </div>
-                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Expense & Bill Report (.csv)</h4>
+                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Expense & Bill Report (.xlsx)</h4>
                       <p className="text-[11px] sm:text-xs text-gray-500 leading-relaxed">
-                        All PG operational expenses, bills, and vendor payments with category and account breakdown.
+                        Itemized operational bills, category distribution, and partner out-of-pocket reimbursements for {activeDateBounds.label}.
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => expenseStore.exportLedgerToCSV(propertyId, activeDateBounds.startDate, activeDateBounds.endDate)}
-                      className="w-full py-2.5 px-4 rounded-xl bg-white border border-gray-300 group-hover:border-[#c2652a] group-hover:bg-[#c2652a] group-hover:text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs min-h-[42px] active:scale-95"
-                    >
-                      <Download className="w-4 h-4" /> Download Expense Report
-                    </button>
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={handleExportExpensesExcel}
+                        className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs min-h-[42px] active:scale-95"
+                      >
+                        <FileSpreadsheet className="w-4 h-4" /> Download Colorful Excel (.xlsx)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleExportExpensesCSV}
+                        className="w-full text-[11px] text-gray-500 hover:text-gray-800 font-semibold underline text-center cursor-pointer"
+                      >
+                        Download plain CSV (.csv)
+                      </button>
+                    </div>
                   </div>
 
                   {/* Export Box 5: Security Deposit Activity & Escrow Report */}
