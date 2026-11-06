@@ -2062,28 +2062,25 @@ export default function ReportsAnalyticsPage({
 
       // ==========================================
       // SHEET 2: RENT ROLL & COLLECTIONS
+      // Streamlined 7 lean columns for mobile & audit clarity
       // ==========================================
       const wsRent = wb.addWorksheet("Rent Roll");
       renderHeroBanner(
         wsRent,
         `${propertySettings.propertyName || "Sunshine PG"} — RENT ROLL & COLLECTIONS LEDGER`,
         `Report Window: ${activeDateBounds.label}`,
-        "K",
+        "G",
         "FF065F46"
       );
 
-      const rentRollCols = [
-        { header: "Room", key: "room", width: 10, align: "center" as const },
-        { header: "Resident Name", key: "name", width: 26 },
-        { header: "Bed", key: "bed", width: 10, align: "center" as const },
-        { header: "Receipt #", key: "receiptNo", width: 18 },
-        { header: "Phone", key: "phone", width: 16, align: "center" as const },
-        { header: "Payment Date", key: "date", width: 14, align: "center" as const },
-        { header: "Cycle", key: "cycle", width: 16 },
-        { header: "Mode", key: "mode", width: 14, align: "center" as const },
-        { header: "Receiving Account / Partner", key: "paidTo", width: 24 },
-        { header: "Amount Paid (INR)", key: "amount", width: 18, align: "right" as const, isCurrency: true },
-        { header: "Status", key: "status", width: 14, align: "center" as const },
+      const rentRollCols: TableColumnDef[] = [
+        { header: "Room & Bed", key: "roomBed", width: 16, align: "center" },
+        { header: "Resident Name", key: "name", width: 24 },
+        { header: "Phone Number", key: "phone", width: 16, align: "center" },
+        { header: "Billing Month", key: "cycle", width: 18, align: "center" },
+        { header: "Rent Paid (₹)", key: "amount", width: 18, align: "right", isCurrency: true },
+        { header: "Receiving Account", key: "account", width: 26 },
+        { header: "Payment Date", key: "date", width: 16, align: "center" },
       ];
 
       const rentRowsData: any[] = [];
@@ -2093,6 +2090,11 @@ export default function ReportsAnalyticsPage({
         if (history.length > 0) {
           history.forEach((pm) => {
             if (pm.status === "VOIDED") return;
+            // Strictly exclude security deposit records from rent report
+            if ((pm.month || "").toLowerCase().includes("deposit") && (!pm.rentAmount || pm.rentAmount === 0)) {
+              return;
+            }
+
             const rawDate = pm.date || "";
             let inRange = activeDateBounds.isAllTime;
             if (!activeDateBounds.isAllTime && rawDate) {
@@ -2111,88 +2113,93 @@ export default function ReportsAnalyticsPage({
             }
 
             if (inRange) {
+              const bedSuffix = occ.bedCode ? ` (${occ.bedCode})` : "";
+              const account = pm.paidTo || "Main Business Account";
+              const accountWithMode = pm.mode ? `${account} (${pm.mode})` : account;
+              const effectiveAmount = pm.rentAmount !== undefined && pm.rentAmount > 0 ? pm.rentAmount : pm.amount;
+
               rentRowsData.push({
-                room: occ.roomNumber,
-                name: occ.name,
-                bed: occ.bedCode,
-                receiptNo: pm.receiptNo || `REC-${occ.roomNumber}-${occ.bedCode}`,
-                phone: occ.phone,
-                date: pm.date || occ.joiningDate || "N/A",
+                roomBed: `${occ.roomNumber || "—"}${bedSuffix}`,
+                name: occ.name || "—",
+                phone: occ.phone || "—",
                 cycle: pm.month || "Current Cycle",
-                mode: pm.mode || "UPI",
-                paidTo: pm.paidTo || "Main Business Account",
-                amount: pm.amount,
-                status: pm.status || "PAID",
+                amount: effectiveAmount,
+                account: accountWithMode,
+                date: pm.date || occ.joiningDate || "N/A",
               });
             }
           });
         } else if (stmt.totalPaid > 0 && (selectedTimelineFilter === "THIS_MONTH" || activeDateBounds.isAllTime)) {
+          const bedSuffix = occ.bedCode ? ` (${occ.bedCode})` : "";
           rentRowsData.push({
-            room: occ.roomNumber,
-            name: occ.name,
-            bed: occ.bedCode,
-            receiptNo: `REC-${occ.roomNumber || "0"}-${occ.bedCode || "1"}`,
-            phone: occ.phone,
-            date: occ.joiningDate || "Active",
+            roomBed: `${occ.roomNumber || "—"}${bedSuffix}`,
+            name: occ.name || "—",
+            phone: occ.phone || "—",
             cycle: "Active Cycle",
-            mode: "Direct Transfer",
-            paidTo: "Main Business Account",
             amount: stmt.totalPaid,
-            status: "PAID",
+            account: "Main Business Account",
+            date: occ.joiningDate || "Active",
           });
         }
       });
 
       const lastRentRow = renderStyledTable(wsRent, 5, rentRollCols, rentRowsData, "FF065F46");
       if (rentRowsData.length > 0) {
-        renderTotalRow(wsRent, lastRentRow + 1, 10, lastRentRow, rentRollCols);
+        renderTotalRow(wsRent, lastRentRow + 1, 5, lastRentRow, rentRollCols);
       }
-      autoFitColumnWidths(wsRent);
+      autoFitColumnWidths(wsRent, 12, 10);
       setupWorksheetView(wsRent, 5);
 
       // ==========================================
       // SHEET 3: DEFAULTERS & OVERDUE AGING
+      // Streamlined 7 lean columns for mobile & audit clarity
       // ==========================================
       const wsDefaulters = wb.addWorksheet("Rent Defaulters");
       renderHeroBanner(
         wsDefaulters,
         `${propertySettings.propertyName || "Sunshine PG"} — RENT OVERDUE & DEFAULTERS AGING`,
         `Immediate Attention Required • Generated: ${new Date().toLocaleString("en-IN")}`,
-        "J",
+        "G",
         "FF991B1B"
       );
 
-      const defaulterCols = [
-        { header: "Room", key: "room", width: 10, align: "center" as const },
-        { header: "Resident Name", key: "name", width: 26 },
-        { header: "Bed", key: "bed", width: 10, align: "center" as const },
-        { header: "Receipt / Ref #", key: "receiptNo", width: 18 },
-        { header: "Phone Number", key: "phone", width: 16, align: "center" as const },
-        { header: "Monthly Rent", key: "rentAmount", width: 16, align: "right" as const, isCurrency: true },
-        { header: "Overdue Amount", key: "outstanding", width: 18, align: "right" as const, isCurrency: true },
-        { header: "Days Overdue", key: "daysOverdue", width: 14, align: "center" as const },
-        { header: "Aging Category", key: "agingCategory", width: 20, align: "center" as const },
-        { header: "Emergency Phone", key: "emergencyPhone", width: 16, align: "center" as const },
+      const defaulterCols: TableColumnDef[] = [
+        { header: "Room & Bed", key: "roomBed", width: 16, align: "center" },
+        { header: "Resident Name", key: "name", width: 24 },
+        { header: "Phone Number", key: "phone", width: 16, align: "center" },
+        { header: "Overdue Amount (₹)", key: "outstanding", width: 18, align: "right", isCurrency: true },
+        { header: "Days Overdue", key: "daysOverdue", width: 14, align: "center" },
+        { header: "Aging Risk Category", key: "agingCategory", width: 20, align: "center" },
+        { header: "Deposit Buffer", key: "depositBuffer", width: 24, align: "center" },
       ];
 
-      const defaulterRowsData = defaultersList.map((d) => ({
-        room: d.occupant.roomNumber,
-        name: d.occupant.name,
-        bed: d.occupant.bedCode,
-        receiptNo: `DUE-${d.occupant.roomNumber}-${d.occupant.bedCode}`,
-        phone: d.occupant.phone,
-        rentAmount: d.occupant.rentAmount,
-        outstanding: d.statement.netOutstandingBalance,
-        daysOverdue: `${d.daysOverdue} Days`,
-        agingCategory: d.agingCategory,
-        emergencyPhone: d.occupant.emergencyContact?.phone || "N/A",
-      }));
+      const defaulterRowsData = defaultersList.map((d) => {
+        const bedSuffix = d.occupant.bedCode ? ` (${d.occupant.bedCode})` : "";
+        const depHeld = d.statement.securityDepositRequired || d.occupant.securityDeposit || 0;
+        const overdue = d.statement.netOutstandingBalance;
+        const isSafe = depHeld >= overdue;
+        const bufferText = depHeld > 0
+          ? isSafe
+            ? `₹${depHeld.toLocaleString("en-IN")} (Safe)`
+            : `₹${depHeld.toLocaleString("en-IN")} (Deficit -₹${(overdue - depHeld).toLocaleString("en-IN")})`
+          : "Zero Deposit";
+
+        return {
+          roomBed: `${d.occupant.roomNumber || "—"}${bedSuffix}`,
+          name: d.occupant.name || "—",
+          phone: d.occupant.phone || "—",
+          outstanding: overdue,
+          daysOverdue: `${d.daysOverdue} Days`,
+          agingCategory: d.agingCategory,
+          depositBuffer: bufferText,
+        };
+      });
 
       const lastDefRow = renderStyledTable(wsDefaulters, 5, defaulterCols, defaulterRowsData, "FF991B1B");
       if (defaulterRowsData.length > 0) {
-        renderTotalRow(wsDefaulters, lastDefRow + 1, 6, lastDefRow, defaulterCols);
+        renderTotalRow(wsDefaulters, lastDefRow + 1, 4, lastDefRow, defaulterCols);
       }
-      autoFitColumnWidths(wsDefaulters);
+      autoFitColumnWidths(wsDefaulters, 12, 10);
       setupWorksheetView(wsDefaulters, 5);
 
       // ==========================================
@@ -2240,13 +2247,14 @@ export default function ReportsAnalyticsPage({
 
       // ==========================================
       // SHEET 5: SECURITY DEPOSITS & ESCROW
+      // Streamlined 7 lean columns for mobile & audit clarity
       // ==========================================
       const wsDeposits = wb.addWorksheet("Security Deposits");
       renderHeroBanner(
         wsDeposits,
         `${propertySettings.propertyName || "Sunshine PG"} — SECURITY DEPOSITS & ESCROW AUDIT`,
         `Report Window: ${activeDateBounds.label} • Net Escrow Flow: ₹${depositAnalytics.netEscrowChange.toLocaleString("en-IN")}`,
-        "K",
+        "G",
         "FF312E81"
       );
 
@@ -2262,71 +2270,69 @@ export default function ReportsAnalyticsPage({
       );
 
       if (depositAnalytics.transactions.length > 0) {
-        const depositActivityCols = [
-          { header: "Room", key: "room", width: 10, align: "center" as const },
-          { header: "Resident Name", key: "name", width: 26 },
-          { header: "Bed", key: "bed", width: 10, align: "center" as const },
-          { header: "Receipt / Ref #", key: "receiptNo", width: 18 },
-          { header: "Date", key: "date", width: 14, align: "center" as const },
-          { header: "Phone Number", key: "phone", width: 16, align: "center" as const },
-          { header: "Activity Type", key: "type", width: 16, align: "center" as const },
-          { header: "Payment Mode", key: "mode", width: 14, align: "center" as const },
-          { header: "Account (Paid To / From)", key: "paidTo", width: 24 },
-          { header: "Amount (INR)", key: "amount", width: 18, align: "right" as const, isCurrency: true },
-          { header: "Status", key: "status", width: 14, align: "center" as const },
+        const depositActivityCols: TableColumnDef[] = [
+          { header: "Room & Bed", key: "roomBed", width: 16, align: "center" },
+          { header: "Resident Name", key: "name", width: 24 },
+          { header: "Phone Number", key: "phone", width: 16, align: "center" },
+          { header: "Type / Status", key: "typeStatus", width: 18, align: "center" },
+          { header: "Deposit (₹)", key: "amount", width: 18, align: "right", isCurrency: true },
+          { header: "Holding Account / Partner", key: "account", width: 26 },
+          { header: "Date", key: "date", width: 16, align: "center" },
         ];
 
-        const depositActivityRows = depositAnalytics.transactions.map((t) => ({
-          room: t.roomNumber,
-          name: t.occupantName,
-          bed: t.bedCode,
-          receiptNo: t.receiptNo,
-          date: t.date,
-          phone: t.phone,
-          type: t.type,
-          mode: t.mode,
-          paidTo: t.paidTo,
-          amount: t.amount,
-          status: t.status,
-        }));
+        const depositActivityRows = depositAnalytics.transactions.map((t) => {
+          const account = t.paidTo || "Main Business Account";
+          const bedSuffix = t.bedCode ? ` (${t.bedCode})` : "";
+          const typeBadge = t.type === "COLLECTED" ? "🟢 COLLECTED" : "🔴 REFUNDED";
+
+          return {
+            roomBed: `${t.roomNumber || "—"}${bedSuffix}`,
+            name: t.occupantName || "—",
+            phone: t.phone || "—",
+            typeStatus: typeBadge,
+            amount: t.amount,
+            account: t.mode ? `${account} (${t.mode})` : account,
+            date: t.date || "N/A",
+          };
+        });
 
         const lastActivityRow = renderStyledTable(wsDeposits, 6, depositActivityCols, depositActivityRows, "FF312E81");
-        renderTotalRow(wsDeposits, lastActivityRow + 1, 10, lastActivityRow, depositActivityCols);
+        renderTotalRow(wsDeposits, lastActivityRow + 1, 5, lastActivityRow, depositActivityCols);
       } else {
-        const depositCols = [
-          { header: "Room", key: "room", width: 10, align: "center" as const },
-          { header: "Resident Name", key: "name", width: 26 },
-          { header: "Bed", key: "bed", width: 10, align: "center" as const },
-          { header: "Receipt / Ref #", key: "receiptNo", width: 18 },
-          { header: "Contact Phone", key: "phone", width: 16, align: "center" as const },
-          { header: "Check-In Date", key: "joiningDate", width: 14, align: "center" as const },
-          { header: "Holding Account / Partner", key: "paidTo", width: 24 },
-          { header: "Deposit Required", key: "req", width: 18, align: "right" as const, isCurrency: true },
-          { header: "Deposit Paid / Held", key: "paid", width: 18, align: "right" as const, isCurrency: true },
-          { header: "Remaining Due", key: "rem", width: 16, align: "right" as const, isCurrency: true },
-          { header: "Status", key: "status", width: 14, align: "center" as const },
+        const depositCols: TableColumnDef[] = [
+          { header: "Room & Bed", key: "roomBed", width: 16, align: "center" },
+          { header: "Resident Name", key: "name", width: 24 },
+          { header: "Phone Number", key: "phone", width: 16, align: "center" },
+          { header: "Type / Status", key: "typeStatus", width: 22, align: "center" },
+          { header: "Deposit (₹)", key: "amount", width: 18, align: "right", isCurrency: true },
+          { header: "Holding Account / Partner", key: "account", width: 26 },
+          { header: "Date", key: "date", width: 16, align: "center" },
         ];
 
-        const depositRowsData = depositAnalytics.custodyRegister.map((c) => ({
-          room: c.occupant.roomNumber,
-          name: c.occupant.name,
-          bed: c.occupant.bedCode,
-          receiptNo: c.occupant.id,
-          phone: c.occupant.phone,
-          joiningDate: c.occupant.joiningDate || "Active",
-          paidTo: c.paidTo,
-          req: c.req,
-          paid: c.paid,
-          rem: c.rem,
-          status: c.status,
-        }));
+        const depositRowsData = depositAnalytics.custodyRegister.map((c) => {
+          const account = c.paidTo || "Main Business Account";
+          const bedSuffix = c.occupant.bedCode ? ` (${c.occupant.bedCode})` : "";
+          const statusBadge = c.status === "PAID"
+            ? "🟢 IN CUSTODY (PAID)"
+            : `🟡 DUE (₹${(c.rem || 0).toLocaleString("en-IN")})`;
+
+          return {
+            roomBed: `${c.occupant.roomNumber || "—"}${bedSuffix}`,
+            name: c.occupant.name || "—",
+            phone: c.occupant.phone || "—",
+            typeStatus: statusBadge,
+            amount: c.paid,
+            account: account,
+            date: c.occupant.joiningDate || "Active",
+          };
+        });
 
         const lastDepRow = renderStyledTable(wsDeposits, 6, depositCols, depositRowsData, "FF312E81");
         if (depositRowsData.length > 0) {
-          renderTotalRow(wsDeposits, lastDepRow + 1, 8, lastDepRow, depositCols);
+          renderTotalRow(wsDeposits, lastDepRow + 1, 5, lastDepRow, depositCols);
         }
       }
-      autoFitColumnWidths(wsDeposits);
+      autoFitColumnWidths(wsDeposits, 12, 10);
       setupWorksheetView(wsDeposits, 6);
 
       // ==========================================
