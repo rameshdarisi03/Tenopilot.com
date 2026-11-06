@@ -516,8 +516,8 @@ export default function ReportsAnalyticsPage({
       .filter((o) => o.lifecycleStatus === "Notice" || !!o.vacatingDate)
       .map((occ) => {
         const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
-        const secDep = stmt.securityDepositRequired || 0;
-        const rentDue = stmt.netOutstandingBalance || 0;
+        const secDep = stmt.totalDepositPaid || (occ.depositStatus === "PAID" ? (occ.securityDeposit || 0) : (stmt.securityDepositRequired || 0));
+        const rentDue = stmt.remainingRentDue !== undefined ? stmt.remainingRentDue : (stmt.netOutstandingBalance || 0);
         const estimatedRefund = Math.max(0, secDep - rentDue);
 
         return {
@@ -1602,25 +1602,135 @@ export default function ReportsAnalyticsPage({
     triggerToast("✓ Rent Defaulters & Aging Report downloaded!");
   };
 
+  const handleExportVacatingNoticeExcel = async () => {
+    try {
+      if (vacatingNoticeList.length === 0) {
+        triggerToast("ℹ️ No residents currently on notice or scheduled to vacate.");
+        return;
+      }
+
+      triggerToast("⏳ Generating executive colorful Vacating & Notice workbook...");
+      const propName = propertySettings.propertyName || "Sunshine PG";
+      const wb = createStyledWorkbook(`TenoPilot OS — ${propName}`);
+
+      // ==========================================
+      // SHEET 1: VACATING & NOTICE SCHEDULE (Amber/Ochre Theme)
+      // Streamlined 7 lean columns for mobile-first PG owners
+      // ==========================================
+      const wsNotice = wb.addWorksheet("Vacating Schedule");
+      renderHeroBanner(
+        wsNotice,
+        `${propName} — VACATING & NOTICE PERIOD SCHEDULE`,
+        `Upcoming Move-Outs • Freeing Beds & Deposit Refund Settlements`,
+        "G",
+        "FFC2652A"
+      );
+
+      const totalDepositsHeld = vacatingNoticeList.reduce((acc, v) => acc + v.depositHeld, 0);
+      const totalDues = vacatingNoticeList.reduce((acc, v) => acc + v.outstandingDue, 0);
+      const totalRefundsPayable = vacatingNoticeList.reduce((acc, v) => acc + v.estimatedRefund, 0);
+
+      renderMetadataCards(
+        wsNotice,
+        [
+          { label: "Property", value: propName },
+          { label: "Residents on Notice", value: `${vacatingNoticeList.length}` },
+          { label: "Total Escrow Held", value: `₹${totalDepositsHeld.toLocaleString("en-IN")}` },
+          { label: "Est. Net Refunds", value: `₹${totalRefundsPayable.toLocaleString("en-IN")}` },
+        ],
+        4
+      );
+
+      renderKpiCardsRow(wsNotice, 6, [
+        {
+          label: "Residents on Notice",
+          value: `${vacatingNoticeList.length}`,
+          subtext: "Freeing Beds",
+          fillColorHex: "FFE0E7FF",
+          textColorHex: "FF3730A3",
+        },
+        {
+          label: "Total Deposit Held",
+          value: `₹${totalDepositsHeld.toLocaleString("en-IN")}`,
+          subtext: "In Custody",
+          fillColorHex: "FFFFEDD5",
+          textColorHex: "FF9A3412",
+        },
+        {
+          label: "Pending Rent Deductions",
+          value: `₹${totalDues.toLocaleString("en-IN")}`,
+          subtext: "Overdue Dues",
+          fillColorHex: "FFFEE2E2",
+          textColorHex: "FF991B1B",
+        },
+        {
+          label: "Est. Net Refund Outflow",
+          value: `₹${totalRefundsPayable.toLocaleString("en-IN")}`,
+          subtext: "Disbursable on Exit",
+          fillColorHex: "FFD1FAE5",
+          textColorHex: "FF065F46",
+        },
+      ]);
+
+      const noticeCols: TableColumnDef[] = [
+        { header: "Room & Bed", key: "roomBed", width: 16, align: "center" },
+        { header: "Resident Name", key: "name", width: 24 },
+        { header: "Phone Number", key: "phone", width: 16, align: "center" },
+        { header: "Move-Out Date", key: "vacatingDate", width: 16, align: "center" },
+        { header: "Deposit Held (₹)", key: "depositHeld", width: 18, align: "right", isCurrency: true },
+        { header: "Dues (₹)", key: "outstandingDue", width: 16, align: "right", isCurrency: true },
+        { header: "Net Refund (₹)", key: "estimatedRefund", width: 18, align: "right", isCurrency: true },
+      ];
+
+      const noticeRowsData = vacatingNoticeList.map((v) => {
+        const bedSuffix = v.occupant.bedCode ? ` (${v.occupant.bedCode})` : "";
+        return {
+          roomBed: `${v.occupant.roomNumber || "—"}${bedSuffix}`,
+          name: v.occupant.name || "—",
+          phone: v.occupant.phone || "—",
+          vacatingDate: v.vacatingDate || "Notice Active",
+          depositHeld: v.depositHeld,
+          outstandingDue: v.outstandingDue,
+          estimatedRefund: v.estimatedRefund,
+        };
+      });
+
+      const lastNoticeRow = renderStyledTable(wsNotice, 11, noticeCols, noticeRowsData, "FFC2652A");
+      if (noticeRowsData.length > 0) {
+        renderTotalRow(wsNotice, lastNoticeRow + 1, 5, lastNoticeRow, noticeCols);
+      }
+      autoFitColumnWidths(wsNotice, 12, 10);
+      setupWorksheetView(wsNotice, 11);
+
+      await downloadWorkbookInBrowser(
+        wb,
+        `Vacating_Notice_Schedule_${propertyId}_${new Date().toISOString().slice(0, 10)}.xlsx`
+      );
+      triggerToast("🟠 Colorful Vacating & Notice Report (.xlsx) downloaded successfully!");
+    } catch (err: any) {
+      console.error("Vacating Excel Generation Error:", err);
+      triggerToast(`⚠️ Failed to generate Excel report: ${err.message || "Unknown error"}`);
+    }
+  };
+
   const handleExportVacatingNoticeCSV = () => {
     if (vacatingNoticeList.length === 0) {
       triggerToast("ℹ️ No residents currently on notice or scheduled to vacate.");
       return;
     }
 
-    const rows = vacatingNoticeList.map((v) => ({
-      "Room Number": v.occupant.roomNumber,
-      "Resident Name": v.occupant.name,
-      "Bed Code": v.occupant.bedCode,
-      "Receipt / Ref #": `VAC-${v.occupant.roomNumber}-${v.occupant.bedCode}`,
-      "Phone Number": v.occupant.phone,
-      "Vacating / Move-Out Date": v.vacatingDate,
-      "Monthly Rent (INR)": v.occupant.rentAmount,
-      "Security Deposit Held (INR)": v.depositHeld,
-      "Pending Rent Dues (INR)": v.outstandingDue,
-      "Estimated Refund Payable (INR)": v.estimatedRefund,
-      "Emergency Phone": v.occupant.emergencyContact?.phone || "N/A",
-    }));
+    const rows = vacatingNoticeList.map((v) => {
+      const bedSuffix = v.occupant.bedCode ? ` (${v.occupant.bedCode})` : "";
+      return {
+        "Room & Bed": `${v.occupant.roomNumber || "—"}${bedSuffix}`,
+        "Resident Name": v.occupant.name || "—",
+        "Phone Number": v.occupant.phone || "—",
+        "Move-Out Date": v.vacatingDate || "Notice Active",
+        "Deposit Held (INR)": v.depositHeld,
+        "Dues (INR)": v.outstandingDue,
+        "Net Refund (INR)": v.estimatedRefund,
+      };
+    });
 
     const csv = Papa.unparse(rows);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -1864,47 +1974,45 @@ export default function ReportsAnalyticsPage({
 
       // ==========================================
       // SHEET 4: VACATING & NOTICE SCHEDULE
+      // Streamlined 7 lean columns for mobile & audit clarity
       // ==========================================
       const wsNotice = wb.addWorksheet("Vacating Schedule");
       renderHeroBanner(
         wsNotice,
         `${propertySettings.propertyName || "Sunshine PG"} — VACATING & NOTICE PERIOD SCHEDULE`,
-        `Upcoming Move-Outs & Security Deposit Refund Estimations`,
-        "J",
+        `Upcoming Move-Outs • Freeing Beds & Deposit Refund Settlements`,
+        "G",
         "FFC2652A"
       );
 
       const noticeCols = [
-        { header: "Room", key: "room", width: 10, align: "center" as const },
-        { header: "Resident Name", key: "name", width: 26 },
-        { header: "Bed", key: "bed", width: 10, align: "center" as const },
-        { header: "Receipt / Ref #", key: "receiptNo", width: 18 },
+        { header: "Room & Bed", key: "roomBed", width: 16, align: "center" as const },
+        { header: "Resident Name", key: "name", width: 24 },
         { header: "Phone Number", key: "phone", width: 16, align: "center" as const },
-        { header: "Vacating Date", key: "vacatingDate", width: 16, align: "center" as const },
-        { header: "Monthly Rent", key: "rentAmount", width: 16, align: "right" as const, isCurrency: true },
-        { header: "Deposit Held", key: "depositHeld", width: 16, align: "right" as const, isCurrency: true },
-        { header: "Pending Rent Due", key: "outstandingDue", width: 16, align: "right" as const, isCurrency: true },
-        { header: "Est. Net Refund", key: "estimatedRefund", width: 18, align: "right" as const, isCurrency: true },
+        { header: "Move-Out Date", key: "vacatingDate", width: 16, align: "center" as const },
+        { header: "Deposit Held (₹)", key: "depositHeld", width: 18, align: "right" as const, isCurrency: true },
+        { header: "Dues (₹)", key: "outstandingDue", width: 16, align: "right" as const, isCurrency: true },
+        { header: "Net Refund (₹)", key: "estimatedRefund", width: 18, align: "right" as const, isCurrency: true },
       ];
 
-      const noticeRowsData = vacatingNoticeList.map((v) => ({
-        room: v.occupant.roomNumber,
-        name: v.occupant.name,
-        bed: v.occupant.bedCode,
-        receiptNo: `VAC-${v.occupant.roomNumber}-${v.occupant.bedCode}`,
-        phone: v.occupant.phone,
-        vacatingDate: v.vacatingDate,
-        rentAmount: v.occupant.rentAmount,
-        depositHeld: v.depositHeld,
-        outstandingDue: v.outstandingDue,
-        estimatedRefund: v.estimatedRefund,
-      }));
+      const noticeRowsData = vacatingNoticeList.map((v) => {
+        const bedSuffix = v.occupant.bedCode ? ` (${v.occupant.bedCode})` : "";
+        return {
+          roomBed: `${v.occupant.roomNumber || "—"}${bedSuffix}`,
+          name: v.occupant.name || "—",
+          phone: v.occupant.phone || "—",
+          vacatingDate: v.vacatingDate || "Notice Active",
+          depositHeld: v.depositHeld,
+          outstandingDue: v.outstandingDue,
+          estimatedRefund: v.estimatedRefund,
+        };
+      });
 
       const lastNoticeRow = renderStyledTable(wsNotice, 5, noticeCols, noticeRowsData, "FFC2652A");
       if (noticeRowsData.length > 0) {
-        renderTotalRow(wsNotice, lastNoticeRow + 1, 7, lastNoticeRow, noticeCols);
+        renderTotalRow(wsNotice, lastNoticeRow + 1, 5, lastNoticeRow, noticeCols);
       }
-      autoFitColumnWidths(wsNotice);
+      autoFitColumnWidths(wsNotice, 12, 10);
       setupWorksheetView(wsNotice, 5);
 
       // ==========================================
@@ -2458,28 +2566,42 @@ export default function ReportsAnalyticsPage({
                         <div className="w-9 sm:w-10 h-9 sm:h-10 rounded-xl bg-orange-100 text-[#c2652a] flex items-center justify-center font-bold">
                           <UserMinus className="w-4 sm:w-5 h-4 sm:h-5" />
                         </div>
-                        {vacatingNoticeList.length > 0 ? (
+                        <div className="flex items-center gap-1.5">
                           <span className="text-[10px] font-extrabold text-orange-800 bg-orange-100 border border-orange-300 px-2.5 py-0.5 rounded-full">
-                            {vacatingNoticeList.length} On Notice
+                            7 COLS • COLORED
                           </span>
-                        ) : (
-                          <span className="text-[10px] font-extrabold text-gray-600 bg-gray-100 border border-gray-300 px-2.5 py-0.5 rounded-full">
-                            0 On Notice
-                          </span>
-                        )}
+                          {vacatingNoticeList.length > 0 ? (
+                            <span className="text-[10px] font-extrabold text-orange-800 bg-orange-100 border border-orange-300 px-2.5 py-0.5 rounded-full">
+                              {vacatingNoticeList.length} On Notice
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-extrabold text-gray-600 bg-gray-100 border border-gray-300 px-2.5 py-0.5 rounded-full">
+                              0 On Notice
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Vacating & Notice Schedule (.csv)</h4>
+                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Vacating & Notice Schedule (.xlsx)</h4>
                       <p className="text-[11px] sm:text-xs text-gray-500 leading-relaxed">
-                        Upcoming move-outs, freeing beds, deposit held, unpaid dues, and estimated refunds.
+                        Upcoming move-outs, freeing beds, deposit held, unpaid dues, and estimated net refunds.
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleExportVacatingNoticeCSV}
-                      className="w-full py-2.5 px-4 rounded-xl bg-white border border-orange-300 group-hover:border-[#c2652a] group-hover:bg-[#c2652a] group-hover:text-white font-bold text-xs text-orange-800 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs min-h-[42px] active:scale-95"
-                    >
-                      <Download className="w-4 h-4" /> Download Notice Schedule
-                    </button>
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={handleExportVacatingNoticeExcel}
+                        className="w-full py-2.5 px-4 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs min-h-[42px] active:scale-95"
+                      >
+                        <FileSpreadsheet className="w-4 h-4" /> Download Colorful Excel (.xlsx)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleExportVacatingNoticeCSV}
+                        className="w-full text-[11px] text-gray-500 hover:text-gray-800 font-semibold underline text-center cursor-pointer"
+                      >
+                        Download plain CSV (.csv)
+                      </button>
+                    </div>
                   </div>
 
                   {/* Export Box 4: Expense & Bill Report */}
