@@ -56,6 +56,24 @@ export async function GET(req: NextRequest) {
     const replacesReceiptNo = searchParams.get("replacesReceiptNo") || undefined;
     const replacedByReceiptNo = searchParams.get("replacedByReceiptNo") || undefined;
 
+    // Dedicated Guest Parameters
+    const guestMobile = searchParams.get("guestMobile") || undefined;
+    const purpose = searchParams.get("purpose") || undefined;
+    const initialPayment = searchParams.get("initialPayment") ? Number(searchParams.get("initialPayment")) : undefined;
+    const initialPaymentDate = searchParams.get("initialPaymentDate") || undefined;
+    const finalPayment = searchParams.get("finalPayment") ? Number(searchParams.get("finalPayment")) : undefined;
+    const finalPaymentDate = searchParams.get("finalPaymentDate") || undefined;
+    const balanceDue = searchParams.get("balanceDue") !== null && searchParams.get("balanceDue") !== "" ? Number(searchParams.get("balanceDue")) : undefined;
+    const totalStayAmount = searchParams.get("totalStayAmount") ? Number(searchParams.get("totalStayAmount")) : totalTariff;
+
+    let additionalCharges = [];
+    try {
+      const addChargesRaw = searchParams.get("additionalCharges");
+      if (addChargesRaw) additionalCharges = JSON.parse(addChargesRaw);
+    } catch (e) {
+      // Ignore parse failure
+    }
+
     if (propertyId && (!signatureUrl || !ownerName)) {
       try {
         const propSnap = await getDoc(doc(db, "properties", propertyId, "settings", "config"));
@@ -100,10 +118,19 @@ export async function GET(req: NextRequest) {
       maintenanceAmount,
       stayType,
       isGuest,
+      guestMobile,
+      purpose,
       checkInDate,
       checkOutDate,
       stayDurationDays,
       dailyRate,
+      totalStayAmount,
+      initialPayment,
+      initialPaymentDate,
+      finalPayment,
+      finalPaymentDate,
+      balanceDue,
+      additionalCharges,
       settlementDetails: isSettlement
         ? {
             initialDeposit: searchParams.get("initialDeposit") ? Number(searchParams.get("initialDeposit")) : (depositAmount || 0),

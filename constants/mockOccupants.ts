@@ -32,6 +32,12 @@ export interface PaymentHistoryItem {
     role: string;
     email?: string;
   };
+  additionalCharges?: {
+    description: string;
+    qty?: string | number;
+    rate?: number;
+    amount: number;
+  }[];
 }
 
 export interface CheckoutSettlementAudit {
