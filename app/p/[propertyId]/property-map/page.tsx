@@ -1755,7 +1755,10 @@ function PropertyMapContent({
                                     ? "Booked"
                                     : "Available";
 
-                                  const isGuestBed = !primaryOcc && nextOcc?.stayType === "Guest";
+                                  const isGuestBed =
+                                    (primaryOcc && primaryOcc.stayType === "Guest") ||
+                                    (!primaryOcc && nextOcc?.stayType === "Guest") ||
+                                    effectiveStatus === "Guest";
                                   const isBookedBed = !primaryOcc && isBooked;
                                   const rawVacDate = primaryOcc?.vacatingDate || bed.vacatingDate || "";
                                   
@@ -1887,14 +1890,16 @@ function PropertyMapContent({
                                            return;
                                          }
 
-                                         // 3. ⚡ BYPASS DRAWER MODAL for Occupied & Vacating tenants -> Route directly to full profile!
-                                         if (
-                                           primaryOcc &&
-                                           (effectiveStatus === "Occupied" ||
-                                             effectiveStatus === "Vacating" ||
-                                             primaryOcc.lifecycleStatus === "Active" ||
-                                             primaryOcc.lifecycleStatus === "Notice")
-                                         ) {
+                                         // 3. ⚡ BYPASS DRAWER MODAL for Occupied, Vacating & Guest tenants -> Route directly to full profile!
+                                          if (
+                                            primaryOcc &&
+                                            (effectiveStatus === "Occupied" ||
+                                              effectiveStatus === "Vacating" ||
+                                              effectiveStatus === "Guest" ||
+                                              isGuestBed ||
+                                              primaryOcc.lifecycleStatus === "Active" ||
+                                              primaryOcc.lifecycleStatus === "Notice")
+                                          ) {
                                            router.push(`/p/${propertyId}/tenants/${primaryOcc.id}`);
                                            return;
                                          }
