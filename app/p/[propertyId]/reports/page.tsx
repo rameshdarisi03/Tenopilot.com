@@ -469,7 +469,24 @@ export default function ReportsAnalyticsPage({
     activeAndNotice.forEach((occ) => {
       const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
       if (stmt.netOutstandingBalance > 0) {
-        const days = Math.max(1, occ.daysDiff < 0 ? Math.abs(occ.daysDiff) : 1);
+        let days = 1;
+        if (stmt.targetDueDateStr) {
+          const dueTs = new Date(stmt.targetDueDateStr).getTime();
+          const nowTs = new Date().getTime();
+          if (!isNaN(dueTs) && nowTs > dueTs) {
+            days = Math.max(1, Math.floor((nowTs - dueTs) / (1000 * 60 * 60 * 24)));
+          }
+        } else if (occ.daysDiff && occ.daysDiff < 0) {
+          days = Math.abs(occ.daysDiff);
+        } else {
+          const now = new Date();
+          const targetDay = occ.customDueDay ?? propertySettings?.desiredDueDate ?? occ.dueDay ?? 5;
+          const dueThisMonth = new Date(now.getFullYear(), now.getMonth(), targetDay);
+          if (now.getTime() > dueThisMonth.getTime()) {
+            days = Math.max(1, Math.floor((now.getTime() - dueThisMonth.getTime()) / (1000 * 60 * 60 * 24)));
+          }
+        }
+
         let agingCategory: "1-5 Days" | "6-15 Days" | "16-30 Days" | "30+ Days Critical" = "1-5 Days";
         if (days > 30) {
           agingCategory = "30+ Days Critical";
@@ -1365,6 +1382,204 @@ export default function ReportsAnalyticsPage({
     }
   };
 
+  const handleExportDefaultersExcel = async () => {
+    try {
+      if (defaultersList.length === 0) {
+        triggerToast("🎉 Zero defaulters! All active residents are fully paid.");
+        return;
+      }
+
+      triggerToast("⏳ Generating executive colorful Defaulters & Aging workbook...");
+      const propName = propertySettings.propertyName || "Sunshine PG";
+      const wb = createStyledWorkbook(`TenoPilot OS — ${propName}`);
+
+      const totalOverdue = defaultersList.reduce((acc, d) => acc + d.statement.netOutstandingBalance, 0);
+      const totalMonthlyRent = defaultersList.reduce((acc, d) => acc + (d.occupant.rentAmount || 0), 0);
+      const totalDepositHeld = defaultersList.reduce((acc, d) => acc + (d.statement.securityDepositRequired || d.occupant.securityDeposit || 0), 0);
+
+      const bucket1to5 = defaultersList.filter((d) => d.agingCategory === "1-5 Days");
+      const bucket6to15 = defaultersList.filter((d) => d.agingCategory === "6-15 Days");
+      const bucket16to30 = defaultersList.filter((d) => d.agingCategory === "16-30 Days");
+      const bucket30plus = defaultersList.filter((d) => d.agingCategory === "30+ Days Critical");
+
+      const criticalOverdue = [...bucket16to30, ...bucket30plus].reduce((acc, d) => acc + d.statement.netOutstandingBalance, 0);
+      const criticalCount = bucket16to30.length + bucket30plus.length;
+
+      // ==========================================
+      // SHEET 1: DEFAULTERS & OVERDUE AGING (Crimson Ruby Theme)
+      // ==========================================
+      const wsDefaulters = wb.addWorksheet("Defaulters Aging Audit");
+      renderHeroBanner(
+        wsDefaulters,
+        `${propName} — RENT OVERDUE & DEFAULTERS AGING AUDIT`,
+        `Immediate Recovery & Overdue Arrears • Generated: ${new Date().toLocaleString("en-IN")}`,
+        "L",
+        "FF991B1B"
+      );
+
+      // Metadata Cards
+      renderMetadataCards(
+        wsDefaulters,
+        [
+          { label: "Property", value: propName },
+          { label: "Audit Date", value: new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) },
+          { label: "Defaulter Residents", value: `${defaultersList.length} Residents` },
+          { label: "Total Overdue Amount", value: `₹${totalOverdue.toLocaleString("en-IN")}` },
+        ],
+        4
+      );
+
+      // KPI Scorecards (Row 6)
+      const defaulterKpis: KpiCardConfig[] = [
+        {
+          label: "TOTAL OVERDUE DUES",
+          value: `₹${totalOverdue.toLocaleString("en-IN")}`,
+          subtext: "Total uncollected cash in arrears",
+          fillColorHex: "FFFEE2E2", // rose-100
+          textColorHex: "FF991B1B", // rose-800
+        },
+        {
+          label: "DEFAULTER RESIDENTS",
+          value: `${defaultersList.length} Residents`,
+          subtext: `Avg ₹${Math.round(totalOverdue / Math.max(1, defaultersList.length)).toLocaleString("en-IN")} per defaulter`,
+          fillColorHex: "FFFEF3C7", // amber-100
+          textColorHex: "FF92400E", // amber-800
+        },
+        {
+          label: "CRITICAL ARREARS (>15d)",
+          value: `₹${criticalOverdue.toLocaleString("en-IN")}`,
+          subtext: `${criticalCount} resident(s) in urgent alert`,
+          fillColorHex: "FFFFE4E6", // rose-100
+          textColorHex: "FFBE123C", // rose-700
+        },
+        {
+          label: "SECURITY DEPOSIT BUFFER",
+          value: `₹${totalDepositHeld.toLocaleString("en-IN")}`,
+          subtext: totalDepositHeld >= totalOverdue ? "Overdue 100% covered by deposit" : "⚠️ Unsecured deficit exposure",
+          fillColorHex: totalDepositHeld >= totalOverdue ? "FFD1FAE5" : "FFFFFBEB",
+          textColorHex: totalDepositHeld >= totalOverdue ? "FF065F46" : "FFB45309",
+        },
+      ];
+      renderKpiCardsRow(wsDefaulters, 6, defaulterKpis);
+
+      const defaulterCols: TableColumnDef[] = [
+        { header: "Room", key: "room", width: 12, align: "center" },
+        { header: "Bed", key: "bed", width: 12, align: "center" },
+        { header: "Resident Full Name", key: "name", width: 26 },
+        { header: "Primary Mobile", key: "phone", width: 16, align: "center" },
+        { header: "Monthly Rent (₹)", key: "rentAmount", width: 18, align: "right", isCurrency: true },
+        { header: "Overdue Amount (₹)", key: "overdueAmount", width: 20, align: "right", isCurrency: true },
+        { header: "Deposit Held (₹)", key: "depositHeld", width: 18, align: "right", isCurrency: true },
+        { header: "Deposit Buffer Status", key: "bufferStatus", width: 22, align: "center" },
+        { header: "Days Overdue", key: "daysOverdue", width: 16, align: "center" },
+        { header: "Aging Risk Category", key: "agingCategory", width: 22, align: "center" },
+        { header: "Target Due Date", key: "dueDate", width: 16, align: "center" },
+        { header: "Guardian Emergency Phone", key: "emergencyPhone", width: 24, align: "center" },
+      ];
+
+      const defaulterRowsData = defaultersList.map((d) => {
+        const depHeld = d.statement.securityDepositRequired || d.occupant.securityDeposit || 0;
+        const isCovered = depHeld >= d.statement.netOutstandingBalance;
+        return {
+          room: d.occupant.roomNumber,
+          bed: d.occupant.bedCode,
+          name: d.occupant.name,
+          phone: d.occupant.phone,
+          rentAmount: d.occupant.rentAmount || 0,
+          overdueAmount: d.statement.netOutstandingBalance,
+          depositHeld: depHeld,
+          bufferStatus: isCovered ? "✓ Covered by Deposit" : "⚠️ UNSECURED DEBT",
+          daysOverdue: `${d.daysOverdue} Days`,
+          agingCategory: d.agingCategory,
+          dueDate: d.statement.targetDueDateStr || d.occupant.dueDate || `Day ${d.occupant.dueDay || 5}`,
+          emergencyPhone: d.occupant.emergencyContact?.phone ? `${d.occupant.emergencyContact.phone} (${d.occupant.emergencyContact.name || "Guardian"})` : "N/A",
+        };
+      });
+
+      const lastDefRow = renderStyledTable(wsDefaulters, 10, defaulterCols, defaulterRowsData, "FF991B1B");
+      if (defaulterRowsData.length > 0) {
+        renderTotalRow(wsDefaulters, lastDefRow + 1, 5, lastDefRow, defaulterCols);
+      }
+      autoFitColumnWidths(wsDefaulters);
+      setupWorksheetView(wsDefaulters, 10);
+
+      // ==========================================
+      // SHEET 2: AGING RISK BUCKETS SUMMARY
+      // ==========================================
+      const wsBuckets = wb.addWorksheet("Aging Risk Buckets");
+      renderHeroBanner(
+        wsBuckets,
+        `${propName} — AGING RISK BUCKETS ANALYSIS`,
+        `Defaulter Aging Segmentation & Recommended Recovery Protocol`,
+        "G",
+        "FF991B1B"
+      );
+
+      const bucketCols: TableColumnDef[] = [
+        { header: "Aging Risk Category", key: "category", width: 26, align: "center" },
+        { header: "Defaulter Count", key: "count", width: 18, align: "center" },
+        { header: "Total Overdue Amount (₹)", key: "totalDue", width: 24, align: "right", isCurrency: true },
+        { header: "% of Total Dues", key: "share", width: 18, align: "center" },
+        { header: "Avg Days Overdue", key: "avgDays", width: 18, align: "center" },
+        { header: "Deposit Coverage", key: "depositCoverage", width: 24, align: "center" },
+        { header: "Recommended Action", key: "action", width: 36 },
+      ];
+
+      const bucketsData = [
+        {
+          category: "1–5 Days (Grace Period)",
+          count: bucket1to5.length,
+          totalDue: bucket1to5.reduce((a, b) => a + b.statement.netOutstandingBalance, 0),
+          share: totalOverdue > 0 ? `${((bucket1to5.reduce((a, b) => a + b.statement.netOutstandingBalance, 0) / totalOverdue) * 100).toFixed(1)}%` : "0.0%",
+          avgDays: bucket1to5.length > 0 ? `${Math.round(bucket1to5.reduce((a, b) => a + b.daysOverdue, 0) / bucket1to5.length)} Days` : "—",
+          depositCoverage: "100% Covered",
+          action: "Automated WhatsApp gentle reminder dispatch",
+        },
+        {
+          category: "6–15 Days (Warning Zone)",
+          count: bucket6to15.length,
+          totalDue: bucket6to15.reduce((a, b) => a + b.statement.netOutstandingBalance, 0),
+          share: totalOverdue > 0 ? `${((bucket6to15.reduce((a, b) => a + b.statement.netOutstandingBalance, 0) / totalOverdue) * 100).toFixed(1)}%` : "0.0%",
+          avgDays: bucket6to15.length > 0 ? `${Math.round(bucket6to15.reduce((a, b) => a + b.daysOverdue, 0) / bucket6to15.length)} Days` : "—",
+          depositCoverage: "Covered by Deposit",
+          action: "Direct manager phone call & room visit",
+        },
+        {
+          category: "16–30 Days (Critical Risk)",
+          count: bucket16to30.length,
+          totalDue: bucket16to30.reduce((a, b) => a + b.statement.netOutstandingBalance, 0),
+          share: totalOverdue > 0 ? `${((bucket16to30.reduce((a, b) => a + b.statement.netOutstandingBalance, 0) / totalOverdue) * 100).toFixed(1)}%` : "0.0%",
+          avgDays: bucket16to30.length > 0 ? `${Math.round(bucket16to30.reduce((a, b) => a + b.daysOverdue, 0) / bucket16to30.length)} Days` : "—",
+          depositCoverage: "Deposit Buffer Thinning",
+          action: "Formal eviction warning & call to parent/guardian",
+        },
+        {
+          category: "30+ Days (Severe Bad Debt)",
+          count: bucket30plus.length,
+          totalDue: bucket30plus.reduce((a, b) => a + b.statement.netOutstandingBalance, 0),
+          share: totalOverdue > 0 ? `${((bucket30plus.reduce((a, b) => a + b.statement.netOutstandingBalance, 0) / totalOverdue) * 100).toFixed(1)}%` : "0.0%",
+          avgDays: bucket30plus.length > 0 ? `${Math.round(bucket30plus.reduce((a, b) => a + b.daysOverdue, 0) / bucket30plus.length)} Days` : "—",
+          depositCoverage: "High Risk of Deficit",
+          action: "Immediate lockout, settle deposit, write off bad debt",
+        },
+      ];
+
+      const lastBucketRow = renderStyledTable(wsBuckets, 5, bucketCols, bucketsData, "FF991B1B");
+      renderTotalRow(wsBuckets, lastBucketRow + 1, 3, lastBucketRow, bucketCols);
+      autoFitColumnWidths(wsBuckets);
+      setupWorksheetView(wsBuckets, 5);
+
+      await downloadWorkbookInBrowser(
+        wb,
+        `Defaulters_Aging_Report_${propertyId}_${new Date().toISOString().slice(0, 10)}.xlsx`
+      );
+      triggerToast("🔴 Colorful Defaulters & Aging Report (.xlsx) downloaded successfully!");
+    } catch (err: any) {
+      console.error("Defaulters Excel Generation Error:", err);
+      triggerToast(`⚠️ Failed to generate Excel report: ${err.message || "Unknown error"}`);
+    }
+  };
+
   const handleExportDefaultersCSV = () => {
     if (defaultersList.length === 0) {
       triggerToast("🎉 Zero defaulters! All active residents are fully paid.");
@@ -2208,28 +2423,42 @@ export default function ReportsAnalyticsPage({
                         <div className="w-9 sm:w-10 h-9 sm:h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold">
                           <AlertTriangle className="w-4 sm:w-5 h-4 sm:h-5" />
                         </div>
-                        {defaultersList.length > 0 ? (
+                        <div className="flex items-center gap-1.5">
                           <span className="text-[10px] font-extrabold text-rose-800 bg-rose-100 border border-rose-300 px-2.5 py-0.5 rounded-full">
-                            {defaultersList.length} Defaulters
+                            2 TABS • COLORED
                           </span>
-                        ) : (
-                          <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full">
-                            ✓ Zero Dues
-                          </span>
-                        )}
+                          {defaultersList.length > 0 ? (
+                            <span className="text-[10px] font-extrabold text-rose-800 bg-rose-100 border border-rose-300 px-2.5 py-0.5 rounded-full">
+                              {defaultersList.length} Defaulters
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full">
+                              ✓ Zero Dues
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Defaulters & Aging Dues (.csv)</h4>
+                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Defaulters & Aging Dues (.xlsx)</h4>
                       <p className="text-[11px] sm:text-xs text-gray-500 leading-relaxed">
-                        Unpaid residents grouped into 1-5d, 6-15d, and 16-30d+ critical overdue buckets with emergency contacts.
+                        Unpaid residents grouped into 1-5d, 6-15d, 16-30d, and 30d+ critical overdue buckets with deposit coverage and emergency contacts.
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleExportDefaultersCSV}
-                      className="w-full py-2.5 px-4 rounded-xl bg-white border border-rose-300 group-hover:border-rose-600 group-hover:bg-rose-600 group-hover:text-white font-bold text-xs text-rose-700 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs min-h-[42px] active:scale-95"
-                    >
-                      <Download className="w-4 h-4" /> Download Defaulters List
-                    </button>
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={handleExportDefaultersExcel}
+                        className="w-full py-2.5 px-4 rounded-xl bg-rose-700 hover:bg-rose-800 text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs min-h-[42px] active:scale-95"
+                      >
+                        <FileSpreadsheet className="w-4 h-4" /> Download Colorful Excel (.xlsx)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleExportDefaultersCSV}
+                        className="w-full text-[11px] text-gray-500 hover:text-gray-800 font-semibold underline text-center cursor-pointer"
+                      >
+                        Download plain CSV (.csv)
+                      </button>
+                    </div>
                   </div>
 
                   {/* Export Box 3: Vacating & Move-Out Schedule */}
