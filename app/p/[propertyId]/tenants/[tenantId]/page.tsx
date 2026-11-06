@@ -1772,7 +1772,7 @@ export default function IndividualTenantProfilePage({
 
     const addedPenalty = Math.max(0, Number(penaltyAmount) || 0);
     const finalRoomRent = baseRoomRent + addedPenalty;
-    const depositHeld = occupantState.securityDeposit || 1000;
+    const depositHeld = occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : 0;
     const depositPenalty = guestRefundKeyDeposit ? 0 : depositHeld;
     const totalOwnerKeeps = finalRoomRent + depositPenalty;
     const netCashToReturn = stmt.totalPaid - totalOwnerKeeps;
@@ -5185,7 +5185,7 @@ export default function IndividualTenantProfilePage({
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-purple-950">🔑 Room Key & Deposit Status</span>
                       <span className="text-[10px] font-extrabold bg-purple-200 text-purple-900 px-2 py-0.5 rounded-full">
-                        ₹{(occupantState.securityDeposit || 1000).toLocaleString("en-IN")} Deposit
+                        ₹{(occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : 0).toLocaleString("en-IN")} Deposit
                       </span>
                     </div>
                     <label className="flex items-center gap-2 cursor-pointer font-semibold text-gray-700 text-[11px]">
@@ -5215,7 +5215,7 @@ export default function IndividualTenantProfilePage({
 
                     const addedPenalty = Math.max(0, Number(penaltyAmount) || 0);
                     const roomRentToCharge = baseRoomRent + addedPenalty;
-                    const depositHeld = occupantState.securityDeposit || 1000;
+                    const depositHeld = occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : 0;
                     const depositDeduction = guestRefundKeyDeposit ? 0 : depositHeld;
                     const totalOwnerKeeps = roomRentToCharge + depositDeduction;
                     const netCashDifference = stmt.totalPaid - totalOwnerKeeps;
@@ -5500,7 +5500,7 @@ export default function IndividualTenantProfilePage({
 
                 const addedPenalty = Math.max(0, Number(penaltyAmount) || 0);
                 const roomRentToCharge = baseRoomRent + addedPenalty;
-                const depositHeld = occupantState.securityDeposit || 1000;
+                const depositHeld = occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : 0;
                 const depositPenalty = guestRefundKeyDeposit ? 0 : depositHeld;
                 const totalOwnerKeeps = roomRentToCharge + depositPenalty;
                 const netCashDifference = stmt.totalPaid - totalOwnerKeeps;

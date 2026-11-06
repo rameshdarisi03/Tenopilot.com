@@ -119,7 +119,7 @@ export default function OnboardGuestPage({
   });
 
   const [totalTariff, setTotalTariff] = useState<number>(0);
-  const [depositAmount, setDepositAmount] = useState<number>(1000);
+  const [depositAmount, setDepositAmount] = useState<number | "">("");
 
   // Form State — Step 2: Bed Allocation & Desired Sharing Filter (Defaults to 2 Sharing)
   const [desiredSharingFilter, setDesiredSharingFilter] = useState<number | "ALL">(2);
@@ -184,6 +184,8 @@ export default function OnboardGuestPage({
   const [createdGuest, setCreatedGuest] = useState<Occupant | null>(null);
   const [sendWelcomeWa, setSendWelcomeWa] = useState(true);
   const [waDispatchStatus, setWaDispatchStatus] = useState<"idle" | "sent" | "failed" | "skipped">("idle");
+  const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
+  const [emailDispatchStatus, setEmailDispatchStatus] = useState<"idle" | "sent" | "failed" | "skipped">("idle");
 
   // Blacklist & Defaulter Shield State
   const [detectedDefaulter, setDetectedDefaulter] = useState<DefaulterRecord | null>(null);
@@ -520,8 +522,8 @@ export default function OnboardGuestPage({
         aadhaarFrontUrl: aadhaarFrontDoc?.previewUrl || undefined,
         aadhaarBackUrl: aadhaarBackDoc?.previewUrl || undefined,
       },
-      securityDeposit: depositAmount || 1000,
-      depositStatus: "PENDING",
+      securityDeposit: Number(depositAmount) || 0,
+      depositStatus: (Number(depositAmount) || 0) === 0 ? "PAID" : "PENDING",
       partialPaidThisCycle: 0,
       arrearsBalance: 0,
       paymentHistory: [],
@@ -613,6 +615,58 @@ export default function OnboardGuestPage({
         });
     } else {
       setWaDispatchStatus("skipped");
+    }
+
+    // 📧 Automated Email Welcome & Confirmation Dispatch
+    const cleanGuestEmail = email.trim();
+    if (sendWelcomeEmail && cleanGuestEmail && !cleanGuestEmail.includes("@guest.com")) {
+      const propSettings = propertySettingsStore.getSettings(propertyId);
+      const propName = propSettings?.propertyName || "TenoPilot PG";
+
+      fetch("/api/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          propertyId,
+          userId: profile?.uid,
+          userEmail: profile?.email,
+          messages: [
+            {
+              toEmail: cleanGuestEmail,
+              recipientName: fullName.trim(),
+              propertyId,
+              propertyName: propName,
+              type: "TENANT_WELCOME",
+              params: {
+                roomNumber: selectedBed ? selectedBed.roomNumber : "101",
+                bedCode: selectedBed ? selectedBed.bedCode : "BED A",
+                dueDate: formattedCheckOut,
+                paidDate: formattedCheckIn,
+                joiningDate: formattedCheckIn,
+                rentAmount: totalTariff,
+                amount: totalTariff,
+                depositAmount: Number(depositAmount) || 0,
+                onboardUrl: `https://www.tenopilot.com/p/${propertyId}/tenants/${newId}`,
+              },
+            },
+          ],
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.successfulCount > 0) {
+            setEmailDispatchStatus("sent");
+            triggerToast("📧 Welcome confirmation email sent to guest!");
+          } else {
+            setEmailDispatchStatus("failed");
+          }
+        })
+        .catch((err) => {
+          console.warn("Email guest welcome dispatch error:", err);
+          setEmailDispatchStatus("failed");
+        });
+    } else {
+      setEmailDispatchStatus("skipped");
     }
   };
 
@@ -1102,11 +1156,11 @@ export default function OnboardGuestPage({
                     <input
                       type="text"
                       inputMode="numeric"
-                      value={depositAmount ? String(depositAmount) : ""}
-                      placeholder="0"
+                      value={depositAmount === "" ? "" : String(depositAmount)}
+                      placeholder="0 (Optional)"
                       onChange={(e) => {
                         const val = e.target.value.replace(/\D/g, "");
-                        setDepositAmount(val === "" ? 0 : parseInt(val, 10));
+                        setDepositAmount(val === "" ? "" : parseInt(val, 10));
                       }}
                       className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
                     />
@@ -1569,33 +1623,65 @@ export default function OnboardGuestPage({
                 </div>
               </div>
 
-              {/* 💬 WhatsApp Welcome Dispatch Toggle */}
-              <div className="p-3.5 rounded-2xl bg-purple-50/70 border border-purple-200 flex items-center justify-between gap-3 shadow-2xs">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-purple-100 text-purple-700 border border-purple-200 shrink-0">
-                    <MessageSquare className="w-4.5 h-4.5" />
+              {/* Dual Notifications (WhatsApp + Email) Dispatch Toggles */}
+              <div className="space-y-2.5">
+                {/* 💬 WhatsApp Welcome Dispatch Toggle */}
+                <div className="p-3.5 rounded-2xl bg-purple-50/70 border border-purple-200 flex items-center justify-between gap-3 shadow-2xs">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-purple-100 text-purple-700 border border-purple-200 shrink-0">
+                      <MessageSquare className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                        Send WhatsApp Welcome & Desk Notice
+                        <span className="px-1.5 py-0.2 bg-purple-700 text-white text-[9px] font-extrabold rounded-md uppercase tracking-wider">
+                          Auto
+                        </span>
+                      </p>
+                      <p className="text-[11px] text-gray-600">
+                        Dispatches check-in & short-stay details to {countryCode} {phone || "guest"} via Meta WhatsApp
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
-                      Send WhatsApp Welcome & Desk Notice
-                      <span className="px-1.5 py-0.2 bg-purple-700 text-white text-[9px] font-extrabold rounded-md uppercase tracking-wider">
-                        Auto
-                      </span>
-                    </p>
-                    <p className="text-[11px] text-gray-600">
-                      Dispatches check-in & short-stay details to {countryCode} {phone || "guest"} via Meta WhatsApp
-                    </p>
-                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={sendWelcomeWa}
+                      onChange={(e) => setSendWelcomeWa(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-5.5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-purple-700"></div>
+                  </label>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={sendWelcomeWa}
-                    onChange={(e) => setSendWelcomeWa(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-10 h-5.5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-purple-700"></div>
-                </label>
+
+                {/* 📧 Email Welcome Dispatch Toggle */}
+                <div className="p-3.5 rounded-2xl bg-purple-50/70 border border-purple-200 flex items-center justify-between gap-3 shadow-2xs">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-purple-100 text-purple-700 border border-purple-200 shrink-0">
+                      <Mail className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                        Send Email Confirmation & Receipt
+                        <span className="px-1.5 py-0.2 bg-purple-700 text-white text-[9px] font-extrabold rounded-md uppercase tracking-wider">
+                          Auto
+                        </span>
+                      </p>
+                      <p className="text-[11px] text-gray-600">
+                        Dispatches digital stay confirmation to {email.trim() || "guest email"} via Email
+                      </p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={sendWelcomeEmail}
+                      onChange={(e) => setSendWelcomeEmail(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-5.5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-purple-700"></div>
+                  </label>
+                </div>
               </div>
 
               <div className="flex flex-col md:flex-row justify-between items-center gap-3 pt-4 border-t border-gray-100">
@@ -1684,6 +1770,16 @@ export default function OnboardGuestPage({
                     </span>
                     <span className="font-bold text-purple-800">
                       {waDispatchStatus === "sent" ? "SENT ✓" : waDispatchStatus === "failed" ? "QUEUED 🟡" : "DISPATCHING..."}
+                    </span>
+                  </div>
+                )}
+                {sendWelcomeEmail && (
+                  <div className="flex justify-between pt-1 border-t border-purple-200">
+                    <span className="text-gray-500 font-medium flex items-center gap-1">
+                      <Mail className="w-3.5 h-3.5 text-purple-700" /> Email Notice
+                    </span>
+                    <span className="font-bold text-purple-800">
+                      {emailDispatchStatus === "sent" ? "SENT ✓" : emailDispatchStatus === "failed" ? "QUEUED 🟡" : emailDispatchStatus === "skipped" ? "SKIPPED (No Email)" : "DISPATCHING..."}
                     </span>
                   </div>
                 )}

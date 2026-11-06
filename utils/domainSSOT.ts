@@ -756,7 +756,9 @@ export function calculateOccupantFinancialStatement(
     // -------------------------------------------------------------------------
     const stayTariff = occupant.rentAmount || 0;
     const securityDepositRequired =
-      occupant.securityDeposit !== undefined ? occupant.securityDeposit : 1000;
+      occupant.securityDeposit !== undefined && occupant.securityDeposit !== null
+        ? Number(occupant.securityDeposit)
+        : 0;
     const priorArrears = 0;
     const totalGrossDue = stayTariff + securityDepositRequired;
 
@@ -790,14 +792,14 @@ export function calculateOccupantFinancialStatement(
       return sum;
     }, 0);
 
-    const isFullyPaidExplicitly = occupant.paymentStatus === "Paid" && occupant.depositStatus === "PAID";
+    const isFullyPaidExplicitly = occupant.paymentStatus === "Paid" && (occupant.depositStatus === "PAID" || securityDepositRequired === 0);
     const hasCategorizedReceipts = depositReceipts.length > 0 || rentReceipts.length > 0;
 
     let totalDepositPaid = 0;
     let totalRentPaid = 0;
     let remainingDepositDue = securityDepositRequired;
     let remainingRentDue = stayTariff;
-    let isDepositCleared = false;
+    let isDepositCleared = securityDepositRequired === 0;
 
     if (isFullyPaidExplicitly && totalCollectedReceipts === 0) {
       totalDepositPaid = securityDepositRequired;

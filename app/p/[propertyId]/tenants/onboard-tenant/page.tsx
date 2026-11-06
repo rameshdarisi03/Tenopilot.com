@@ -185,6 +185,8 @@ export default function OnboardTenantPage({
   const [createdTenant, setCreatedTenant] = useState<Occupant | null>(null);
   const [sendWelcomeWa, setSendWelcomeWa] = useState(true);
   const [waDispatchStatus, setWaDispatchStatus] = useState<"idle" | "sent" | "failed" | "skipped">("idle");
+  const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
+  const [emailDispatchStatus, setEmailDispatchStatus] = useState<"idle" | "sent" | "failed" | "skipped">("idle");
 
   // Blacklist & Defaulter Shield State
   const [detectedDefaulter, setDetectedDefaulter] = useState<DefaulterRecord | null>(null);
@@ -729,7 +731,7 @@ export default function OnboardTenantPage({
 
     // ✉️ Automated Luxury Welcome Email to Tenant (if email provided)
     const cleanResidentEmail = (email || "").trim().toLowerCase();
-    if (cleanResidentEmail && cleanResidentEmail.includes("@") && !cleanResidentEmail.includes("resident.tenopilot.com")) {
+    if (sendWelcomeEmail && cleanResidentEmail && cleanResidentEmail.includes("@") && !cleanResidentEmail.includes("resident.tenopilot.com")) {
       const propSettings = propertySettingsStore.getSettings(propertyId);
       const propName = propSettings?.propertyName || "TenoPilot PG";
 
@@ -767,7 +769,21 @@ export default function OnboardTenantPage({
             },
           ],
         }),
-      }).catch((err) => console.warn("Email welcome dispatch error:", err));
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.successfulCount > 0) {
+            setEmailDispatchStatus("sent");
+          } else {
+            setEmailDispatchStatus("failed");
+          }
+        })
+        .catch((err) => {
+          console.warn("Email welcome dispatch error:", err);
+          setEmailDispatchStatus("failed");
+        });
+    } else {
+      setEmailDispatchStatus("skipped");
     }
   };
 
@@ -1868,33 +1884,63 @@ export default function OnboardTenantPage({
                   By clicking <strong>Agree & Onboard Tenant</strong> below, the property owner confirms room allocation and generates the digital rental agreement record.
                 </div>
 
-                {/* 💬 WhatsApp Welcome Dispatch Toggle */}
-                <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200 flex items-center justify-between gap-3 shadow-2xs">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-emerald-100 text-emerald-700 border border-emerald-200 shrink-0">
-                      <MessageSquare className="w-4.5 h-4.5" />
+                {/* 💬 WhatsApp & ✉️ Email Welcome Dispatch Toggles */}
+                <div className="space-y-2.5">
+                  <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200 flex items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-xl bg-emerald-100 text-emerald-700 border border-emerald-200 shrink-0">
+                        <MessageSquare className="w-4.5 h-4.5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                          Send WhatsApp Welcome Notice
+                          <span className="px-1.5 py-0.2 bg-emerald-600 text-white text-[9px] font-extrabold rounded-md uppercase tracking-wider">
+                            Auto
+                          </span>
+                        </p>
+                        <p className="text-[11px] text-gray-600">
+                          Dispatches check-in & room details to {countryCode} {phone || "resident"} via Meta WhatsApp
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
-                        Send WhatsApp Welcome & Desk Notice
-                        <span className="px-1.5 py-0.2 bg-emerald-600 text-white text-[9px] font-extrabold rounded-md uppercase tracking-wider">
-                          Auto
-                        </span>
-                      </p>
-                      <p className="text-[11px] text-gray-600">
-                        Dispatches official check-in & room details to {countryCode} {phone || "resident"} via Meta WhatsApp
-                      </p>
-                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={sendWelcomeWa}
+                        onChange={(e) => setSendWelcomeWa(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-10 h-5.5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-emerald-600"></div>
+                    </label>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                    <input
-                      type="checkbox"
-                      checked={sendWelcomeWa}
-                      onChange={(e) => setSendWelcomeWa(e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-10 h-5.5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-emerald-600"></div>
-                  </label>
+
+                  <div className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-200 flex items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-xl bg-blue-100 text-blue-700 border border-blue-200 shrink-0">
+                        <Mail className="w-4.5 h-4.5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                          Send Email Welcome & KYC Pack
+                          <span className="px-1.5 py-0.2 bg-blue-600 text-white text-[9px] font-extrabold rounded-md uppercase tracking-wider">
+                            Auto
+                          </span>
+                        </p>
+                        <p className="text-[11px] text-gray-600">
+                          Dispatches digital welcome agreement & receipts to {email || "resident's email"}
+                        </p>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={sendWelcomeEmail}
+                        onChange={(e) => setSendWelcomeEmail(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-10 h-5.5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
                 </div>
               </div>
 
@@ -1989,6 +2035,16 @@ export default function OnboardTenantPage({
                     </span>
                     <span className="font-bold text-emerald-700">
                       {waDispatchStatus === "sent" ? "SENT ✓" : waDispatchStatus === "failed" ? "QUEUED 🟡" : "DISPATCHING..."}
+                    </span>
+                  </div>
+                )}
+                {sendWelcomeEmail && (
+                  <div className="flex justify-between pt-1 border-t border-gray-200">
+                    <span className="text-gray-500 font-medium flex items-center gap-1">
+                      <Mail className="w-3.5 h-3.5 text-blue-600" /> Email Notice
+                    </span>
+                    <span className="font-bold text-blue-700">
+                      {emailDispatchStatus === "sent" ? "SENT ✓" : emailDispatchStatus === "failed" ? "QUEUED 🟡" : "DISPATCHING..."}
                     </span>
                   </div>
                 )}

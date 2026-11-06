@@ -565,13 +565,19 @@ export function GuestProfileView({
                   ₹{stmt.securityDepositRequired.toLocaleString("en-IN")}
                 </span>
                 <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                  stmt.isDepositCleared ? "bg-purple-100 text-purple-800" : "bg-amber-100 text-amber-800"
+                  stmt.securityDepositRequired === 0
+                    ? "bg-gray-100 text-gray-600 border border-gray-200"
+                    : stmt.isDepositCleared ? "bg-purple-100 text-purple-800" : "bg-amber-100 text-amber-800"
                 }`}>
-                  {stmt.isDepositCleared ? "REFUNDABLE 🟢" : "PENDING 🔴"}
+                  {stmt.securityDepositRequired === 0
+                    ? "NO DEPOSIT"
+                    : stmt.isDepositCleared ? "REFUNDABLE 🟢" : "PENDING 🔴"}
                 </span>
               </div>
               <p className="text-[10px] text-gray-400">
-                {stmt.isDepositCleared
+                {stmt.securityDepositRequired === 0
+                  ? "Zero security deposit required"
+                  : stmt.isDepositCleared
                   ? "Refunded upon guest checkout (Paid ✓)"
                   : stmt.totalDepositPaid > 0
                   ? `₹${stmt.totalDepositPaid.toLocaleString("en-IN")} Paid · ₹${stmt.remainingDepositDue.toLocaleString("en-IN")} Pending`
