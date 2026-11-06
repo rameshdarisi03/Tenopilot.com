@@ -1406,14 +1406,14 @@ export default function ReportsAnalyticsPage({
       const criticalCount = bucket16to30.length + bucket30plus.length;
 
       // ==========================================
-      // SHEET 1: DEFAULTERS & OVERDUE AGING (Crimson Ruby Theme)
+      // SHEET 1: DEFAULTERS & OVERDUE AGING (Crimson Ruby Theme - Mobile-Optimized 7 Columns)
       // ==========================================
       const wsDefaulters = wb.addWorksheet("Defaulters Aging Audit");
       renderHeroBanner(
         wsDefaulters,
         `${propName} — RENT OVERDUE & DEFAULTERS AGING AUDIT`,
         `Immediate Recovery & Overdue Arrears • Generated: ${new Date().toLocaleString("en-IN")}`,
-        "L",
+        "G",
         "FF991B1B"
       );
 
@@ -1462,43 +1462,41 @@ export default function ReportsAnalyticsPage({
       ];
       renderKpiCardsRow(wsDefaulters, 6, defaulterKpis);
 
+      // Mobile-First Lean 7 Columns (Zero Fluff, 100% Actionable)
       const defaulterCols: TableColumnDef[] = [
-        { header: "Room", key: "room", width: 12, align: "center" },
-        { header: "Bed", key: "bed", width: 12, align: "center" },
-        { header: "Resident Full Name", key: "name", width: 26 },
-        { header: "Primary Mobile", key: "phone", width: 16, align: "center" },
-        { header: "Monthly Rent (₹)", key: "rentAmount", width: 18, align: "right", isCurrency: true },
+        { header: "Room & Bed", key: "roomBed", width: 15, align: "center" },
+        { header: "Resident Name", key: "name", width: 24 },
+        { header: "Phone Number", key: "phone", width: 16, align: "center" },
         { header: "Overdue Amount (₹)", key: "overdueAmount", width: 20, align: "right", isCurrency: true },
-        { header: "Deposit Held (₹)", key: "depositHeld", width: 18, align: "right", isCurrency: true },
-        { header: "Deposit Buffer Status", key: "bufferStatus", width: 22, align: "center" },
-        { header: "Days Overdue", key: "daysOverdue", width: 16, align: "center" },
-        { header: "Aging Risk Category", key: "agingCategory", width: 22, align: "center" },
-        { header: "Target Due Date", key: "dueDate", width: 16, align: "center" },
-        { header: "Guardian Emergency Phone", key: "emergencyPhone", width: 24, align: "center" },
+        { header: "Days Overdue", key: "daysOverdue", width: 15, align: "center" },
+        { header: "Risk Level", key: "riskLevel", width: 20, align: "center" },
+        { header: "Deposit Buffer", key: "depositBuffer", width: 24, align: "center" },
       ];
 
       const defaulterRowsData = defaultersList.map((d) => {
         const depHeld = d.statement.securityDepositRequired || d.occupant.securityDeposit || 0;
-        const isCovered = depHeld >= d.statement.netOutstandingBalance;
+        const overdue = d.statement.netOutstandingBalance;
+        const isSafe = depHeld >= overdue;
+        const bufferText = depHeld > 0
+          ? isSafe
+            ? `₹${depHeld.toLocaleString("en-IN")} (Safe)`
+            : `₹${depHeld.toLocaleString("en-IN")} (Deficit -₹${(overdue - depHeld).toLocaleString("en-IN")})`
+          : "₹0 (No Deposit)";
+
         return {
-          room: d.occupant.roomNumber,
-          bed: d.occupant.bedCode,
+          roomBed: `${d.occupant.roomNumber} (${d.occupant.bedCode || "Bed A"})`,
           name: d.occupant.name,
-          phone: d.occupant.phone,
-          rentAmount: d.occupant.rentAmount || 0,
-          overdueAmount: d.statement.netOutstandingBalance,
-          depositHeld: depHeld,
-          bufferStatus: isCovered ? "✓ Covered by Deposit" : "⚠️ UNSECURED DEBT",
+          phone: d.occupant.phone || "—",
+          overdueAmount: overdue,
           daysOverdue: `${d.daysOverdue} Days`,
-          agingCategory: d.agingCategory,
-          dueDate: d.statement.targetDueDateStr || d.occupant.dueDate || `Day ${d.occupant.dueDay || 5}`,
-          emergencyPhone: d.occupant.emergencyContact?.phone ? `${d.occupant.emergencyContact.phone} (${d.occupant.emergencyContact.name || "Guardian"})` : "N/A",
+          riskLevel: d.agingCategory,
+          depositBuffer: bufferText,
         };
       });
 
       const lastDefRow = renderStyledTable(wsDefaulters, 10, defaulterCols, defaulterRowsData, "FF991B1B");
       if (defaulterRowsData.length > 0) {
-        renderTotalRow(wsDefaulters, lastDefRow + 1, 5, lastDefRow, defaulterCols);
+        renderTotalRow(wsDefaulters, lastDefRow + 1, 4, lastDefRow, defaulterCols);
       }
       autoFitColumnWidths(wsDefaulters);
       setupWorksheetView(wsDefaulters, 10);
@@ -1586,20 +1584,26 @@ export default function ReportsAnalyticsPage({
       return;
     }
 
-    const rows = defaultersList.map((d) => ({
-      "Room Number": d.occupant.roomNumber,
-      "Resident Name": d.occupant.name,
-      "Bed Code": d.occupant.bedCode,
-      "Receipt / Ref #": `DUE-${d.occupant.roomNumber}-${d.occupant.bedCode}`,
-      "Phone Number": d.occupant.phone,
-      "Monthly Rent (INR)": d.occupant.rentAmount,
-      "Overdue Amount (INR)": d.statement.netOutstandingBalance,
-      "Days Overdue": d.daysOverdue,
-      "Aging Category": d.agingCategory,
-      "Target Due Date": d.occupant.dueDate || `Day ${d.occupant.dueDay}`,
-      "Emergency Contact": d.occupant.emergencyContact?.name || "N/A",
-      "Emergency Phone": d.occupant.emergencyContact?.phone || "N/A",
-    }));
+    const rows = defaultersList.map((d) => {
+      const depHeld = d.statement.securityDepositRequired || d.occupant.securityDeposit || 0;
+      const overdue = d.statement.netOutstandingBalance;
+      const isSafe = depHeld >= overdue;
+      const bufferText = depHeld > 0
+        ? isSafe
+          ? `₹${depHeld.toLocaleString("en-IN")} (Safe)`
+          : `₹${depHeld.toLocaleString("en-IN")} (Deficit -₹${(overdue - depHeld).toLocaleString("en-IN")})`
+        : "₹0 (No Deposit)";
+
+      return {
+        "Room & Bed": `${d.occupant.roomNumber} (${d.occupant.bedCode || "Bed A"})`,
+        "Resident Name": d.occupant.name,
+        "Phone Number": d.occupant.phone || "—",
+        "Overdue Amount (INR)": overdue,
+        "Days Overdue": `${d.daysOverdue} Days`,
+        "Risk Level": d.agingCategory,
+        "Deposit Buffer": bufferText,
+      };
+    });
 
     const csv = Papa.unparse(rows);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
