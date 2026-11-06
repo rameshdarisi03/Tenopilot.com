@@ -1081,13 +1081,14 @@ export default function ReportsAnalyticsPage({
 
       // =======================================================
       // SHEET 1: SECURITY DEPOSITS LEDGER (Deep Indigo Theme)
+      // Streamlined 7 lean columns for mobile-first PG owners
       // =======================================================
       const wsDeposit = wb.addWorksheet("Security Deposits");
       renderHeroBanner(
         wsDeposit,
         `${propName} — SECURITY DEPOSITS & ESCROW REGISTER`,
         `Report Window: ${activeDateBounds.label} • Net Escrow Growth: ₹${depositAnalytics.netEscrowChange.toLocaleString("en-IN")}`,
-        "K",
+        "G",
         "FF312E81"
       );
 
@@ -1136,18 +1137,15 @@ export default function ReportsAnalyticsPage({
       const depositAccountsMap: Record<string, { inflow: number; outflow: number }> = {};
 
       if (depositAnalytics.transactions.length > 0) {
+        // Lean 7-Column Security Deposit Activity Layout
         const depositActivityCols: TableColumnDef[] = [
-          { header: "Room Number", key: "room", width: 14, align: "center" },
-          { header: "Resident Name", key: "name", width: 26 },
-          { header: "Bed Code", key: "bed", width: 14, align: "center" },
-          { header: "Receipt / Ref #", key: "receiptNo", width: 18, align: "center" },
-          { header: "Transaction Date", key: "date", width: 16, align: "center" },
-          { header: "Contact Phone", key: "phone", width: 16, align: "center" },
-          { header: "Activity Type", key: "type", width: 16, align: "center" },
-          { header: "Payment Mode", key: "mode", width: 16, align: "center" },
-          { header: "Account (Paid To / From)", key: "paidTo", width: 26 },
-          { header: "Amount (₹)", key: "amount", width: 18, align: "right", isCurrency: true },
-          { header: "Status", key: "status", width: 14, align: "center" },
+          { header: "Room & Bed", key: "roomBed", width: 16, align: "center" },
+          { header: "Resident Name", key: "name", width: 24 },
+          { header: "Phone Number", key: "phone", width: 16, align: "center" },
+          { header: "Type / Status", key: "typeStatus", width: 18, align: "center" },
+          { header: "Deposit (₹)", key: "amount", width: 18, align: "right", isCurrency: true },
+          { header: "Holding Account / Partner", key: "account", width: 26 },
+          { header: "Date", key: "date", width: 16, align: "center" },
         ];
 
         const depositRows = depositAnalytics.transactions.map((t) => {
@@ -1161,38 +1159,34 @@ export default function ReportsAnalyticsPage({
             depositAccountsMap[account].outflow += t.amount;
           }
 
+          const bedSuffix = t.bedCode ? ` (${t.bedCode})` : "";
+          const typeBadge = t.type === "COLLECTED" ? "🟢 COLLECTED" : "🔴 REFUNDED";
+
           return {
-            room: t.roomNumber,
-            name: t.occupantName,
-            bed: t.bedCode,
-            receiptNo: t.receiptNo,
-            date: t.date,
-            phone: t.phone,
-            type: t.type,
-            mode: t.mode,
-            paidTo: account,
+            roomBed: `${t.roomNumber || "—"}${bedSuffix}`,
+            name: t.occupantName || "—",
+            phone: t.phone || "—",
+            typeStatus: typeBadge,
             amount: t.amount,
-            status: t.status,
+            account: t.mode ? `${account} (${t.mode})` : account,
+            date: t.date || "N/A",
           };
         });
 
         const lastActivityRow = renderStyledTable(wsDeposit, 11, depositActivityCols, depositRows, "FF312E81");
-        renderTotalRow(wsDeposit, lastActivityRow + 1, 12, lastActivityRow, depositActivityCols);
+        renderTotalRow(wsDeposit, lastActivityRow + 1, 5, lastActivityRow, depositActivityCols);
         autoFitColumnWidths(wsDeposit, 12, 10);
         setupWorksheetView(wsDeposit, 11);
       } else {
+        // Lean 7-Column Active Escrow Custody Layout
         const depositCols: TableColumnDef[] = [
-          { header: "Room Number", key: "room", width: 14, align: "center" },
-          { header: "Resident Name", key: "name", width: 26 },
-          { header: "Bed Code", key: "bed", width: 14, align: "center" },
-          { header: "Receipt / Tenant ID", key: "receiptNo", width: 18, align: "center" },
-          { header: "Check-In Date", key: "joiningDate", width: 16, align: "center" },
-          { header: "Contact Phone", key: "phone", width: 16, align: "center" },
-          { header: "Holding Account / Partner", key: "paidTo", width: 26 },
-          { header: "Deposit Required (₹)", key: "req", width: 18, align: "right", isCurrency: true },
-          { header: "Deposit Held (₹)", key: "paid", width: 18, align: "right", isCurrency: true },
-          { header: "Remaining Due (₹)", key: "rem", width: 16, align: "right", isCurrency: true },
-          { header: "Status", key: "status", width: 14, align: "center" },
+          { header: "Room & Bed", key: "roomBed", width: 16, align: "center" },
+          { header: "Resident Name", key: "name", width: 24 },
+          { header: "Phone Number", key: "phone", width: 16, align: "center" },
+          { header: "Type / Status", key: "typeStatus", width: 22, align: "center" },
+          { header: "Deposit (₹)", key: "amount", width: 18, align: "right", isCurrency: true },
+          { header: "Holding Account / Partner", key: "account", width: 26 },
+          { header: "Date", key: "date", width: 16, align: "center" },
         ];
 
         const depositRowsData = depositAnalytics.custodyRegister.map((c) => {
@@ -1202,24 +1196,25 @@ export default function ReportsAnalyticsPage({
           }
           depositAccountsMap[account].inflow += c.paid;
 
+          const bedSuffix = c.occupant.bedCode ? ` (${c.occupant.bedCode})` : "";
+          const statusBadge = c.status === "PAID"
+            ? "🟢 IN CUSTODY (PAID)"
+            : `🟡 DUE (₹${(c.rem || 0).toLocaleString("en-IN")})`;
+
           return {
-            room: c.occupant.roomNumber,
-            name: c.occupant.name,
-            bed: c.occupant.bedCode,
-            receiptNo: c.occupant.id,
-            joiningDate: c.occupant.joiningDate || "Active",
-            phone: c.occupant.phone,
-            paidTo: account,
-            req: c.req,
-            paid: c.paid,
-            rem: c.rem,
-            status: c.status,
+            roomBed: `${c.occupant.roomNumber || "—"}${bedSuffix}`,
+            name: c.occupant.name || "—",
+            phone: c.occupant.phone || "—",
+            typeStatus: statusBadge,
+            amount: c.paid,
+            account: account,
+            date: c.occupant.joiningDate || "Active",
           };
         });
 
         const lastDepRow = renderStyledTable(wsDeposit, 11, depositCols, depositRowsData, "FF312E81");
         if (depositRowsData.length > 0) {
-          renderTotalRow(wsDeposit, lastDepRow + 1, 12, lastDepRow, depositCols);
+          renderTotalRow(wsDeposit, lastDepRow + 1, 5, lastDepRow, depositCols);
         }
         autoFitColumnWidths(wsDeposit, 12, 10);
         setupWorksheetView(wsDeposit, 11);
@@ -1329,20 +1324,22 @@ export default function ReportsAnalyticsPage({
     const { startDate, endDate, label } = resolveActiveDateBounds();
 
     if (depositAnalytics.transactions.length > 0) {
-      // Timeline-filtered deposit activity
-      const rows = depositAnalytics.transactions.map((t) => ({
-        "Room Number": t.roomNumber,
-        "Resident Name": t.occupantName,
-        "Bed Code": t.bedCode,
-        "Receipt / Ref #": t.receiptNo,
-        "Transaction Date": t.date,
-        "Contact Phone": t.phone,
-        "Activity Type": t.type,
-        "Payment Mode": t.mode,
-        "Account (Paid To / From)": t.paidTo,
-        "Amount (INR)": t.amount,
-        "Status": t.status,
-      }));
+      // Timeline-filtered deposit activity (7 lean mobile columns)
+      const rows = depositAnalytics.transactions.map((t) => {
+        const account = t.paidTo || "Main Business Account";
+        const bedSuffix = t.bedCode ? ` (${t.bedCode})` : "";
+        const typeBadge = t.type === "COLLECTED" ? "COLLECTED" : "REFUNDED";
+
+        return {
+          "Room & Bed": `${t.roomNumber || "—"}${bedSuffix}`,
+          "Resident Name": t.occupantName || "—",
+          "Phone Number": t.phone || "—",
+          "Type / Status": typeBadge,
+          "Deposit (INR)": t.amount,
+          "Holding Account / Partner": t.mode ? `${account} (${t.mode})` : account,
+          "Date": t.date || "N/A",
+        };
+      });
 
       const csv = Papa.unparse(rows);
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -1354,21 +1351,24 @@ export default function ReportsAnalyticsPage({
       URL.revokeObjectURL(url);
       triggerToast(`✓ Security Deposit Activity Report (${label}) downloaded!`);
     } else {
-      // Current Escrow Custody Register
-      const rows = depositAnalytics.custodyRegister.map((c) => ({
-        "Room Number": c.occupant.roomNumber,
-        "Resident Name": c.occupant.name,
-        "Bed Code": c.occupant.bedCode,
-        "Receipt / Tenant ID": c.occupant.id,
-        "Contact Phone": c.occupant.phone,
-        "Check-In Date": c.occupant.joiningDate || "Active",
-        "Holding Account / Partner": c.paidTo,
-        "Security Deposit Required (INR)": c.req,
-        "Deposit Paid / Held (INR)": c.paid,
-        "Remaining Due (INR)": c.rem,
-        "Deposit Status": c.status,
-        "Emergency Phone": c.occupant.emergencyContact?.phone || "N/A",
-      }));
+      // Current Escrow Custody Register (7 lean mobile columns)
+      const rows = depositAnalytics.custodyRegister.map((c) => {
+        const account = c.paidTo || "Main Business Account";
+        const bedSuffix = c.occupant.bedCode ? ` (${c.occupant.bedCode})` : "";
+        const statusBadge = c.status === "PAID"
+          ? "IN CUSTODY (PAID)"
+          : `DUE (₹${(c.rem || 0).toLocaleString("en-IN")})`;
+
+        return {
+          "Room & Bed": `${c.occupant.roomNumber || "—"}${bedSuffix}`,
+          "Resident Name": c.occupant.name || "—",
+          "Phone Number": c.occupant.phone || "—",
+          "Type / Status": statusBadge,
+          "Deposit (INR)": c.paid,
+          "Holding Account / Partner": account,
+          "Date": c.occupant.joiningDate || "Active",
+        };
+      });
 
       const csv = Papa.unparse(rows);
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
