@@ -3975,19 +3975,19 @@ export default function IndividualTenantProfilePage({
             </div>
 
             {/* 📝 OWNER REMARKS & CUSTOM NOTES SECTION (Private & Persistent) */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-amber-50 rounded-xl text-[#c2652a]">
-                    <FileText className="w-5 h-5" />
+            <div className="bg-white rounded-2xl border border-gray-200 p-3.5 sm:p-6 shadow-xs space-y-3 sm:space-y-4">
+              <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-gray-100">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="p-1.5 sm:p-2 bg-amber-50 rounded-xl text-[#c2652a] shrink-0">
+                    <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
-                  <div>
-                    <h3 className="font-serif font-bold text-base text-gray-900 flex items-center gap-2">
-                      <span>Owner Remarks & Custom Notes</span>
-                      <span className="text-[10px] bg-gray-100 text-gray-600 font-sans font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                        <Lock className="w-3 h-3 text-gray-500" /> Private Desk
-                      </span>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <h3 className="font-serif font-bold text-sm sm:text-base text-gray-900 whitespace-nowrap">
+                      Owner Remarks
                     </h3>
+                    <span className="hidden sm:inline-flex text-[10px] bg-gray-100 text-gray-600 font-sans font-bold px-2 py-0.5 rounded-full items-center gap-1 shrink-0">
+                      <Lock className="w-2.5 h-2.5 text-gray-500" /> Private Desk
+                    </span>
                   </div>
                 </div>
 
@@ -3998,10 +3998,10 @@ export default function IndividualTenantProfilePage({
                       setNotesText(occupantState.notes || "");
                       setIsEditingNotes(true);
                     }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-xs font-bold text-gray-700 transition-all cursor-pointer shadow-2xs active:scale-95"
+                    className="shrink-0 flex items-center gap-1 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-[11px] sm:text-xs font-bold text-gray-700 transition-all cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap"
                   >
                     <Edit className="w-3.5 h-3.5 text-[#c2652a]" />
-                    <span>{occupantState.notes ? "Edit Notes" : "+ Add Custom Note"}</span>
+                    <span>{occupantState.notes ? "Edit Note" : "+ Add Note"}</span>
                   </button>
                 )}
               </div>
@@ -4051,7 +4051,7 @@ export default function IndividualTenantProfilePage({
               ) : (
                 <div className="pt-1">
                   {occupantState.notes && occupantState.notes.trim() ? (
-                    <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 text-xs sm:text-sm text-gray-900 font-bold leading-relaxed whitespace-pre-wrap select-text shadow-2xs">
+                    <div className="p-3.5 sm:p-4 rounded-xl bg-gray-50 border border-gray-200 text-xs sm:text-sm text-gray-900 font-bold leading-relaxed whitespace-pre-wrap select-text shadow-2xs">
                       {occupantState.notes}
                     </div>
                   ) : (
@@ -4060,12 +4060,12 @@ export default function IndividualTenantProfilePage({
                         setNotesText("");
                         setIsEditingNotes(true);
                       }}
-                      className="p-6 rounded-xl border border-dashed border-gray-200 bg-gray-50/50 hover:bg-gray-50 text-center cursor-pointer transition-colors group"
+                      className="p-3.5 sm:p-4 rounded-xl border border-dashed border-gray-200 bg-gray-50/50 hover:bg-gray-50 text-center cursor-pointer transition-colors group"
                     >
-                      <FileText className="w-8 h-8 text-gray-300 mx-auto mb-2 group-hover:text-[#c2652a] transition-colors" />
+                      <FileText className="w-5 h-5 text-gray-300 mx-auto mb-1 group-hover:text-[#c2652a] transition-colors" />
                       <p className="text-xs font-bold text-gray-600">No custom notes recorded yet</p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">
-                        Click here or &ldquo;+ Add Custom Note&rdquo; above to record private remarks, food preferences, or room notes.
+                      <p className="text-[10px] sm:text-[11px] text-gray-400 mt-0.5">
+                        Tap here or &ldquo;+ Add Note&rdquo; above to record private remarks, food preferences, or room notes.
                       </p>
                     </div>
                   )}

@@ -1578,12 +1578,12 @@ export default function OnboardTenantPage({
               <div className="fixed bottom-0 left-0 lg:left-64 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200/90 shadow-[0_-8px_30px_rgba(0,0,0,0.12)] p-3 sm:p-4 animate-in slide-in-from-bottom-2">
                 <div className="max-w-4xl mx-auto space-y-2 sm:space-y-0 px-2 sm:px-4">
                   {selectedBed && (
-                    <div className="flex items-center justify-between text-xs pb-1.5 border-b border-gray-100 sm:hidden">
-                      <span className="font-bold text-emerald-800 flex items-center gap-1 truncate max-w-[55%]">
+                    <div className="flex items-center justify-between gap-2 text-xs pb-1.5 border-b border-gray-100 sm:hidden">
+                      <span className="font-bold text-emerald-800 flex items-center gap-1 truncate shrink-0">
                         ✓ Room {selectedBed.roomNumber} ({selectedBed.bedCode})
                       </span>
-                      <div className="flex items-center gap-1 bg-amber-50 border border-amber-200/80 rounded-lg px-2 py-0.5">
-                        <span className="text-[10px] font-bold text-gray-600">Rent: ₹</span>
+                      <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-300 rounded-xl px-2.5 py-1 shadow-2xs shrink-0">
+                        <span className="text-xs font-bold text-amber-900 shrink-0">Rent: ₹</span>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -1593,7 +1593,7 @@ export default function OnboardTenantPage({
                             const val = e.target.value.replace(/\D/g, "");
                             setMonthlyRent(val === "" ? 0 : parseInt(val, 10));
                           }}
-                          className="w-16 font-mono font-bold text-xs bg-transparent border-0 p-0 text-gray-900 focus:ring-0"
+                          className="w-24 font-mono font-bold text-xs bg-white border border-amber-200 rounded-lg px-2 py-0.5 text-gray-900 focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-2xs"
                         />
                       </div>
                     </div>
@@ -1625,7 +1625,7 @@ export default function OnboardTenantPage({
                               const val = e.target.value.replace(/\D/g, "");
                               setMonthlyRent(val === "" ? 0 : parseInt(val, 10));
                             }}
-                            className="w-20 font-mono font-bold text-xs bg-transparent border-0 p-0 text-gray-900 focus:ring-0"
+                            className="w-28 font-mono font-bold text-xs bg-white border border-amber-200 rounded-lg px-2 py-0.5 text-gray-900 focus:outline-none focus:ring-1 focus:ring-amber-500"
                           />
                           <span className="text-[11px] text-gray-500 font-medium">/mo</span>
                         </div>
