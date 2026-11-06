@@ -740,28 +740,25 @@ export default function ReportsAnalyticsPage({
 
       // ==========================================
       // SHEET 1: RENT ROLL (Forest Emerald Theme)
+      // Streamlined 7 lean columns for mobile-first PG owners
       // ==========================================
       const wsRent = wb.addWorksheet("Rent Roll");
       renderHeroBanner(
         wsRent,
         `${propName} — RENT PAYMENT AUDIT ROLL`,
         `Report Window: ${activeDateBounds.label} • Generated: ${new Date().toLocaleString("en-IN")}`,
-        "K",
+        "G",
         "FF065F46"
       );
 
       const rentRollCols: TableColumnDef[] = [
-        { header: "Room Number", key: "room", width: 14, align: "center" },
-        { header: "Resident Name", key: "name", width: 26 },
-        { header: "Bed Code", key: "bed", width: 14, align: "center" },
-        { header: "Receipt #", key: "receiptNo", width: 18, align: "center" },
-        { header: "Billing Month", key: "cycle", width: 18 },
+        { header: "Room & Bed", key: "roomBed", width: 16, align: "center" },
+        { header: "Resident Name", key: "name", width: 24 },
+        { header: "Phone Number", key: "phone", width: 16, align: "center" },
+        { header: "Billing Month", key: "cycle", width: 18, align: "center" },
+        { header: "Rent Paid (₹)", key: "amount", width: 18, align: "right", isCurrency: true },
+        { header: "Receiving Account", key: "account", width: 26 },
         { header: "Payment Date", key: "date", width: 16, align: "center" },
-        { header: "Contact Phone", key: "phone", width: 16, align: "center" },
-        { header: "Payment Mode", key: "mode", width: 16, align: "center" },
-        { header: "Receiving Account / Partner", key: "paidTo", width: 26 },
-        { header: "Amount (₹)", key: "amount", width: 18, align: "right", isCurrency: true },
-        { header: "Status", key: "status", width: 14, align: "center" },
       ];
 
       const rentRowsData: any[] = [];
@@ -807,18 +804,17 @@ export default function ReportsAnalyticsPage({
               }
               rentAccountsMap[account].inflow += effectiveAmount;
 
+              const bedSuffix = occ.bedCode ? ` (${occ.bedCode})` : "";
+              const accountWithMode = pm.mode ? `${account} (${pm.mode})` : account;
+
               rentRowsData.push({
-                room: occ.roomNumber,
-                name: occ.name,
-                bed: occ.bedCode,
-                receiptNo: pm.receiptNo || `REC-${occ.roomNumber}-${occ.bedCode}`,
+                roomBed: `${occ.roomNumber || "—"}${bedSuffix}`,
+                name: occ.name || "—",
+                phone: occ.phone || "—",
                 cycle: pm.month || "Current Cycle",
-                date: pm.date || occ.joiningDate || "N/A",
-                phone: occ.phone,
-                mode: pm.mode || "UPI",
-                paidTo: account,
                 amount: effectiveAmount,
-                status: pm.status || "PAID",
+                account: accountWithMode,
+                date: pm.date || occ.joiningDate || "N/A",
               });
             }
           });
@@ -830,18 +826,15 @@ export default function ReportsAnalyticsPage({
           }
           rentAccountsMap[account].inflow += stmt.totalPaid;
 
+          const bedSuffix = occ.bedCode ? ` (${occ.bedCode})` : "";
           rentRowsData.push({
-            room: occ.roomNumber,
-            name: occ.name,
-            bed: occ.bedCode,
-            receiptNo: `REC-${occ.roomNumber || "0"}-${occ.bedCode || "1"}`,
+            roomBed: `${occ.roomNumber || "—"}${bedSuffix}`,
+            name: occ.name || "—",
+            phone: occ.phone || "—",
             cycle: "Active Cycle",
-            date: occ.joiningDate || "Active",
-            phone: occ.phone,
-            mode: "Direct Transfer",
-            paidTo: account,
             amount: stmt.totalPaid,
-            status: "PAID",
+            account: account,
+            date: occ.joiningDate || "Active",
           });
         }
       });
@@ -890,7 +883,7 @@ export default function ReportsAnalyticsPage({
 
       const lastRentRow = renderStyledTable(wsRent, 11, rentRollCols, rentRowsData, "FF065F46");
       if (rentRowsData.length > 0) {
-        renderTotalRow(wsRent, lastRentRow + 1, 12, lastRentRow, rentRollCols);
+        renderTotalRow(wsRent, lastRentRow + 1, 5, lastRentRow, rentRollCols);
       }
       autoFitColumnWidths(wsRent, 12, 10);
       setupWorksheetView(wsRent, 11);
@@ -1021,38 +1014,31 @@ export default function ReportsAnalyticsPage({
 
           if (inRange) {
             const effectiveAmount = pm.rentAmount !== undefined && pm.rentAmount > 0 ? pm.rentAmount : pm.amount;
+            const account = pm.paidTo || "Main Business Account";
+            const bedSuffix = occ.bedCode ? ` (${occ.bedCode})` : "";
+            const accountWithMode = pm.mode ? `${account} (${pm.mode})` : account;
+
             rows.push({
-              "Room Number": occ.roomNumber,
-              "Resident Name": occ.name,
-              "Bed Code": occ.bedCode,
-              "Receipt Number": pm.receiptNo || `REC-${occ.roomNumber}-${occ.bedCode}`,
-              "Billing Cycle / Month": pm.month || "Current Cycle",
-              "Payment Date": pm.date || "N/A",
-              "Phone Number": occ.phone,
-              "Payment Mode": pm.mode || "UPI",
-              "Receiving Account / Partner": pm.paidTo || "Main Business Account",
-              "Amount Paid (INR)": effectiveAmount,
-              "Payment Stream": "Room Rent",
-              "Collected By": pm.collectedBy?.name || propertySettings.propertyName || "Desk Admin",
-              "Status": pm.status || "PAID",
+              "Room & Bed": `${occ.roomNumber || "—"}${bedSuffix}`,
+              "Resident Name": occ.name || "—",
+              "Phone Number": occ.phone || "—",
+              "Billing Month": pm.month || "Current Cycle",
+              "Rent Paid (INR)": effectiveAmount,
+              "Receiving Account": accountWithMode,
+              "Payment Date": pm.date || occ.joiningDate || "N/A",
             });
           }
         });
       } else if (stmt.totalPaid > 0 && (selectedTimelineFilter === "THIS_MONTH" || isAllTime)) {
+        const bedSuffix = occ.bedCode ? ` (${occ.bedCode})` : "";
         rows.push({
-          "Room Number": occ.roomNumber,
-          "Resident Name": occ.name,
-          "Bed Code": occ.bedCode,
-          "Receipt Number": `REC-${occ.roomNumber || "0"}-${occ.bedCode || "1"}`,
-          "Billing Cycle / Month": "Active Cycle",
+          "Room & Bed": `${occ.roomNumber || "—"}${bedSuffix}`,
+          "Resident Name": occ.name || "—",
+          "Phone Number": occ.phone || "—",
+          "Billing Month": "Active Cycle",
+          "Rent Paid (INR)": stmt.totalPaid,
+          "Receiving Account": "Main Business Account",
           "Payment Date": occ.joiningDate || "Active",
-          "Phone Number": occ.phone,
-          "Payment Mode": "Direct Transfer",
-          "Receiving Account / Partner": "Main Business Account",
-          "Amount Paid (INR)": stmt.totalPaid,
-          "Payment Stream": "Room Rent",
-          "Collected By": propertySettings.propertyName || "Desk Admin",
-          "Status": "PAID",
         });
       }
     });
