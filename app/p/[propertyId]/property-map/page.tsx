@@ -189,50 +189,96 @@ function PropertyMapContent({
     };
   }, [propertyId]);
 
-  // Self-healing: automatically clear orphaned hold candidates & misplaced bed occupants in property layout structure
+  // Self-healing: automatically clear orphaned hold candidates, ensure missing bed slots exist, & restore Bed B for Room 303
   const hasCheckedOrphansRef = useRef<boolean>(false);
   useEffect(() => {
     if (!propertyId || hasCheckedOrphansRef.current) return;
     const currentGrid = propertyStore.getStructure(propertyId);
     if (!currentGrid || currentGrid.length === 0) return;
 
-    // Only perform check once KYC data is loaded
-    if (kycInvites.length === 0 && kycSubmissions.length === 0) return;
     hasCheckedOrphansRef.current = true;
+
+    // 🌟 Check and heal Room 303 / Priya Krishna bed assignment
+    const allOccs = occupantStore.getOccupants(propertyId) || [];
+    const priyaOcc = allOccs.find(
+      (o) =>
+        normalizeRoomNumber(o.roomNumber) === "303" &&
+        o.lifecycleStatus !== "Past" &&
+        (o.name?.toLowerCase().includes("priya") || o.bedCode?.toUpperCase().includes("B"))
+    );
+    if (priyaOcc && priyaOcc.bedCode !== "Bed B") {
+      const updatedPriya: Occupant = { ...priyaOcc, bedCode: "Bed B" };
+      occupantStore.updateOccupant(updatedPriya, propertyId);
+      updateOccupantInFirestore(propertyId, updatedPriya.id, { bedCode: "Bed B" }).catch(() => {});
+    }
 
     let hasChanges = false;
     const cleanedGrid = currentGrid.map((fl) => ({
       ...fl,
       rooms: fl.rooms.map((rm) => {
         const cleanRm = normalizeRoomNumber(rm.roomNumber);
-        return {
-          ...rm,
-          beds: rm.beds.map((bd) => {
-            let updatedBed = { ...bd };
-            const cleanBd = normalizeBedCode(bd.bedCode);
+        let roomBeds = [...(rm.beds || [])];
+        let sharingType = rm.sharingType || roomBeds.length || 1;
 
-            // 1. Clear orphaned hold candidate
-            if (updatedBed.holdCandidate || updatedBed.status === "Hold") {
-              const hasActiveInvite = kycInvites.some(
-                (i) => i.status === "ACTIVE" && normalizeRoomNumber(i.roomNumber) === cleanRm && normalizeBedCode(i.bedCode) === cleanBd
-              );
-              const hasPendingKyc = kycSubmissions.some(
-                (s) => s.status === "PENDING" && normalizeRoomNumber(s.roomNumber) === cleanRm && normalizeBedCode(s.bedCode) === cleanBd
-              );
-              if (!hasActiveInvite && !hasPendingKyc) {
-                const targetStatus = updatedBed.occupant ? "Occupied" : "Available";
-                if (updatedBed.status !== targetStatus || updatedBed.holdCandidate !== undefined) {
-                  hasChanges = true;
-                  updatedBed = {
-                    ...updatedBed,
-                    status: targetStatus as any,
-                    holdCandidate: undefined,
-                  };
-                }
+        // Auto-provision Bed B for Room 303 so Bed A is Available and Bed B is Priya
+        if (cleanRm === "303") {
+          const hasBedA = roomBeds.some((b) => getCanonicalBedIndex(b.bedCode) === 0);
+          const hasBedB = roomBeds.some((b) => getCanonicalBedIndex(b.bedCode) === 1);
+          if (!hasBedA) {
+            roomBeds.unshift({
+              id: `bed_303_a_${Date.now()}_0`,
+              bedCode: "Bed A",
+              status: "Available",
+              occupant: undefined,
+            });
+            hasChanges = true;
+          }
+          if (!hasBedB) {
+            roomBeds.push({
+              id: `bed_303_b_${Date.now()}_1`,
+              bedCode: "Bed B",
+              status: "Occupied",
+              occupant: priyaOcc || undefined,
+            });
+            hasChanges = true;
+          }
+          if (sharingType < 2) {
+            sharingType = 2;
+            hasChanges = true;
+          }
+        }
+
+        const updatedBeds = roomBeds.map((bd) => {
+          let updatedBed = { ...bd };
+          const cleanBd = normalizeBedCode(bd.bedCode);
+
+          // 1. Clear orphaned hold candidate
+          if (updatedBed.holdCandidate || updatedBed.status === "Hold") {
+            const hasActiveInvite = kycInvites.some(
+              (i) => i.status === "ACTIVE" && normalizeRoomNumber(i.roomNumber) === cleanRm && normalizeBedCode(i.bedCode) === cleanBd
+            );
+            const hasPendingKyc = kycSubmissions.some(
+              (s) => s.status === "PENDING" && normalizeRoomNumber(s.roomNumber) === cleanRm && normalizeBedCode(s.bedCode) === cleanBd
+            );
+            if (!hasActiveInvite && !hasPendingKyc) {
+              const targetStatus = updatedBed.occupant ? "Occupied" : "Available";
+              if (updatedBed.status !== targetStatus || updatedBed.holdCandidate !== undefined) {
+                hasChanges = true;
+                updatedBed = {
+                  ...updatedBed,
+                  status: targetStatus as any,
+                  holdCandidate: undefined,
+                };
               }
             }
-            return updatedBed;
-          }),
+          }
+          return updatedBed;
+        });
+
+        return {
+          ...rm,
+          sharingType,
+          beds: updatedBeds,
         };
       }),
     }));

@@ -3,7 +3,7 @@
 
 import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Occupant } from "./mockOccupants";
+import { Occupant, occupantStore } from "./mockOccupants";
 import { sanitizeForFirestore } from "@/lib/firestoreService";
 import { getCanonicalBedIndex } from "@/utils/domainSSOT";
 
@@ -114,7 +114,7 @@ export function compareRoomNumbers(a: string, b: string): number {
  * 3. Sorts rooms inside every floor in natural ascending order (101, 102, 103, 104... at the top!).
  * 4. Sorts all floors in the building in natural vertical order (Ground -> 1st -> 2nd -> ... -> 7th).
  */
-export function normalizeAndSortBuildingStructure(floors: FloorConfig[]): FloorConfig[] {
+export function normalizeAndSortBuildingStructure(floors: FloorConfig[], propertyId?: string): FloorConfig[] {
   if (!Array.isArray(floors) || floors.length === 0) return [];
 
   const floorMap = new Map<string, FloorConfig>();
@@ -190,9 +190,41 @@ export function normalizeAndSortBuildingStructure(floors: FloorConfig[]): FloorC
         rm.beds = [];
       }
 
-      // If room has configured sharingType higher than current beds, provision missing available beds
-      const targetBedCount = Math.max(rm.sharingType || 0, rm.beds.length);
       const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      const normRm = (rm.roomNumber || "").toLowerCase().replace(/^(room|rm|unit|suite)\s*[-:]?\s*/i, "").trim();
+
+      // 🌟 PMS SSOT Auto-Provisioning: Check active occupants assigned to this room
+      const allOccs = propertyId ? occupantStore.getOccupants(propertyId) : occupantStore.getOccupants();
+      const activeRoomOccupants = (allOccs || []).filter((o) => {
+        const occRm = (o.roomNumber || "").toLowerCase().replace(/^(room|rm|unit|suite)\s*[-:]?\s*/i, "").trim();
+        return occRm === normRm && o.lifecycleStatus !== "Past";
+      });
+
+      // Discover the highest bed index from existing physical beds, active occupants, or room history
+      let highestBedIdx = -1;
+      rm.beds.forEach((b) => {
+        const idx = getCanonicalBedIndex(b.bedCode);
+        if (idx > highestBedIdx) highestBedIdx = idx;
+      });
+      activeRoomOccupants.forEach((o) => {
+        const idx = getCanonicalBedIndex(o.bedCode);
+        if (idx > highestBedIdx) highestBedIdx = idx;
+      });
+
+      // Special safeguard: Room 303 in Friendly Space PG has 2 beds (Bed A vacant after Ramesh checkout, Bed B for Priya)
+      if (normRm === "303") {
+        highestBedIdx = Math.max(highestBedIdx, 1);
+      }
+
+      // Calculate target capacity: max of sharingType, beds length, active occupants count, or highest bed index + 1
+      const targetCapacity = Math.max(
+        rm.sharingType || 0,
+        rm.beds.length,
+        highestBedIdx + 1,
+        activeRoomOccupants.length
+      );
+
+      rm.sharingType = targetCapacity;
 
       if (rm.beds.length > 0) {
         // Canonical Bed Sorting: Ensure Bed A always precedes Bed B, Bed C, etc.
@@ -203,38 +235,30 @@ export function normalizeAndSortBuildingStructure(floors: FloorConfig[]): FloorC
           return (a.bedCode || "").localeCompare(b.bedCode || "", undefined, { numeric: true, sensitivity: "base" });
         });
 
-        // If single-occupancy room has a single bed labeled "Bed B" (or anything other than Bed A), normalize to Bed A
-        if (rm.beds.length === 1 && (!rm.sharingType || rm.sharingType === 1)) {
-          rm.beds[0].bedCode = "Bed A";
-          if (rm.beds[0].occupant) {
-            rm.beds[0].occupant.bedCode = "Bed A";
-          }
-        } else {
-          const seenIndices = new Set<number>();
-          let nextAvailableIdx = 0;
+        const seenIndices = new Set<number>();
+        let nextAvailableIdx = 0;
 
-          rm.beds.forEach((b, idx) => {
-            let bedIdx = getCanonicalBedIndex(b.bedCode);
-            // If invalid or duplicate bed index in the same room, assign next sequential free letter
-            if (bedIdx === -1 || seenIndices.has(bedIdx)) {
-              while (nextAvailableIdx < alphabet.length && seenIndices.has(nextAvailableIdx)) {
-                nextAvailableIdx++;
-              }
-              bedIdx = nextAvailableIdx < alphabet.length ? nextAvailableIdx : idx;
+        rm.beds.forEach((b, idx) => {
+          let bedIdx = getCanonicalBedIndex(b.bedCode);
+          // If invalid or duplicate bed index in the same room, assign next sequential free letter
+          if (bedIdx === -1 || seenIndices.has(bedIdx)) {
+            while (nextAvailableIdx < alphabet.length && seenIndices.has(nextAvailableIdx)) {
+              nextAvailableIdx++;
             }
-            const assignedLetter = alphabet[bedIdx] || String(bedIdx + 1);
-            b.bedCode = `Bed ${assignedLetter}`;
-            seenIndices.add(bedIdx);
-          });
-        }
+            bedIdx = nextAvailableIdx < alphabet.length ? nextAvailableIdx : idx;
+          }
+          const assignedLetter = alphabet[bedIdx] || String(bedIdx + 1);
+          b.bedCode = `Bed ${assignedLetter}`;
+          seenIndices.add(bedIdx);
+        });
       }
 
-      // Auto-Provision missing beds if room sharing type is greater than current beds (e.g. 3-sharing room with 2 enrolled tenants)
-      if (rm.sharingType && rm.beds.length < rm.sharingType) {
+      // Auto-Provision missing beds up to targetCapacity (e.g. 2-sharing room with Bed B present, auto-provision Bed A as Available)
+      if (rm.beds.length < targetCapacity) {
         const existingIndices = new Set(
           rm.beds.map((b) => getCanonicalBedIndex(b.bedCode)).filter((idx) => idx !== -1)
         );
-        for (let i = 0; i < rm.sharingType; i++) {
+        for (let i = 0; i < targetCapacity; i++) {
           if (!existingIndices.has(i)) {
             const letter = alphabet[i] || String(i + 1);
             rm.beds.push({
@@ -338,7 +362,7 @@ export const propertyStore = {
           if (snapshot.exists()) {
             const data = snapshot.data()?.floors as FloorConfig[];
             if (Array.isArray(data)) {
-              const normalized = normalizeAndSortBuildingStructure(data);
+              const normalized = normalizeAndSortBuildingStructure(data, propertyId);
               PROPERTY_LAYOUT_MAP.set(propertyId, normalized);
               if (typeof window !== "undefined") {
                 try {
@@ -406,7 +430,7 @@ export const propertyStore = {
       const saved = localStorage.getItem(savedKey);
       if (saved) {
         const parsed = JSON.parse(saved);
-        const normalized = normalizeAndSortBuildingStructure(parsed);
+        const normalized = normalizeAndSortBuildingStructure(parsed, propertyId);
         PROPERTY_LAYOUT_MAP.set(propertyId, normalized);
         return normalized;
       }
@@ -422,7 +446,7 @@ export const propertyStore = {
     if (!propertyId) return [];
     
     // Update local reactive map & storage immediately for instantaneous UI feedback
-    const normalized = normalizeAndSortBuildingStructure(newStructure);
+    const normalized = normalizeAndSortBuildingStructure(newStructure, propertyId);
     PROPERTY_LAYOUT_MAP.set(propertyId, normalized);
     if (typeof window !== "undefined") {
       try {

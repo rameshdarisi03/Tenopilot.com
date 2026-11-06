@@ -1279,12 +1279,8 @@ export function allocateRoomOccupantsToBeds(
         return occIdx === -1 || occIdx === targetIdx;
       });
 
-      // 🏨 PMS Graceful Allocation: If two roommates in the same room were both tagged with the same bed (e.g. Bed B duplicate),
-      // allocate the unassigned roommate to the vacant bed in their room so no paying resident is left unassigned!
-      if (eligibleIdx === -1) {
-        eligibleIdx = 0;
-      }
-
+      // 🏨 PMS Strict Allocation: Only allocate occupants who have NO explicit bedCode (occIdx === -1)
+      // or whose explicit bed code matches this bed. Never hijack an occupant assigned to another bed (e.g. Bed B onto Bed A).
       if (eligibleIdx !== -1 && eligibleIdx < remainingOccupants.length) {
         const [match] = remainingOccupants.splice(eligibleIdx, 1);
         assignedOccIds.add(match.id);
