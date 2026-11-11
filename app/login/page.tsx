@@ -1224,27 +1224,224 @@ export default function LoginPage() {
     rawIdentifier?: string,
     optionalUid?: string
   ): Promise<VerifiedResetAccount | null> => {
-    // 0. Direct UID lookup (For active sessions)
-    const targetUid = optionalUid || savedSession?.primaryUid || (savedSession as any)?.uid || (auth.currentUser ? auth.currentUser.uid : "");
-    if (targetUid) {
+    const clean = (rawIdentifier || "").trim();
+
+    // 1. If an explicit identifier is provided (from the input form), verify THAT SPECIFIC IDENTIFIER ONLY!
+    // Never fall back to ambient auth.currentUser or savedSession when the user typed an input!
+    if (clean) {
+      const digits = clean.replace(/\D/g, "");
+      const pure10 = digits.length >= 10 ? digits.slice(-10) : "";
+      const isPhoneCandidate = Boolean(pure10 && isGenuineIndianMobile(pure10));
+      const isEmailCandidate = Boolean(clean.includes("@") && isValidRealEmail(clean));
+
+      if (!isPhoneCandidate && !isEmailCandidate) {
+        return null;
+      }
+
+      let matchedAccount: any = null;
+      let matchedIsStaff = false;
+      let matchedRole = "master_admin";
+      let matchedDisplayName = "Property Owner";
+      let matchedPropId = "";
+      let matchedStaffId = "";
+      let foundPhone = isPhoneCandidate ? pure10 : "";
+      let foundEmail = isEmailCandidate ? clean.toLowerCase() : "";
+
+      // A. If Phone: Check staff_accounts, users, and properties
+      if (isPhoneCandidate) {
+        // Staff check
+        try {
+          const sSnap = await getDoc(doc(db, "staff_accounts", `phone_${pure10}`));
+          if (sSnap.exists() && (sSnap.data().role === "admin" || sSnap.data().role === "receptionist")) {
+            matchedAccount = sSnap.data();
+            matchedIsStaff = true;
+          } else {
+            const sQ = query(collection(db, "staff_accounts"), where("purePhone", "==", pure10));
+            const sSnap2 = await getDocs(sQ);
+            if (!sSnap2.empty && (sSnap2.docs[0].data().role === "admin" || sSnap2.docs[0].data().role === "receptionist")) {
+              matchedAccount = sSnap2.docs[0].data();
+              matchedIsStaff = true;
+            }
+          }
+        } catch {}
+
+        // Users check
+        if (!matchedAccount) {
+          try {
+            const uQ = query(collection(db, "users"), where("phone", "==", pure10));
+            const uSnap = await getDocs(uQ);
+            if (!uSnap.empty) {
+              matchedAccount = uSnap.docs[0].data();
+              matchedAccount.id = uSnap.docs[0].id;
+              matchedIsStaff = false;
+            }
+          } catch {}
+        }
+
+        // Properties check (find owner)
+        if (!matchedAccount) {
+          try {
+            const pQ = query(collection(db, "properties"), where("ownerPhone", "==", pure10));
+            const pSnap = await getDocs(pQ);
+            if (!pSnap.empty) {
+              const pData = pSnap.docs[0].data();
+              matchedAccount = {
+                id: pData.ownerUid || `prop_owner_${pure10}`,
+                displayName: pData.ownerName || "Property Owner",
+                role: "master_admin",
+                assignedPropertyId: pSnap.docs[0].id,
+                email: pData.ownerEmail,
+                phone: pure10,
+              };
+            }
+          } catch {}
+        }
+      }
+
+      // B. If Email: Check staff_accounts, users, and properties
+      if (isEmailCandidate && !matchedAccount) {
+        const cleanEmail = clean.toLowerCase();
+        // Staff check
+        try {
+          const sSnap = await getDoc(doc(db, "staff_accounts", cleanEmail));
+          if (sSnap.exists() && (sSnap.data().role === "admin" || sSnap.data().role === "receptionist")) {
+            matchedAccount = sSnap.data();
+            matchedIsStaff = true;
+          }
+        } catch {}
+
+        // Users check
+        if (!matchedAccount) {
+          try {
+            const uQ = query(collection(db, "users"), where("email", "==", cleanEmail));
+            const uSnap = await getDocs(uQ);
+            if (!uSnap.empty) {
+              matchedAccount = uSnap.docs[0].data();
+              matchedAccount.id = uSnap.docs[0].id;
+              matchedIsStaff = false;
+            }
+          } catch {}
+        }
+
+        // Properties check (find owner)
+        if (!matchedAccount) {
+          try {
+            const pQ = query(collection(db, "properties"), where("ownerEmail", "==", cleanEmail));
+            const pSnap = await getDocs(pQ);
+            if (!pSnap.empty) {
+              const pData = pSnap.docs[0].data();
+              matchedAccount = {
+                id: pData.ownerUid || `prop_owner_${cleanEmail.replace(/[^a-z0-9]/g, '_')}`,
+                displayName: pData.ownerName || "Property Owner",
+                role: "master_admin",
+                assignedPropertyId: pSnap.docs[0].id,
+                email: cleanEmail,
+                phone: pData.ownerPhone,
+              };
+            }
+          } catch {}
+        }
+      }
+
+      // If no account exists matching this identifier, return null! (Strict blocking against typos & random numbers)
+      if (!matchedAccount) {
+        return null;
+      }
+
+      // Account matched! Now discover linked phone and email across the cluster
+      matchedRole = matchedAccount.role || (matchedIsStaff ? "admin" : "master_admin");
+      matchedDisplayName = matchedAccount.displayName || matchedAccount.name || (matchedIsStaff ? "Staff Member" : "Property Owner");
+      matchedPropId = matchedAccount.assignedPropertyId || "";
+      matchedStaffId = matchedAccount.staffId || matchedAccount.id || "";
+
+      let finalPhone = (matchedAccount.phone || matchedAccount.purePhone || foundPhone || "").replace(/\D/g, "").slice(-10);
+      let finalEmail = (matchedAccount.email || foundEmail || "").toLowerCase().trim();
+      if (!isValidRealEmail(finalEmail)) finalEmail = "";
+
+      // Cluster Probe: Check properties collection to bridge phone <-> email
+      if (!finalPhone && finalEmail) {
+        try {
+          const pSnap = await getDocs(query(collection(db, "properties"), where("ownerEmail", "==", finalEmail)));
+          if (!pSnap.empty) {
+            const pOwnerPhone = (pSnap.docs[0].data().ownerPhone || "").replace(/\D/g, "").slice(-10);
+            if (pOwnerPhone && isGenuineIndianMobile(pOwnerPhone)) finalPhone = pOwnerPhone;
+          }
+        } catch {}
+      }
+      if (!finalEmail && finalPhone) {
+        try {
+          const pSnap = await getDocs(query(collection(db, "properties"), where("ownerPhone", "==", finalPhone)));
+          if (!pSnap.empty) {
+            const pOwnerEmail = (pSnap.docs[0].data().ownerEmail || "").toLowerCase().trim();
+            if (pOwnerEmail && isValidRealEmail(pOwnerEmail)) finalEmail = pOwnerEmail;
+          }
+        } catch {}
+      }
+      if (!finalPhone && matchedAccount.id) {
+        try {
+          const uSnap = await getDoc(doc(db, "users", matchedAccount.id));
+          if (uSnap.exists()) {
+            const uP = (uSnap.data().phone || "").replace(/\D/g, "").slice(-10);
+            if (uP && isGenuineIndianMobile(uP)) finalPhone = uP;
+          }
+        } catch {}
+      }
+
+      return {
+        exists: true,
+        uid: matchedAccount.id || matchedAccount.uid || `user_${Date.now()}`,
+        role: matchedRole,
+        displayName: matchedDisplayName,
+        phone: finalPhone || undefined,
+        email: finalEmail || undefined,
+        hasPhone: Boolean(finalPhone && isGenuineIndianMobile(finalPhone)),
+        hasEmail: Boolean(finalEmail && isValidRealEmail(finalEmail)),
+        isStaff: matchedIsStaff,
+        assignedPropertyId: matchedPropId,
+        staffId: matchedStaffId || undefined,
+      };
+    }
+
+    // 2. Only if NO rawIdentifier was provided (initial auto-open modal), check optionalUid
+    if (optionalUid) {
       try {
-        const uDoc = await getDoc(doc(db, "users", targetUid));
+        const uDoc = await getDoc(doc(db, "users", optionalUid));
         if (uDoc.exists()) {
           const uData = uDoc.data();
-          const rawP = (uData?.phone || "").replace(/\D/g, "");
-          const verifiedPhone = rawP.length >= 10 && isGenuineIndianMobile(rawP.slice(-10)) ? rawP.slice(-10) : undefined;
-          const rawEm = uData?.email || "";
-          const verifiedEmail = rawEm && isValidRealEmail(rawEm) ? rawEm.toLowerCase() : undefined;
-          if (verifiedPhone || verifiedEmail) {
+          let finalPhone = (uData.phone || "").replace(/\D/g, "").slice(-10);
+          let finalEmail = (uData.email || "").toLowerCase().trim();
+          if (!isValidRealEmail(finalEmail)) finalEmail = "";
+
+          // Cluster probe if phone or email is missing
+          if (!finalPhone && finalEmail) {
+            try {
+              const pSnap = await getDocs(query(collection(db, "properties"), where("ownerEmail", "==", finalEmail)));
+              if (!pSnap.empty) {
+                const pOwnerPhone = (pSnap.docs[0].data().ownerPhone || "").replace(/\D/g, "").slice(-10);
+                if (pOwnerPhone && isGenuineIndianMobile(pOwnerPhone)) finalPhone = pOwnerPhone;
+              }
+            } catch {}
+          }
+          if (!finalEmail && finalPhone) {
+            try {
+              const pSnap = await getDocs(query(collection(db, "properties"), where("ownerPhone", "==", finalPhone)));
+              if (!pSnap.empty) {
+                const pOwnerEmail = (pSnap.docs[0].data().ownerEmail || "").toLowerCase().trim();
+                if (pOwnerEmail && isValidRealEmail(pOwnerEmail)) finalEmail = pOwnerEmail;
+              }
+            } catch {}
+          }
+
+          if (finalPhone || finalEmail) {
             return {
               exists: true,
               uid: uDoc.id,
               role: uData.role || "master_admin",
-              displayName: uData.displayName || uData.name || savedSession?.name || "Property Owner",
-              phone: verifiedPhone,
-              email: verifiedEmail,
-              hasPhone: Boolean(verifiedPhone),
-              hasEmail: Boolean(verifiedEmail),
+              displayName: uData.displayName || uData.name || "Property Owner",
+              phone: finalPhone || undefined,
+              email: finalEmail || undefined,
+              hasPhone: Boolean(finalPhone && isGenuineIndianMobile(finalPhone)),
+              hasEmail: Boolean(finalEmail && isValidRealEmail(finalEmail)),
               isStaff: false,
               assignedPropertyId: uData.assignedPropertyId,
             };
@@ -1254,196 +1451,6 @@ export default function LoginPage() {
         console.warn("Direct uid user lookup notice:", e);
       }
     }
-
-    const clean = (rawIdentifier || "").trim();
-    if (!clean) return null;
-
-    const digits = clean.replace(/\D/g, "");
-    const pure10 = digits.length >= 10 ? digits.slice(-10) : "";
-    const isPhoneCandidate = Boolean(pure10 && isGenuineIndianMobile(pure10));
-    const isEmailCandidate = Boolean(clean.includes("@") && isValidRealEmail(clean));
-
-    // A. LOOKUP BY PHONE NUMBER
-    if (isPhoneCandidate) {
-      // 1. Check in staff_accounts collection
-      try {
-        const saDoc = await getDoc(doc(db, "staff_accounts", `phone_${pure10}`));
-        if (saDoc.exists()) {
-          const sData = saDoc.data();
-          if (sData?.role === "admin" || sData?.role === "receptionist") {
-            const realEmail = sData.email && isValidRealEmail(sData.email) ? sData.email.toLowerCase() : undefined;
-            return {
-              exists: true,
-              uid: sData.id || `staff_${pure10}`,
-              role: sData.role,
-              displayName: sData.name || "Staff Member",
-              phone: pure10,
-              email: realEmail,
-              hasPhone: true,
-              hasEmail: Boolean(realEmail),
-              isStaff: true,
-              assignedPropertyId: sData.assignedPropertyId,
-              staffId: sData.staffId || sData.id,
-            };
-          }
-        }
-
-        const saSnap = await getDocs(query(collection(db, "staff_accounts"), where("purePhone", "==", pure10)));
-        if (!saSnap.empty) {
-          const sData = saSnap.docs[0].data();
-          if (sData?.role === "admin" || sData?.role === "receptionist") {
-            const realEmail = sData.email && isValidRealEmail(sData.email) ? sData.email.toLowerCase() : undefined;
-            return {
-              exists: true,
-              uid: sData.id || `staff_${pure10}`,
-              role: sData.role,
-              displayName: sData.name || "Staff Member",
-              phone: pure10,
-              email: realEmail,
-              hasPhone: true,
-              hasEmail: Boolean(realEmail),
-              isStaff: true,
-              assignedPropertyId: sData.assignedPropertyId,
-              staffId: sData.staffId || sData.id,
-            };
-          }
-        }
-
-        // Fallback scan for documents with country code/spaces in staff_accounts
-        const allStaffSnap = await getDocs(collection(db, "staff_accounts"));
-        for (const sDoc of allStaffSnap.docs) {
-          const sData = sDoc.data();
-          const sPhone = (sData.phone || "").replace(/\D/g, "").slice(-10);
-          if (sPhone === pure10 && (sData.role === "admin" || sData.role === "receptionist")) {
-            const realEmail = sData.email && isValidRealEmail(sData.email) ? sData.email.toLowerCase() : undefined;
-            return {
-              exists: true,
-              uid: sData.id || `staff_${pure10}`,
-              role: sData.role,
-              displayName: sData.name || "Staff Member",
-              phone: pure10,
-              email: realEmail,
-              hasPhone: true,
-              hasEmail: Boolean(realEmail),
-              isStaff: true,
-              assignedPropertyId: sData.assignedPropertyId,
-              staffId: sData.staffId || sData.id,
-            };
-          }
-        }
-      } catch (err) {
-        console.warn("staff_accounts phone verify notice:", err);
-      }
-
-      // 2. Check in users collection (Property Owners & Registered Users)
-      try {
-        const uSnap = await getDocs(query(collection(db, "users"), where("phone", "==", pure10)));
-        if (!uSnap.empty) {
-          const uDoc = uSnap.docs[0];
-          const uData = uDoc.data();
-          const realEmail = uData.email && isValidRealEmail(uData.email) ? uData.email.toLowerCase() : undefined;
-          return {
-            exists: true,
-            uid: uDoc.id,
-            role: uData.role || "master_admin",
-            displayName: uData.displayName || "Property Owner",
-            phone: pure10,
-            email: realEmail,
-            hasPhone: true,
-            hasEmail: Boolean(realEmail),
-            isStaff: false,
-            assignedPropertyId: uData.assignedPropertyId,
-          };
-        }
-      } catch (err) {
-        console.warn("users phone verify notice:", err);
-      }
-    }
-
-    // B. LOOKUP BY EMAIL ADDRESS
-    if (isEmailCandidate) {
-      const cleanEmail = clean.toLowerCase();
-
-      // 1. Check in staff_accounts collection
-      try {
-        const saDoc = await getDoc(doc(db, "staff_accounts", cleanEmail));
-        if (saDoc.exists()) {
-          const sData = saDoc.data();
-          if (sData?.role === "admin" || sData?.role === "receptionist") {
-            const rawP = (sData.phone || sData.purePhone || "").replace(/\D/g, "");
-            const sPhone = rawP.length >= 10 && isGenuineIndianMobile(rawP.slice(-10)) ? rawP.slice(-10) : undefined;
-            return {
-              exists: true,
-              uid: sData.id || `staff_${cleanEmail}`,
-              role: sData.role,
-              displayName: sData.name || "Staff Member",
-              phone: sPhone,
-              email: cleanEmail,
-              hasPhone: Boolean(sPhone),
-              hasEmail: true,
-              isStaff: true,
-              assignedPropertyId: sData.assignedPropertyId,
-              staffId: sData.staffId || sData.id,
-            };
-          }
-        }
-      } catch (err) {
-        console.warn("staff_accounts email verify notice:", err);
-      }
-
-      // 2. Check in users collection
-      try {
-        const uSnap = await getDocs(query(collection(db, "users"), where("email", "==", cleanEmail)));
-        if (!uSnap.empty) {
-          const uDoc = uSnap.docs[0];
-          const uData = uDoc.data();
-          const rawP = (uData.phone || "").replace(/\D/g, "");
-          const uPhone = rawP.length >= 10 && isGenuineIndianMobile(rawP.slice(-10)) ? rawP.slice(-10) : undefined;
-          return {
-            exists: true,
-            uid: uDoc.id,
-            role: uData.role || "master_admin",
-            displayName: uData.displayName || "Property Owner",
-            phone: uPhone,
-            email: cleanEmail,
-            hasPhone: Boolean(uPhone),
-            hasEmail: true,
-            isStaff: false,
-            assignedPropertyId: uData.assignedPropertyId,
-          };
-        }
-      } catch (err) {
-        console.warn("users email verify notice:", err);
-      }
-    }
-
-    // C. LOOKUP IN IN-MEMORY STAFF STORE (Instant fallback)
-    try {
-      const all = staffStore.getAllGlobalStaff();
-      const match = all.find(
-        (s) =>
-          (pure10 && s.phone && s.phone.replace(/\D/g, "").slice(-10) === pure10) ||
-          (clean && s.email && s.email.toLowerCase() === clean.toLowerCase())
-      );
-      if (match) {
-        const rawP = (match.phone || "").replace(/\D/g, "");
-        const sPhone = rawP.length >= 10 && isGenuineIndianMobile(rawP.slice(-10)) ? rawP.slice(-10) : undefined;
-        const realEmail = match.email && isValidRealEmail(match.email) ? match.email.toLowerCase() : undefined;
-        return {
-          exists: true,
-          uid: match.id,
-          role: match.role,
-          displayName: match.name,
-          phone: sPhone,
-          email: realEmail,
-          hasPhone: Boolean(sPhone),
-          hasEmail: Boolean(realEmail),
-          isStaff: match.role === "admin" || match.role === "receptionist",
-          assignedPropertyId: match.assignedPropertyId,
-          staffId: match.id,
-        };
-      }
-    } catch {}
 
     return null;
   };
