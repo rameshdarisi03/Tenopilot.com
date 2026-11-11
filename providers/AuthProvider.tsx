@@ -376,6 +376,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                     if (bestDoc) {
                       const bData = bestDoc.data;
+                      const isAnyOnboarded = Boolean(data.onboardingCompleted || bData.onboardingCompleted);
+                      const resolvedProp = bData.assignedPropertyId || data.assignedPropertyId || "";
+                      const resolvedPropName = bData.propertyName || data.propertyName || "";
+                      const resolvedPin = bData.securityPin || data.securityPin || "";
+                      const hasPin = Boolean(bData.hasSetPin || data.hasSetPin || (resolvedPin && resolvedPin !== ""));
+
                       const synced: Partial<UserProfile> = {
                         primaryUid: bestDoc.id,
                         plan: bData.plan || "PRO_MONTHLY",
@@ -386,8 +392,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         tenantExtensionPacks: Math.max(data.tenantExtensionPacks || 0, bData.tenantExtensionPacks || 0),
                         maxPropertiesAllowed: Math.max(data.maxPropertiesAllowed || 1, bData.maxPropertiesAllowed || 1),
                         organizationId: bData.organizationId || data.organizationId,
-                        assignedPropertyId: bData.assignedPropertyId || data.assignedPropertyId,
-                        propertyName: bData.propertyName || data.propertyName,
+                        assignedPropertyId: resolvedProp,
+                        propertyName: resolvedPropName,
+                        onboardingCompleted: isAnyOnboarded,
+                        hasSetPin: hasPin,
+                        ...(resolvedPin ? { securityPin: resolvedPin } : {}),
+                        phone: data.phone || bData.phone,
                       };
                       Object.assign(data, synced);
                       await setDoc(userDocRef, synced, { merge: true });
@@ -399,6 +409,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                           const parsed = JSON.parse(s);
                           localStorage.setItem("tenopilot_saved_session", JSON.stringify({
                             ...parsed,
+                            role: data.role,
+                            assignedPropertyId: data.assignedPropertyId,
+                            propertyName: data.propertyName,
+                            onboardingCompleted: isAnyOnboarded,
+                            securityPin: resolvedPin || parsed.securityPin,
                             plan: synced.plan,
                             subscriptionPlan: synced.subscriptionPlan,
                             subscriptionStatus: synced.subscriptionStatus,
@@ -417,12 +432,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         tenantExtensionPacks: data.tenantExtensionPacks || 0,
                         maxPropertiesAllowed: data.maxPropertiesAllowed || 1,
                         hasCustomLimitsOverride: data.hasCustomLimitsOverride ?? (Number(data.maxPropertiesAllowed) > 1),
+                        ...(data.onboardingCompleted ? { onboardingCompleted: true } : {}),
+                        ...(data.assignedPropertyId ? { assignedPropertyId: data.assignedPropertyId } : {}),
+                        ...(data.propertyName ? { propertyName: data.propertyName } : {}),
+                        ...(data.securityPin ? { securityPin: data.securityPin, hasSetPin: true } : {}),
                       };
                       for (const cand of candidateDocs) {
                         const candScore = getDocScore(cand.data);
                         if ((currentScore.isPro && !candScore.isPro) || currentScore.expTime > candScore.expTime + 60000) {
                           await setDoc(cand.ref, pushSync, { merge: true });
                         }
+                      }
+                    }
+
+                    // 🏢 DIRECT CLOUD PROPERTY PROBE: If property is still unresolved or onboarding not stamped
+                    if (!data.assignedPropertyId || data.onboardingCompleted !== true) {
+                      const cleanPhone = (data.phone || savedSessionPhone || "").replace(/\D/g, "").slice(-10);
+                      const rawEmail = (data.email || currentUser.email || "").trim().toLowerCase();
+
+                      let matchedPropDoc: any = null;
+                      if (rawEmail && !rawEmail.startsWith("phone_") && !rawEmail.includes("auth.tenopilot")) {
+                        try {
+                          const pQ = query(collection(db, "properties"), where("ownerEmail", "==", rawEmail));
+                          const pSnap = await getDocs(pQ);
+                          if (!pSnap.empty) matchedPropDoc = pSnap.docs[0];
+                        } catch {}
+                      }
+                      if (!matchedPropDoc && cleanPhone) {
+                        try {
+                          const pQ2 = query(collection(db, "properties"), where("ownerPhone", "==", cleanPhone));
+                          const pSnap2 = await getDocs(pQ2);
+                          if (!pSnap2.empty) matchedPropDoc = pSnap2.docs[0];
+                        } catch {}
+                      }
+                      if (!matchedPropDoc) {
+                        try {
+                          const pQ3 = query(collection(db, "properties"), where("ownerUid", "==", currentUser.uid));
+                          const pSnap3 = await getDocs(pQ3);
+                          if (!pSnap3.empty) matchedPropDoc = pSnap3.docs[0];
+                        } catch {}
+                      }
+
+                      if (matchedPropDoc) {
+                        const pData = matchedPropDoc.data();
+                        const propSynced: Partial<UserProfile> = {
+                          assignedPropertyId: matchedPropDoc.id,
+                          propertyName: pData.name || pData.propertyName || "",
+                          onboardingCompleted: true,
+                        };
+                        Object.assign(data, propSynced);
+                        await setDoc(userDocRef, propSynced, { merge: true });
+
+                        const pUpdates: any = {};
+                        if (rawEmail && !pData.ownerEmail) pUpdates.ownerEmail = rawEmail;
+                        if (cleanPhone && !pData.ownerPhone) pUpdates.ownerPhone = cleanPhone;
+                        if (Object.keys(pUpdates).length > 0) {
+                          await setDoc(matchedPropDoc.ref, pUpdates, { merge: true });
+                        }
+
+                        setProfile({ ...data });
                       }
                     }
                   } catch (crossErr) {
@@ -914,6 +982,71 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             updatePayload.emailVerified = true;
           }
           await setDoc(userDocRef, updatePayload, { merge: true });
+
+          // 🏢 BIDIRECTIONAL PROPERTY SSOT HEALING:
+          // Synchronize owner email, phone, and name onto all properties owned by this account
+          try {
+            const purePhone = (cleanPhone || profile.phone || "").replace(/\D/g, "").slice(-10);
+            const pureEmail = (cleanEmail || profile.email || "").toLowerCase().trim();
+            const candidateProps: any[] = [];
+
+            if (profile.assignedPropertyId) {
+              const pSnap = await getDoc(doc(db, "properties", profile.assignedPropertyId));
+              if (pSnap.exists()) candidateProps.push(pSnap);
+            }
+            const uidSnap = await getDocs(query(collection(db, "properties"), where("ownerUid", "==", user.uid)));
+            uidSnap.docs.forEach((d) => {
+              if (!candidateProps.some((c) => c.id === d.id)) candidateProps.push(d);
+            });
+            if (purePhone) {
+              const phoneSnap = await getDocs(query(collection(db, "properties"), where("ownerPhone", "==", purePhone)));
+              phoneSnap.docs.forEach((d) => {
+                if (!candidateProps.some((c) => c.id === d.id)) candidateProps.push(d);
+              });
+            }
+            if (pureEmail && !pureEmail.startsWith("phone_") && !pureEmail.includes("auth.tenopilot")) {
+              const emailSnap = await getDocs(query(collection(db, "properties"), where("ownerEmail", "==", pureEmail)));
+              emailSnap.docs.forEach((d) => {
+                if (!candidateProps.some((c) => c.id === d.id)) candidateProps.push(d);
+              });
+            }
+
+            for (const prop of candidateProps) {
+              const propPatch: Record<string, any> = {};
+              if (pureEmail && !pureEmail.startsWith("phone_") && !pureEmail.includes("auth.tenopilot")) {
+                propPatch.ownerEmail = pureEmail;
+              }
+              if (purePhone) {
+                propPatch.ownerPhone = purePhone;
+              }
+              if (cleanName) {
+                propPatch.ownerName = cleanName;
+              }
+              if (Object.keys(propPatch).length > 0) {
+                await setDoc(prop.ref, propPatch, { merge: true });
+              }
+            }
+
+            // Cross-link existing user docs for this email / phone so both have onboardingCompleted & property
+            if (pureEmail && !pureEmail.startsWith("phone_") && !pureEmail.includes("auth.tenopilot")) {
+              const uSnap = await getDocs(query(collection(db, "users"), where("email", "==", pureEmail)));
+              for (const uDoc of uSnap.docs) {
+                if (uDoc.id !== user.uid) {
+                  const crossPatch: Record<string, any> = {
+                    primaryUid: user.uid,
+                    onboardingCompleted: true,
+                    assignedPropertyId: profile.assignedPropertyId || (candidateProps[0]?.id || ""),
+                    propertyName: profile.propertyName || (candidateProps[0]?.data()?.name || ""),
+                    ...(profile.securityPin ? { securityPin: profile.securityPin, hasSetPin: true } : {}),
+                    ...(purePhone ? { phone: purePhone, phoneVerified: true } : {}),
+                  };
+                  await setDoc(uDoc.ref, crossPatch, { merge: true });
+                }
+              }
+            }
+          } catch (propSyncErr) {
+            console.warn("Property bidirectional owner sync warning:", propSyncErr);
+          }
         } catch (e) {
           console.warn("Update profile details Firestore error:", e);
         }

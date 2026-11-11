@@ -1055,6 +1055,18 @@ export default function LoginPage() {
         } catch {}
       }
 
+      // Self-heal: If property is assigned or user owns a property, onboarding IS completed!
+      if (!hasCompletedOnboarding && (resolvedProp || updatedSession.assignedPropertyId || updatedSession.propertyName)) {
+        hasCompletedOnboarding = true;
+        if (auth.currentUser) {
+          setDoc(doc(db, "users", auth.currentUser.uid), {
+            onboardingCompleted: true,
+            assignedPropertyId: resolvedProp || updatedSession.assignedPropertyId || "",
+            propertyName: updatedSession.propertyName || "",
+          }, { merge: true }).catch(() => {});
+        }
+      }
+
       const targetProperty = updatedSession.assignedPropertyId;
       const defaultPath = !hasCompletedOnboarding
         ? "/welcome"

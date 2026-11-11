@@ -615,15 +615,45 @@ export async function continueWithGoogle(): Promise<GoogleAuthResult | null> {
     let userSnap = await getDoc(userDocRef);
     let existingUserDoc: any = userSnap.exists() ? userSnap.data() : null;
 
-    if (!existingUserDoc && !isPurgedAccount) {
+    // Proactive Omni-Auth Cross-Lookup across users collection
+    if (!isPurgedAccount) {
       try {
         const q = query(collection(db, "users"), where("email", "==", email));
         const snap = await getDocs(q);
-        if (!snap.empty) {
-          existingUserDoc = snap.docs[0].data();
+        for (const docSnap of snap.docs) {
+          const dData = docSnap.data();
+          if (dData?.onboardingCompleted === true || dData?.assignedPropertyId) {
+            existingUserDoc = { ...dData, ...(existingUserDoc || {}), onboardingCompleted: true, assignedPropertyId: dData.assignedPropertyId || existingUserDoc?.assignedPropertyId };
+            break;
+          } else if (!existingUserDoc) {
+            existingUserDoc = dData;
+          }
         }
       } catch (e) {
         console.warn("Notice checking existing user doc in Google flow:", e);
+      }
+    }
+
+    // Direct Cloud Property Check: if this user owns a property, they are 100% onboarded!
+    let cloudOwnedPropDoc: any = null;
+    if (!isPurgedAccount) {
+      try {
+        const pQ = query(collection(db, "properties"), where("ownerEmail", "==", email));
+        const pSnap = await getDocs(pQ);
+        if (!pSnap.empty) {
+          cloudOwnedPropDoc = pSnap.docs[0];
+        }
+      } catch {}
+
+      const userCleanPhone = (existingUserDoc?.phone || "").replace(/\D/g, "").slice(-10);
+      if (!cloudOwnedPropDoc && userCleanPhone) {
+        try {
+          const pQ2 = query(collection(db, "properties"), where("ownerPhone", "==", userCleanPhone));
+          const pSnap2 = await getDocs(pQ2);
+          if (!pSnap2.empty) {
+            cloudOwnedPropDoc = pSnap2.docs[0];
+          }
+        } catch {}
       }
     }
 
@@ -636,6 +666,20 @@ export async function continueWithGoogle(): Promise<GoogleAuthResult | null> {
     if (isStaff) {
       isFullyOnboarded = true;
       activeAssignedPropId = staffAccountDoc.assignedPropertyId || staffAccountDoc.assignedPropertyIds?.[0] || "";
+    } else if (cloudOwnedPropDoc) {
+      isFullyOnboarded = true;
+      activeAssignedPropId = cloudOwnedPropDoc.id;
+      const cpData = cloudOwnedPropDoc.data();
+      if (!existingUserDoc) existingUserDoc = {};
+      existingUserDoc.assignedPropertyId = cloudOwnedPropDoc.id;
+      existingUserDoc.propertyName = cpData.name || cpData.propertyName || existingUserDoc.propertyName || "";
+      existingUserDoc.onboardingCompleted = true;
+      if (cpData.ownerPhone && !existingUserDoc.phone) {
+        existingUserDoc.phone = cpData.ownerPhone;
+      }
+      if (!cpData.ownerEmail) {
+        setDoc(cloudOwnedPropDoc.ref, { ownerEmail: email }, { merge: true }).catch(() => {});
+      }
     } else if (!isPurgedAccount && existingUserDoc?.onboardingCompleted === true) {
       activeAssignedPropId = existingUserDoc.assignedPropertyId || "";
       if (activeAssignedPropId) {

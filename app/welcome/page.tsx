@@ -144,21 +144,69 @@ function WelcomeOnboardingContent() {
 
   // ðŸ›¡ï¸ Proactively redirect staff members and already onboarded owners away from welcome wizard
   useEffect(() => {
-    if (!loading && profile) {
+    if (!loading && (profile || user)) {
       // 1. Staff users (Admin, Receptionist) must never see owner setup
-      if (profile.role === "admin" || profile.role === "receptionist") {
-        const dest = profile.assignedPropertyId ? `/p/${profile.assignedPropertyId}/overview` : "/home";
+      if (profile?.role === "admin" || profile?.role === "receptionist") {
+        const dest = profile?.assignedPropertyId ? `/p/${profile.assignedPropertyId}/overview` : "/home";
         router.replace(dest);
         return;
       }
 
       // 2. Onboarded master admins with existing properties (Strict onboardingCompleted check)
-      if (profile.onboardingCompleted === true) {
+      if (profile?.onboardingCompleted === true && profile?.assignedPropertyId) {
+        router.replace(`/p/${profile.assignedPropertyId}/overview`);
+        return;
+      }
+      if (profile?.onboardingCompleted === true) {
         router.replace("/home");
         return;
       }
+
+      // 3. Proactive Cloud Property Check: Never show onboarding wizard if user owns an existing property!
+      const checkExistingProperty = async () => {
+        const email = (user?.email || profile?.email || "").toLowerCase().trim();
+        const phone = (user?.phoneNumber || profile?.phone || "").replace(/\D/g, "").slice(-10);
+        let foundProp: any = null;
+
+        if (email && !email.startsWith("phone_") && !email.includes("auth.tenopilot")) {
+          try {
+            const pQ = query(collection(db, "properties"), where("ownerEmail", "==", email));
+            const pSnap = await getDocs(pQ);
+            if (!pSnap.empty) foundProp = pSnap.docs[0];
+          } catch {}
+        }
+        if (!foundProp && phone) {
+          try {
+            const pQ2 = query(collection(db, "properties"), where("ownerPhone", "==", phone));
+            const pSnap2 = await getDocs(pQ2);
+            if (!pSnap2.empty) foundProp = pSnap2.docs[0];
+          } catch {}
+        }
+        if (!foundProp && user?.uid) {
+          try {
+            const pQ3 = query(collection(db, "properties"), where("ownerUid", "==", user.uid));
+            const pSnap3 = await getDocs(pQ3);
+            if (!pSnap3.empty) foundProp = pSnap3.docs[0];
+          } catch {}
+        }
+
+        if (foundProp) {
+          const propId = foundProp.id;
+          const pData = foundProp.data();
+          if (user?.uid) {
+            setDoc(doc(db, "users", user.uid), {
+              onboardingCompleted: true,
+              assignedPropertyId: propId,
+              propertyName: pData.name || pData.propertyName || "",
+            }, { merge: true }).catch(() => {});
+          }
+          router.replace(`/p/${propId}/overview`);
+        }
+      };
+
+      checkExistingProperty();
     }
-  }, [profile, loading, router]);
+  }, [profile, user, loading, router]);
 
   // 🛡️ Cloud Lock: Check staff_accounts directly by Gmail OR Phone (STRICT: Enrolled staff CANNOT create an organization)
   useEffect(() => {

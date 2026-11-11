@@ -3,7 +3,7 @@
 import React, { use, useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/providers/AuthProvider";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { staffStore } from "@/lib/staffStore";
 import { portfolioStore } from "@/constants/portfolioStore";
@@ -11,6 +11,7 @@ import { ShieldAlert, Loader2, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 interface PropertyDocData {
+  ownerUid?: string;
   ownerEmail?: string;
   ownerPhone?: string;
   organizationId?: string;
@@ -92,16 +93,6 @@ export default function PropertyRouteLayout({
         return;
       }
 
-      // B. Incomplete Onboarding Check
-      // Master Admins who have not completed onboarding own NO properties yet
-      if (profile?.role === "master_admin" && profile?.onboardingCompleted !== true) {
-        setIsAuthorized(false);
-        setDeniedReason("Please complete property setup onboarding first.");
-        setCheckingAuth(false);
-        router.replace("/welcome");
-        return;
-      }
-
       // C. Direct Profile Property Assignment
       const assignedIds = profile?.assignedPropertyIds || (profile?.assignedPropertyId ? [profile.assignedPropertyId] : []);
       if (assignedIds.includes(propertyId) || assignedIds.includes("*")) {
@@ -118,7 +109,7 @@ export default function PropertyRouteLayout({
         return;
       }
 
-      // E. Cloud Property Document Owner Verification
+      // E. Cloud Property Document Owner Verification & Cross-Auth Linking
       try {
         if (db && propertyId) {
           const propSnap = await getDoc(doc(db, "properties", propertyId));
@@ -127,16 +118,69 @@ export default function PropertyRouteLayout({
             const pOwnerEmail = (pData.ownerEmail || "").toLowerCase().trim();
             const pOwnerPhone = (pData.ownerPhone || "").replace(/\D/g, "").slice(-10);
 
-            if (pOwnerEmail && pOwnerEmail === userEmail) {
+            // 1. Direct UID match
+            if (pData.ownerUid && user?.uid && pData.ownerUid === user.uid) {
+              if (userEmail && !pOwnerEmail) setDoc(propSnap.ref, { ownerEmail: userEmail }, { merge: true }).catch(() => {});
               setIsAuthorized(true);
               setCheckingAuth(false);
               return;
             }
 
-            if (pOwnerPhone && userPhoneClean && pOwnerPhone === userPhoneClean) {
+            // 2. Direct Email match
+            if (pOwnerEmail && userEmail && pOwnerEmail === userEmail) {
+              if (userPhoneClean && !pOwnerPhone) setDoc(propSnap.ref, { ownerPhone: userPhoneClean }, { merge: true }).catch(() => {});
               setIsAuthorized(true);
               setCheckingAuth(false);
               return;
+            }
+
+            // 3. Direct Phone match
+            if (pOwnerPhone && userPhoneClean && pOwnerPhone === userPhoneClean) {
+              if (userEmail && !pOwnerEmail) setDoc(propSnap.ref, { ownerEmail: userEmail }, { merge: true }).catch(() => {});
+              setIsAuthorized(true);
+              setCheckingAuth(false);
+              return;
+            }
+
+            // 4. Cross-Auth Matching via linked user docs:
+            // Check if current userEmail is linked to a user doc whose phone matches pOwnerPhone
+            if (userEmail && pOwnerPhone) {
+              try {
+                const uSnap = await getDocs(query(collection(db, "users"), where("email", "==", userEmail)));
+                for (const uDoc of uSnap.docs) {
+                  const uD = uDoc.data();
+                  const uCleanPhone = (uD.phone || "").replace(/\D/g, "").slice(-10);
+                  if (uCleanPhone === pOwnerPhone || uDoc.id === pData.ownerUid) {
+                    setDoc(propSnap.ref, { ownerEmail: userEmail }, { merge: true }).catch(() => {});
+                    if (user?.uid) {
+                      setDoc(doc(db, "users", user.uid), { assignedPropertyId: propertyId, onboardingCompleted: true }, { merge: true }).catch(() => {});
+                    }
+                    setIsAuthorized(true);
+                    setCheckingAuth(false);
+                    return;
+                  }
+                }
+              } catch {}
+            }
+
+            // Check if current userPhoneClean is linked to a user doc whose email matches pOwnerEmail
+            if (userPhoneClean && pOwnerEmail) {
+              try {
+                const uSnap2 = await getDocs(query(collection(db, "users"), where("phone", "==", userPhoneClean)));
+                for (const uDoc of uSnap2.docs) {
+                  const uD = uDoc.data();
+                  const uCleanEmail = (uD.email || "").toLowerCase().trim();
+                  if (uCleanEmail === pOwnerEmail || uDoc.id === pData.ownerUid) {
+                    setDoc(propSnap.ref, { ownerPhone: userPhoneClean }, { merge: true }).catch(() => {});
+                    if (user?.uid) {
+                      setDoc(doc(db, "users", user.uid), { assignedPropertyId: propertyId, onboardingCompleted: true }, { merge: true }).catch(() => {});
+                    }
+                    setIsAuthorized(true);
+                    setCheckingAuth(false);
+                    return;
+                  }
+                }
+              } catch {}
             }
 
             if (pData.organizationId && profile?.organizationId && pData.organizationId === profile.organizationId) {
@@ -173,8 +217,8 @@ export default function PropertyRouteLayout({
 
       // Auto-redirect to their own workspace or onboarding
       setTimeout(() => {
-        if (profile?.onboardingCompleted === true) {
-          router.replace("/home");
+        if (profile?.onboardingCompleted === true || profile?.assignedPropertyId) {
+          router.replace(profile?.assignedPropertyId ? `/p/${profile.assignedPropertyId}/overview` : "/home");
         } else {
           router.replace("/welcome");
         }
