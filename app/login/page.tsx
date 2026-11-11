@@ -37,6 +37,7 @@ import {
   sanitizeTitleCase,
   syncUserSecurityPinToCloud,
   checkAccountRegistrationStatus,
+  isGenuineIndianMobile,
 } from "@/lib/authService";
 import { getStoredPlatformConfig } from "@/lib/platformConfig";
 import { staffStore, StaffMember } from "@/lib/staffStore";
@@ -143,9 +144,27 @@ export default function LoginPage() {
   const [verifyPasswordError, setVerifyPasswordError] = useState<string | null>(null);
   const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
 
-  // Multi-Channel PIN Reset State (WhatsApp Cloud API + Amazon SES)
+  // Multi-Channel PIN Reset State with Strict Live Cloud Verification
+  interface VerifiedResetAccount {
+    exists: boolean;
+    uid?: string;
+    role?: string;
+    displayName?: string;
+    phone?: string;
+    email?: string;
+    hasPhone: boolean;
+    hasEmail: boolean;
+    isStaff: boolean;
+    assignedPropertyId?: string;
+    staffId?: string;
+  }
+
   const [resetOtpChannel, setResetOtpChannel] = useState<"whatsapp" | "email">("whatsapp");
-  const [resetOtpStep, setResetOtpStep] = useState<"SELECT_CHANNEL" | "ENTER_OTP">("SELECT_CHANNEL");
+  const [resetOtpStep, setResetOtpStep] = useState<"VERIFY_ACCOUNT" | "SELECT_CHANNEL" | "ENTER_OTP">("SELECT_CHANNEL");
+  const [verifiedResetAccount, setVerifiedResetAccount] = useState<VerifiedResetAccount | null>(null);
+  const [resetIdentifierInput, setResetIdentifierInput] = useState("");
+  const [isVerifyingAccount, setIsVerifyingAccount] = useState(false);
+  const [accountVerificationError, setAccountVerificationError] = useState<string | null>(null);
   const [resetOtpDigits, setResetOtpDigits] = useState<string[]>(["", "", "", "", "", ""]);
   const [resetOtpToken, setResetOtpToken] = useState("");
   const [resetOtpCooldown, setResetOtpCooldown] = useState(0);
@@ -706,7 +725,7 @@ export default function LoginPage() {
           id: `staff_user_${Date.now()}`,
           name: savedSession?.name || sanitizeTitleCase(targetEmail.split("@")[0]) || "Master Admin",
           email: targetEmail,
-          phone: targetPhone || "+91 98000 00000",
+          phone: (targetPhone && isGenuineIndianMobile(targetPhone)) ? targetPhone : (savedSession?.phone || ""),
           role: savedSession?.role || "master_admin",
           assignedPropertyId: cleanAssignedProp,
           assignedPropertyIds: ["*"],
@@ -1104,66 +1123,281 @@ export default function LoginPage() {
   };
 
   // Masking helpers for security presentation
-  const maskPhone = (num: string) => {
+  const maskPhone = (num?: string) => {
+    if (!num) return "";
     const clean = num.replace(/\D/g, "");
     if (clean.length < 10) return num;
-    const last4 = clean.slice(-4);
+    const last4 = clean.slice(-10).slice(-4);
     return `+91 ••••• ••${last4}`;
   };
 
-  const maskEmail = (em: string) => {
-    if (!em || !em.includes("@")) return em;
+  const maskEmail = (em?: string) => {
+    if (!em || !em.includes("@")) return "";
     const [name, domain] = em.split("@");
     if (name.length <= 2) return `${name[0]}•••@${domain}`;
     return `${name.slice(0, 2)}••••••${name.slice(-1)}@${domain}`;
   };
 
-  // Resolve active channels for PIN Reset
-  const activeSessionEmail = (savedSession?.email || email || "").trim();
-  const isPhoneSessionEmail =
-    activeSessionEmail.startsWith("phone_") ||
-    activeSessionEmail.includes("@phone.tenopilot.auth") ||
-    activeSessionEmail.includes("@auth.tenopilot.com");
-  const cleanRealEmail = !isPhoneSessionEmail && activeSessionEmail.includes("@") ? activeSessionEmail.toLowerCase() : "";
+  const isValidRealEmail = (em: string): boolean => {
+    if (!em || typeof em !== "string") return false;
+    const clean = em.trim().toLowerCase();
+    if (!clean.includes("@") || !clean.includes(".")) return false;
+    if (
+      clean.startsWith("phone_") ||
+      clean.endsWith(".auth") ||
+      clean.includes("auth.tenopilot") ||
+      clean.includes("phone.tenopilot.auth") ||
+      clean === "admin@tenopilot.com"
+    ) {
+      return false;
+    }
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean);
+  };
 
-  let candidatePhone = (savedSession?.phone || "").replace(/\D/g, "");
-  if (!candidatePhone && isPhoneSessionEmail) {
-    candidatePhone = activeSessionEmail.replace(/\D/g, "");
-  }
-  if (!candidatePhone && cleanRealEmail) {
-    const stMatch = staffStore.getAllGlobalStaff().find((s) => s.email.toLowerCase() === cleanRealEmail);
-    if (stMatch?.phone) candidatePhone = stMatch.phone.replace(/\D/g, "");
-  }
-  const purePhone10 = candidatePhone.length >= 10 ? candidatePhone.slice(-10) : "";
+  // 🔍 STRICT CLOUD LOOKUP: Verify credentials directly against Firestore before offering or sending OTP
+  const lookupVerifiedAccountInCloud = async (rawIdentifier: string): Promise<VerifiedResetAccount | null> => {
+    const clean = (rawIdentifier || "").trim();
+    if (!clean) return null;
 
-  const hasPhoneResetChannel = Boolean(purePhone10);
-  const hasEmailResetChannel = Boolean(cleanRealEmail);
-  const hasBothResetChannels = hasPhoneResetChannel && hasEmailResetChannel;
+    const digits = clean.replace(/\D/g, "");
+    const isPhoneCandidate = digits.length >= 10;
+    const isEmailCandidate = clean.includes("@") && isValidRealEmail(clean);
 
-  // Open Multi-Channel Reset PIN Modal
-  const handleOpenPinResetModal = () => {
+    // A. LOOKUP BY PHONE NUMBER
+    if (isPhoneCandidate) {
+      const pure10 = digits.slice(-10);
+      if (!isGenuineIndianMobile(pure10)) return null;
+
+      // 1. Check in staff_accounts collection
+      try {
+        const saDoc = await getDoc(doc(db, "staff_accounts", `phone_${pure10}`));
+        if (saDoc.exists()) {
+          const sData = saDoc.data();
+          if (sData?.role === "admin" || sData?.role === "receptionist") {
+            const realEmail = sData.email && isValidRealEmail(sData.email) ? sData.email.toLowerCase() : undefined;
+            return {
+              exists: true,
+              uid: sData.id || `staff_${pure10}`,
+              role: sData.role,
+              displayName: sData.name || "Staff Member",
+              phone: pure10,
+              email: realEmail,
+              hasPhone: true,
+              hasEmail: Boolean(realEmail),
+              isStaff: true,
+              assignedPropertyId: sData.assignedPropertyId,
+              staffId: sData.staffId || sData.id,
+            };
+          }
+        }
+
+        const saSnap = await getDocs(query(collection(db, "staff_accounts"), where("purePhone", "==", pure10)));
+        if (!saSnap.empty) {
+          const sData = saSnap.docs[0].data();
+          if (sData?.role === "admin" || sData?.role === "receptionist") {
+            const realEmail = sData.email && isValidRealEmail(sData.email) ? sData.email.toLowerCase() : undefined;
+            return {
+              exists: true,
+              uid: sData.id || `staff_${pure10}`,
+              role: sData.role,
+              displayName: sData.name || "Staff Member",
+              phone: pure10,
+              email: realEmail,
+              hasPhone: true,
+              hasEmail: Boolean(realEmail),
+              isStaff: true,
+              assignedPropertyId: sData.assignedPropertyId,
+              staffId: sData.staffId || sData.id,
+            };
+          }
+        }
+      } catch (err) {
+        console.warn("staff_accounts phone verify notice:", err);
+      }
+
+      // 2. Check in users collection (Property Owners & Registered Users)
+      try {
+        const uSnap = await getDocs(query(collection(db, "users"), where("phone", "==", pure10)));
+        if (!uSnap.empty) {
+          const uDoc = uSnap.docs[0];
+          const uData = uDoc.data();
+          const realEmail = uData.email && isValidRealEmail(uData.email) ? uData.email.toLowerCase() : undefined;
+          return {
+            exists: true,
+            uid: uDoc.id,
+            role: uData.role || "master_admin",
+            displayName: uData.displayName || "Property Owner",
+            phone: pure10,
+            email: realEmail,
+            hasPhone: true,
+            hasEmail: Boolean(realEmail),
+            isStaff: false,
+            assignedPropertyId: uData.assignedPropertyId,
+          };
+        }
+      } catch (err) {
+        console.warn("users phone verify notice:", err);
+      }
+    }
+
+    // B. LOOKUP BY EMAIL ADDRESS
+    if (isEmailCandidate) {
+      const cleanEmail = clean.toLowerCase();
+
+      // 1. Check in staff_accounts collection
+      try {
+        const saDoc = await getDoc(doc(db, "staff_accounts", cleanEmail));
+        if (saDoc.exists()) {
+          const sData = saDoc.data();
+          if (sData?.role === "admin" || sData?.role === "receptionist") {
+            const rawP = (sData.phone || sData.purePhone || "").replace(/\D/g, "");
+            const sPhone = rawP.length >= 10 && isGenuineIndianMobile(rawP.slice(-10)) ? rawP.slice(-10) : undefined;
+            return {
+              exists: true,
+              uid: sData.id || `staff_${cleanEmail}`,
+              role: sData.role,
+              displayName: sData.name || "Staff Member",
+              phone: sPhone,
+              email: cleanEmail,
+              hasPhone: Boolean(sPhone),
+              hasEmail: true,
+              isStaff: true,
+              assignedPropertyId: sData.assignedPropertyId,
+              staffId: sData.staffId || sData.id,
+            };
+          }
+        }
+      } catch (err) {
+        console.warn("staff_accounts email verify notice:", err);
+      }
+
+      // 2. Check in users collection
+      try {
+        const uSnap = await getDocs(query(collection(db, "users"), where("email", "==", cleanEmail)));
+        if (!uSnap.empty) {
+          const uDoc = uSnap.docs[0];
+          const uData = uDoc.data();
+          const rawP = (uData.phone || "").replace(/\D/g, "");
+          const uPhone = rawP.length >= 10 && isGenuineIndianMobile(rawP.slice(-10)) ? rawP.slice(-10) : undefined;
+          return {
+            exists: true,
+            uid: uDoc.id,
+            role: uData.role || "master_admin",
+            displayName: uData.displayName || "Property Owner",
+            phone: uPhone,
+            email: cleanEmail,
+            hasPhone: Boolean(uPhone),
+            hasEmail: true,
+            isStaff: false,
+            assignedPropertyId: uData.assignedPropertyId,
+          };
+        }
+      } catch (err) {
+        console.warn("users email verify notice:", err);
+      }
+    }
+
+    return null;
+  };
+
+  // Open Multi-Channel Reset PIN Modal & Trigger Credential Verification
+  const handleOpenPinResetModal = async () => {
     setVerifyPasswordError(null);
     setVerifyPasswordForPin("");
     setResetOtpError(null);
     setResetOtpSuccess(null);
     setResetOtpToken("");
     setResetOtpDigits(["", "", "", "", "", ""]);
+    setAccountVerificationError(null);
     setShowLegacyPasswordFallback(false);
 
-    if (hasPhoneResetChannel && !hasEmailResetChannel) {
-      setResetOtpChannel("whatsapp");
-    } else if (hasEmailResetChannel && !hasPhoneResetChannel) {
-      setResetOtpChannel("email");
-    } else {
-      setResetOtpChannel("whatsapp");
-    }
+    // Determine initial candidate identifier to verify
+    const candidateId =
+      (savedSession?.phone && isGenuineIndianMobile(savedSession.phone) ? savedSession.phone : "") ||
+      (savedSession?.email && isValidRealEmail(savedSession.email) ? savedSession.email : "") ||
+      (email && (isGenuineIndianMobile(email) || isValidRealEmail(email)) ? email : "");
 
-    setResetOtpStep("SELECT_CHANNEL");
+    setResetIdentifierInput(candidateId);
     setShowPasswordResetPinModal(true);
+
+    if (candidateId) {
+      setIsVerifyingAccount(true);
+      try {
+        const verified = await lookupVerifiedAccountInCloud(candidateId);
+        if (verified && verified.exists) {
+          setVerifiedResetAccount(verified);
+          if (verified.hasPhone && !verified.hasEmail) {
+            setResetOtpChannel("whatsapp");
+          } else if (verified.hasEmail && !verified.hasPhone) {
+            setResetOtpChannel("email");
+          } else {
+            setResetOtpChannel("whatsapp");
+          }
+          setResetOtpStep("SELECT_CHANNEL");
+        } else {
+          setVerifiedResetAccount(null);
+          setResetOtpStep("VERIFY_ACCOUNT");
+          setAccountVerificationError(
+            `No registered TenoPilot account was found for "${candidateId}". Please enter your registered phone or email.`
+          );
+        }
+      } catch {
+        setVerifiedResetAccount(null);
+        setResetOtpStep("VERIFY_ACCOUNT");
+      } finally {
+        setIsVerifyingAccount(false);
+      }
+    } else {
+      setVerifiedResetAccount(null);
+      setResetOtpStep("VERIFY_ACCOUNT");
+    }
   };
 
-  // Dispatch OTP via WhatsApp Cloud API or Amazon SES
+  // Manually verify account from input
+  const handleVerifyAccountInput = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = resetIdentifierInput.trim();
+    if (!clean) {
+      setAccountVerificationError("Please enter your registered 10-digit mobile number or work email.");
+      return;
+    }
+
+    setIsVerifyingAccount(true);
+    setAccountVerificationError(null);
+    setResetOtpError(null);
+
+    try {
+      const verified = await lookupVerifiedAccountInCloud(clean);
+      if (verified && verified.exists) {
+        setVerifiedResetAccount(verified);
+        if (verified.hasPhone && !verified.hasEmail) {
+          setResetOtpChannel("whatsapp");
+        } else if (verified.hasEmail && !verified.hasPhone) {
+          setResetOtpChannel("email");
+        } else {
+          setResetOtpChannel("whatsapp");
+        }
+        setResetOtpStep("SELECT_CHANNEL");
+      } else {
+        setVerifiedResetAccount(null);
+        setAccountVerificationError(
+          `No registered TenoPilot account found for "${clean}". Please check your details and try again.`
+        );
+      }
+    } catch {
+      setAccountVerificationError("Error checking account in cloud database. Please try again.");
+    } finally {
+      setIsVerifyingAccount(false);
+    }
+  };
+
+  // Dispatch OTP strictly to verified credentials from Firestore
   const handleSendResetOtp = async (channelOverride?: "whatsapp" | "email") => {
+    if (!verifiedResetAccount || !verifiedResetAccount.exists) {
+      setResetOtpError("Please verify your account before requesting an OTP code.");
+      return;
+    }
+
     const channel = channelOverride || resetOtpChannel;
     setResetOtpChannel(channel);
     setResetOtpError(null);
@@ -1172,13 +1406,14 @@ export default function LoginPage() {
 
     try {
       if (channel === "whatsapp") {
-        if (!purePhone10) {
-          throw new Error("No valid mobile phone number linked to this account.");
+        const destPhone = verifiedResetAccount.phone;
+        if (!destPhone || !isGenuineIndianMobile(destPhone)) {
+          throw new Error("No verified mobile phone number is linked to this account in the database.");
         }
         const res = await fetch("/api/auth/phone/send-otp", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: purePhone10 }),
+          body: JSON.stringify({ phone: destPhone }),
         });
         const data = await res.json();
         if (!res.ok || !data.success) {
@@ -1187,16 +1422,17 @@ export default function LoginPage() {
         setResetOtpToken(data.verificationToken || "");
         setResetOtpStep("ENTER_OTP");
         setResetOtpCooldown(30);
-        setResetOtpSuccess(`WhatsApp verification code sent to ${maskPhone(purePhone10)}`);
+        setResetOtpSuccess(`WhatsApp verification code sent to ${maskPhone(destPhone)}`);
         setTimeout(() => resetOtpInputRefs.current[0]?.focus(), 150);
       } else {
-        if (!cleanRealEmail) {
-          throw new Error("No valid email address linked to this account.");
+        const destEmail = verifiedResetAccount.email;
+        if (!destEmail || !isValidRealEmail(destEmail)) {
+          throw new Error("No verified email address is linked to this account in the database.");
         }
         const res = await fetch("/api/auth/email/send-otp", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: cleanRealEmail }),
+          body: JSON.stringify({ email: destEmail }),
         });
         const data = await res.json();
         if (!res.ok || !data.success) {
@@ -1205,7 +1441,7 @@ export default function LoginPage() {
         setResetOtpToken(data.verificationToken || "");
         setResetOtpStep("ENTER_OTP");
         setResetOtpCooldown(30);
-        setResetOtpSuccess(`Email verification code sent to ${maskEmail(cleanRealEmail)}`);
+        setResetOtpSuccess(`Email verification code sent to ${maskEmail(destEmail)}`);
         setTimeout(() => resetOtpInputRefs.current[0]?.focus(), 150);
       }
     } catch (err: any) {
@@ -1217,6 +1453,7 @@ export default function LoginPage() {
 
   // Verify OTP Code
   const handleVerifyResetOtp = async (codeOverride?: string) => {
+    if (!verifiedResetAccount) return;
     const code = (codeOverride || resetOtpDigits.join("")).trim();
     if (code.length !== 6) {
       setResetOtpError("Please enter all 6 digits of your OTP code.");
@@ -1228,11 +1465,12 @@ export default function LoginPage() {
 
     try {
       if (resetOtpChannel === "whatsapp") {
+        const destPhone = verifiedResetAccount.phone!;
         const res = await fetch("/api/auth/phone/verify-otp", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            phone: purePhone10,
+            phone: destPhone,
             otp: code,
             verificationToken: resetOtpToken,
           }),
@@ -1242,11 +1480,12 @@ export default function LoginPage() {
           throw new Error(data.message || "Invalid or expired WhatsApp OTP code.");
         }
       } else {
+        const destEmail = verifiedResetAccount.email!;
         const res = await fetch("/api/auth/email/verify-otp", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            email: cleanRealEmail,
+            email: destEmail,
             otp: code,
             verificationToken: resetOtpToken,
           }),
@@ -1257,12 +1496,28 @@ export default function LoginPage() {
         }
       }
 
-      // Verification Succeeded!
+      // 🌟 Verification Succeeded!
       clearLockout();
       setShowPasswordResetPinModal(false);
       setResetOtpDigits(["", "", "", "", "", ""]);
       setResetOtpToken("");
       setVerifyPasswordForPin("");
+
+      // Bind verified account to active session state
+      if (verifiedResetAccount) {
+        const updatedSession: SavedSession = {
+          email: verifiedResetAccount.email || (verifiedResetAccount.phone ? `phone_${verifiedResetAccount.phone}@auth.tenopilot.com` : "user@tenopilot.com"),
+          name: verifiedResetAccount.displayName || "User",
+          role: (verifiedResetAccount.role as any) || "master_admin",
+          phone: verifiedResetAccount.phone,
+          assignedPropertyId: verifiedResetAccount.assignedPropertyId,
+        };
+        setSavedSession(updatedSession);
+        try {
+          localStorage.setItem("tenopilot_saved_session", JSON.stringify(updatedSession));
+        } catch {}
+      }
+
       setIsResetMode(true);
       setPinCreationStep("ENTER");
       setFirstTimePin("");
@@ -1939,6 +2194,7 @@ export default function LoginPage() {
                   setResetOtpStep("SELECT_CHANNEL");
                   setResetOtpError(null);
                   setResetOtpSuccess(null);
+                  setAccountVerificationError(null);
                 }}
                 className="p-1 text-gray-400 hover:text-gray-600 rounded-full cursor-pointer"
               >
@@ -1947,6 +2203,12 @@ export default function LoginPage() {
             </div>
 
             {/* Error or Success Alerts */}
+            {accountVerificationError && (
+              <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-900 rounded-xl font-semibold flex items-center gap-2 text-[11px] animate-in fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{accountVerificationError}</span>
+              </div>
+            )}
             {resetOtpError && (
               <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-900 rounded-xl font-semibold flex items-center gap-2 text-[11px] animate-in fade-in">
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
@@ -1966,17 +2228,79 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* STEP 1: SELECT CHANNEL / DISPATCH OTP */}
-            {resetOtpStep === "SELECT_CHANNEL" && (
-              <div className="space-y-4">
+            {/* LOADING STATE */}
+            {isVerifyingAccount && (
+              <div className="py-8 text-center space-y-3">
+                <Loader2 className="w-8 h-8 text-[#c2652a] animate-spin mx-auto" />
+                <p className="text-gray-600 text-xs font-semibold">Verifying registered account in cloud database...</p>
+              </div>
+            )}
+
+            {/* STEP 0: VERIFY REGISTERED CREDENTIALS IF NOT FOUND */}
+            {!isVerifyingAccount && resetOtpStep === "VERIFY_ACCOUNT" && (
+              <div className="space-y-4 animate-in fade-in">
                 <p className="text-gray-600 text-[11px] leading-relaxed">
-                  Verify your identity via 1-time verification code (OTP) to securely reset your 6-digit MPIN.
+                  Enter your registered mobile phone number or work email address. We will verify that an active account exists before sending an OTP.
                 </p>
 
-                {/* Primary OTP Channels */}
+                <form onSubmit={handleVerifyAccountInput} className="space-y-3">
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">Registered Phone or Email</label>
+                    <input
+                      type="text"
+                      value={resetIdentifierInput}
+                      onChange={(e) => setResetIdentifierInput(e.target.value)}
+                      placeholder="e.g. 9876543210 or name@property.com"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#c2652a] text-xs bg-white text-gray-900 font-mono"
+                      autoFocus
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isVerifyingAccount || !resetIdentifierInput.trim()}
+                    className="w-full py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold cursor-pointer disabled:opacity-50 text-xs shadow-xs flex items-center justify-center gap-2"
+                  >
+                    <span>Verify Account & Continue</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* STEP 1: SELECT VERIFIED CHANNEL */}
+            {!isVerifyingAccount && resetOtpStep === "SELECT_CHANNEL" && verifiedResetAccount && (
+              <div className="space-y-4 animate-in fade-in">
+                {/* Verified Account Badge */}
+                <div className="p-2.5 rounded-2xl bg-orange-50/80 border border-orange-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <UserCheck className="w-4 h-4 text-[#c2652a]" />
+                    <div>
+                      <p className="font-bold text-gray-900 leading-tight">{verifiedResetAccount.displayName}</p>
+                      <p className="text-[10px] text-gray-500 capitalize">{verifiedResetAccount.role === "master_admin" ? "Property Owner" : verifiedResetAccount.role}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVerifiedResetAccount(null);
+                      setResetOtpStep("VERIFY_ACCOUNT");
+                      setAccountVerificationError(null);
+                    }}
+                    className="text-[10px] text-[#c2652a] hover:underline font-bold cursor-pointer"
+                  >
+                    Change
+                  </button>
+                </div>
+
+                <p className="text-gray-600 text-[11px] leading-relaxed">
+                  Choose how you want to receive your 1-time verification code:
+                </p>
+
+                {/* Primary OTP Channels from Verified Account Record ONLY */}
                 <div className="space-y-2.5">
-                  {/* WhatsApp Channel (Available if user has a mobile number) */}
-                  {hasPhoneResetChannel && (
+                  {/* WhatsApp Channel */}
+                  {verifiedResetAccount.hasPhone && verifiedResetAccount.phone && (
                     <button
                       type="button"
                       onClick={() => handleSendResetOtp("whatsapp")}
@@ -1994,15 +2318,15 @@ export default function LoginPage() {
                             <span>WhatsApp OTP</span>
                             <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-200/80 text-emerald-900 font-bold">Fast</span>
                           </p>
-                          <p className="text-[10px] text-gray-500 font-mono">{maskPhone(purePhone10)}</p>
+                          <p className="text-[10px] text-gray-500 font-mono">{maskPhone(verifiedResetAccount.phone)}</p>
                         </div>
                       </div>
                       <ArrowRight className="w-4 h-4 text-emerald-700 group-hover:translate-x-0.5 transition-transform" />
                     </button>
                   )}
 
-                  {/* Email Channel (Available if user has a verified email) */}
-                  {hasEmailResetChannel && (
+                  {/* Email Channel */}
+                  {verifiedResetAccount.hasEmail && verifiedResetAccount.email && (
                     <button
                       type="button"
                       onClick={() => handleSendResetOtp("email")}
@@ -2018,17 +2342,16 @@ export default function LoginPage() {
                             <span>Email OTP</span>
                             <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-blue-200/80 text-blue-900 font-bold">Instant</span>
                           </p>
-                          <p className="text-[10px] text-gray-500 font-mono">{maskEmail(cleanRealEmail)}</p>
+                          <p className="text-[10px] text-gray-500 font-mono">{maskEmail(verifiedResetAccount.email)}</p>
                         </div>
                       </div>
                       <ArrowRight className="w-4 h-4 text-blue-700 group-hover:translate-x-0.5 transition-transform" />
                     </button>
                   )}
 
-                  {/* Fallback if neither phone nor email was resolved */}
-                  {!hasPhoneResetChannel && !hasEmailResetChannel && (
+                  {!verifiedResetAccount.hasPhone && !verifiedResetAccount.hasEmail && (
                     <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px]">
-                      No linked phone or email found. Please use your account password or Google account below to verify your identity.
+                      No verified phone or email found on this account document. Please use your password below.
                     </div>
                   )}
                 </div>
@@ -2083,15 +2406,15 @@ export default function LoginPage() {
             )}
 
             {/* STEP 2: ENTER OTP CODE */}
-            {resetOtpStep === "ENTER_OTP" && (
+            {!isVerifyingAccount && resetOtpStep === "ENTER_OTP" && verifiedResetAccount && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-bold text-gray-900 text-xs">Enter 6-Digit Verification Code</p>
                     <p className="text-[11px] text-gray-500 font-mono">
                       {resetOtpChannel === "whatsapp"
-                        ? `Sent to WhatsApp: ${maskPhone(purePhone10)}`
-                        : `Sent to Email: ${maskEmail(cleanRealEmail)}`}
+                        ? `Sent to WhatsApp: ${maskPhone(verifiedResetAccount.phone)}`
+                        : `Sent to Email: ${maskEmail(verifiedResetAccount.email)}`}
                     </p>
                   </div>
                   <button

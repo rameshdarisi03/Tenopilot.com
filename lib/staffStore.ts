@@ -124,7 +124,7 @@ class StaffStore {
                 id: `staff-local-${Date.now()}`,
                 name: parsed.name || "Estate Master Admin",
                 email: parsed.email || cleanQuery,
-                phone: parsed.phone || "+91 98000 00000",
+                phone: parsed.phone || "",
                 role: parsed.role || "master_admin",
                 assignedPropertyId: "sunshine-pg",
                 assignedPropertyIds: ["*"],
@@ -327,7 +327,7 @@ class StaffStore {
                 id: `staff-${userRole}-${parsed.email.replace(/[^a-zA-Z0-9]/g, "")}`,
                 name: parsed.name,
                 email: parsed.email,
-                phone: parsed.phone || "+91 98000 00000",
+                phone: parsed.phone || "",
                 role: userRole,
                 assignedPropertyId: parsed.assignedPropertyId || "sunshine-pg",
                 assignedPropertyIds:

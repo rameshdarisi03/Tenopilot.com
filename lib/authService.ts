@@ -773,6 +773,20 @@ export async function loginWithGoogle(
  * ðŸ”’ Single Source of Truth: Sync Security PIN to Cloud Firestore across Collections
  * Generates and writes a new sessionVersion to invalidate other active sessions
  */
+/**
+ * Validates whether a given phone string resolves to a genuine 10-digit Indian mobile number
+ * Rejects dummy numbers like 9800000000, 0000000000, 1111111111, 1234567890
+ */
+export function isGenuineIndianMobile(num?: string | null): boolean {
+  if (!num) return false;
+  const clean = num.replace(/\D/g, "");
+  const p10 = clean.length >= 10 ? clean.slice(-10) : "";
+  if (!p10 || p10.length !== 10) return false;
+  if (/^(\d)\1{9}$/.test(p10)) return false;
+  if (p10 === "9800000000" || p10 === "1234567890" || p10.startsWith("0000")) return false;
+  return /^[6-9]\d{9}$/.test(p10);
+}
+
 export async function syncUserSecurityPinToCloud(
   email: string,
   pin: string,
@@ -782,7 +796,8 @@ export async function syncUserSecurityPinToCloud(
 ): Promise<string> {
   const cleanEmail = (email || "").trim().toLowerCase();
   const rawPhone = (phone || "").replace(/\D/g, "");
-  const purePhone = rawPhone.length >= 10 ? rawPhone.slice(-10) : (cleanEmail.startsWith("phone_") ? cleanEmail.replace(/\D/g, "").slice(-10) : "");
+  const candidateDigits = rawPhone.length >= 10 ? rawPhone.slice(-10) : (cleanEmail.startsWith("phone_") ? cleanEmail.replace(/\D/g, "").slice(-10) : "");
+  const purePhone = isGenuineIndianMobile(candidateDigits) ? candidateDigits : "";
   const newSessionVersion = customSessionVersion || Date.now().toString();
   const nowIso = new Date().toISOString();
   const nowTimestamp = Date.now();
