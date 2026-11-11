@@ -268,11 +268,27 @@ export default function LoginPage() {
                 }
 
                 let cloudPin: string | undefined = undefined;
+                let cloudPinUpdatedAt: number = 0;
                 let cloudHasSetPin: boolean = false;
                 let cloudName: string | undefined = undefined;
                 let cloudRole: any = undefined;
                 let cloudAssignedProp: string | undefined = undefined;
                 let cloudPropName: string | undefined = undefined;
+
+                const updateCandidateCloud = (d: any) => {
+                  if (d.displayName && !cloudName) cloudName = d.displayName;
+                  if (d.role && !cloudRole) cloudRole = d.role;
+                  if (d.assignedPropertyId && !cloudAssignedProp) cloudAssignedProp = d.assignedPropertyId;
+                  if ((d.propertyName || d.pgName) && !cloudPropName) cloudPropName = d.propertyName || d.pgName;
+                  if (d.securityPin) {
+                    const pinTime = d.pinUpdatedAt || 0;
+                    if (!cloudPin || pinTime >= cloudPinUpdatedAt) {
+                      cloudPin = d.securityPin;
+                      cloudPinUpdatedAt = pinTime;
+                      cloudHasSetPin = true;
+                    }
+                  }
+                };
 
                 // 1. Check users collection if firebase auth user is present
                 if (auth.currentUser) {
@@ -280,10 +296,7 @@ export default function LoginPage() {
                     const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
                     if (userSnap.exists()) {
                       const uData = userSnap.data();
-                      if (uData.securityPin) {
-                        cloudPin = uData.securityPin;
-                        cloudHasSetPin = true;
-                      }
+                      updateCandidateCloud(uData);
                       if (uData.displayName) cloudName = uData.displayName;
                       if (uData.role) cloudRole = uData.role;
                       if (uData.assignedPropertyId) cloudAssignedProp = uData.assignedPropertyId;
@@ -298,10 +311,7 @@ export default function LoginPage() {
                     const staffSnap = await getDoc(doc(db, "staff_accounts", cleanEmail));
                     if (staffSnap.exists()) {
                       const sData = staffSnap.data();
-                      if (sData.securityPin) {
-                        cloudPin = sData.securityPin;
-                        cloudHasSetPin = true;
-                      }
+                      updateCandidateCloud(sData);
                       if (sData.name) cloudName = sData.name;
                       if (sData.role) cloudRole = sData.role;
                       if (sData.assignedPropertyId) cloudAssignedProp = sData.assignedPropertyId;
@@ -317,10 +327,7 @@ export default function LoginPage() {
                     const uSnap = await getDocs(uQ);
                     if (!uSnap.empty) {
                       const uData = uSnap.docs[0].data();
-                      if (uData.securityPin) {
-                        cloudPin = uData.securityPin;
-                        cloudHasSetPin = true;
-                      }
+                      updateCandidateCloud(uData);
                       if (uData.displayName) cloudName = uData.displayName;
                       if (uData.role) cloudRole = uData.role;
                       if (uData.assignedPropertyId) cloudAssignedProp = uData.assignedPropertyId;
@@ -338,10 +345,7 @@ export default function LoginPage() {
                       const pSnap = await getDocs(pQ);
                       if (!pSnap.empty) {
                         const uData = pSnap.docs[0].data();
-                        if (uData.securityPin) {
-                          cloudPin = uData.securityPin;
-                          cloudHasSetPin = true;
-                        }
+                        updateCandidateCloud(uData);
                         if (uData.displayName) cloudName = uData.displayName;
                         if (uData.role) cloudRole = uData.role;
                         if (uData.assignedPropertyId) cloudAssignedProp = uData.assignedPropertyId;
@@ -930,6 +934,7 @@ export default function LoginPage() {
               if (uData.securityPin === inputPin) {
                 isValid = true;
               } else {
+                // If direct PIN on this document doesn't match, check linked cluster documents before rejecting!
                 isValid = false;
               }
             }
@@ -992,6 +997,52 @@ export default function LoginPage() {
       }
     } catch (cloudErr) {
       console.warn("Cloud Firestore PIN verification network fallback:", cloudErr);
+    }
+
+    // 1C. CROSS-AUTH PIN RECONCILIATION & SELF-HEALING:
+    // If inputPin didn't match the primary doc, check if ANY linked account (phone, email, or property owner) has inputPin!
+    if (!isValid) {
+      try {
+        const cleanPhone = (savedSession?.phone || "").replace(/\D/g, "").slice(-10);
+        let clusterPins: { pin: string; source: string; ref?: any }[] = [];
+
+        // Check by linked phone
+        if (cleanPhone) {
+          const phSnap = await getDocs(query(collection(db, "users"), where("phone", "==", cleanPhone)));
+          phSnap.docs.forEach((d) => {
+            const data = d.data();
+            if (data.securityPin) clusterPins.push({ pin: data.securityPin, source: `users_phone_${d.id}`, ref: d.ref });
+          });
+        }
+
+        // Check by property owner record
+        if (clusterPins.length === 0 || !clusterPins.some((c) => c.pin === inputPin)) {
+          if (targetEmail && !targetEmail.endsWith(".auth")) {
+            const pSnap = await getDocs(query(collection(db, "properties"), where("ownerEmail", "==", targetEmail)));
+            for (const pd of pSnap.docs) {
+              const pData = pd.data();
+              const pOwnerPhone = (pData.ownerPhone || "").replace(/\D/g, "").slice(-10);
+              if (pOwnerPhone) {
+                const uSnap = await getDocs(query(collection(db, "users"), where("phone", "==", pOwnerPhone)));
+                uSnap.docs.forEach((ud) => {
+                  const data = ud.data();
+                  if (data.securityPin) clusterPins.push({ pin: data.securityPin, source: `prop_linked_phone_${ud.id}`, ref: ud.ref });
+                });
+              }
+            }
+          }
+        }
+
+        const matchedCluster = clusterPins.find((c) => c.pin === inputPin);
+        if (matchedCluster) {
+          isValid = true;
+          cloudFound = true;
+          // 🌟 Auto-heal all linked documents with the verified PIN immediately!
+          syncUserSecurityPinToCloud(targetEmail, inputPin, auth.currentUser?.uid, activeSessionVersion, cleanPhone).catch(() => {});
+        }
+      } catch (clusterErr) {
+        console.warn("Cross-auth PIN cluster reconciliation notice:", clusterErr);
+      }
     }
 
     // 2. STRICT CLOUD AUTHORITY with Local Trusted Device Fallback

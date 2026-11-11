@@ -379,7 +379,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                       const isAnyOnboarded = Boolean(data.onboardingCompleted || bData.onboardingCompleted);
                       const resolvedProp = bData.assignedPropertyId || data.assignedPropertyId || "";
                       const resolvedPropName = bData.propertyName || data.propertyName || "";
-                      const resolvedPin = bData.securityPin || data.securityPin || "";
+                      const bPinTime = bData.pinUpdatedAt || 0;
+                      const dPinTime = (data as any).pinUpdatedAt || 0;
+                      let resolvedPin = "";
+                      let resolvedPinTime = 0;
+                      if (bPinTime > dPinTime && bData.securityPin) {
+                        resolvedPin = bData.securityPin;
+                        resolvedPinTime = bPinTime;
+                      } else if (dPinTime >= bPinTime && (data as any).securityPin) {
+                        resolvedPin = (data as any).securityPin;
+                        resolvedPinTime = dPinTime;
+                      } else {
+                        resolvedPin = bData.securityPin || (data as any).securityPin || "";
+                        resolvedPinTime = Math.max(bPinTime, dPinTime);
+                      }
                       const hasPin = Boolean(bData.hasSetPin || data.hasSetPin || (resolvedPin && resolvedPin !== ""));
 
                       const synced: Partial<UserProfile> = {
@@ -396,7 +409,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         propertyName: resolvedPropName,
                         onboardingCompleted: isAnyOnboarded,
                         hasSetPin: hasPin,
-                        ...(resolvedPin ? { securityPin: resolvedPin } : {}),
+                        ...(resolvedPin ? { securityPin: resolvedPin, pinUpdatedAt: resolvedPinTime } : {}),
                         phone: data.phone || bData.phone,
                       };
                       Object.assign(data, synced);

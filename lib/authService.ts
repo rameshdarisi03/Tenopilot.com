@@ -865,135 +865,185 @@ export async function syncUserSecurityPinToCloud(
   try {
     const writes: Promise<any>[] = [];
 
-    // 1. Update staff_accounts collection in Firestore ONLY if the account is an existing staff member (admin or receptionist)
-    // Never mix up Staff accounts with Master Admin accounts!
-    try {
-      let matchedStaffData: any = null;
+    // --- FULL MULTI-CHANNEL CLUSTER DISCOVERY ---
+    // Solves phone-to-email and email-to-phone PIN synchronization permanently
+    const targetUids = new Set<string>();
+    const targetEmails = new Set<string>();
+    const targetPhones = new Set<string>();
+    const targetPropIds = new Set<string>();
 
-      // A. Check staff_accounts with cleanEmail
-      if (cleanEmail && cleanEmail.includes("@")) {
-        const staffRef = doc(db, "staff_accounts", cleanEmail);
-        const staffSnap = await getDoc(staffRef);
-        if (staffSnap.exists()) {
-          const sData = staffSnap.data();
-          if (sData?.role === "admin" || sData?.role === "receptionist") {
-            matchedStaffData = sData;
+    if (uid) targetUids.add(uid);
+    if (auth.currentUser?.uid) targetUids.add(auth.currentUser.uid);
+    if (cleanEmail && cleanEmail.includes("@") && !cleanEmail.endsWith(".auth") && !cleanEmail.startsWith("phone_")) {
+      targetEmails.add(cleanEmail);
+    }
+    if (purePhone) targetPhones.add(purePhone);
+
+    // 1. Probe known UIDs in users collection
+    for (const u of Array.from(targetUids)) {
+      try {
+        const uSnap = await getDoc(doc(db, "users", u));
+        if (uSnap.exists()) {
+          const uD = uSnap.data();
+          if (uD.email && !uD.email.endsWith(".auth") && !uD.email.startsWith("phone_") && uD.email.includes("@")) {
+            targetEmails.add(uD.email.toLowerCase().trim());
           }
+          const p = (uD.phone || "").replace(/\D/g, "").slice(-10);
+          if (p && isGenuineIndianMobile(p)) targetPhones.add(p);
+          if (uD.primaryUid) targetUids.add(uD.primaryUid);
+          if (uD.assignedPropertyId) targetPropIds.add(uD.assignedPropertyId);
         }
-      }
-
-      // B. If not found or purePhone exists, check staff phone index
-      if (purePhone) {
-        const phoneDocRef = doc(db, "staff_accounts", `phone_${purePhone}`);
-        if (!matchedStaffData) {
-          const pSnap = await getDoc(phoneDocRef);
-          if (pSnap.exists()) {
-            const pData = pSnap.data();
-            if (pData?.role === "admin" || pData?.role === "receptionist") {
-              matchedStaffData = pData;
-            }
-          }
-        }
-      }
-
-      // If verified staff member, atomically update across both channels:
-      // staff_accounts/{email}, staff_accounts/phone_{pure10}, properties/{propId}/staff/{staffId}, and in-memory store
-      if (matchedStaffData) {
-        const staffPayload = {
-          securityPin: pin,
-          hasSetPin: true,
-          sessionVersion: newSessionVersion,
-          pinUpdatedAt: nowTimestamp,
-          updatedAt: nowIso,
-        };
-
-        // Write to email doc in staff_accounts
-        const staffEmail = (matchedStaffData.email || (cleanEmail.includes("@") && !cleanEmail.endsWith(".auth") ? cleanEmail : "")).trim().toLowerCase();
-        if (staffEmail) {
-          writes.push(setDoc(doc(db, "staff_accounts", staffEmail), staffPayload, { merge: true }));
-        }
-
-        // Write to phone index doc in staff_accounts
-        const finalStaffPhone = (matchedStaffData.purePhone || matchedStaffData.phone || purePhone || "").replace(/\D/g, "").slice(-10);
-        if (finalStaffPhone) {
-          writes.push(setDoc(doc(db, "staff_accounts", `phone_${finalStaffPhone}`), staffPayload, { merge: true }));
-        }
-
-        // Write to property staff subcollection
-        const propId = matchedStaffData.assignedPropertyId;
-        const staffId = matchedStaffData.staffId || matchedStaffData.id;
-        if (propId && staffId) {
-          writes.push(
-            setDoc(
-              doc(db, "properties", propId, "staff", staffId),
-              staffPayload,
-              { merge: true }
-            )
-          );
-          try {
-            staffStore.setSecurityPinInMemory(staffId, pin, newSessionVersion);
-          } catch {}
-        }
-      }
-    } catch (e) {
-      console.warn("staff_accounts pin sync notice:", e);
+      } catch {}
     }
 
-    // 2. Update users collection in Firestore (For Master Admin, Property Owners & Registered Users)
-    const targetUid = uid || auth.currentUser?.uid;
-    const userPayload = {
+    // 2. Probe properties collection (The authoritative bridge between phone & email)
+    for (const ph of Array.from(targetPhones)) {
+      try {
+        const pSnap = await getDocs(query(collection(db, "properties"), where("ownerPhone", "==", ph)));
+        pSnap.docs.forEach((pd) => {
+          targetPropIds.add(pd.id);
+          const pData = pd.data();
+          if (pData.ownerEmail && !pData.ownerEmail.endsWith(".auth") && pData.ownerEmail.includes("@")) {
+            targetEmails.add(pData.ownerEmail.toLowerCase().trim());
+          }
+          if (pData.ownerUid) targetUids.add(pData.ownerUid);
+        });
+      } catch {}
+    }
+    for (const em of Array.from(targetEmails)) {
+      try {
+        const pSnap = await getDocs(query(collection(db, "properties"), where("ownerEmail", "==", em)));
+        pSnap.docs.forEach((pd) => {
+          targetPropIds.add(pd.id);
+          const pData = pd.data();
+          const p = (pData.ownerPhone || "").replace(/\D/g, "").slice(-10);
+          if (p && isGenuineIndianMobile(p)) targetPhones.add(p);
+          if (pData.ownerUid) targetUids.add(pData.ownerUid);
+        });
+      } catch {}
+    }
+    for (const pid of Array.from(targetPropIds)) {
+      try {
+        const pSnap = await getDoc(doc(db, "properties", pid));
+        if (pSnap.exists()) {
+          const pData = pSnap.data();
+          if (pData.ownerEmail && !pData.ownerEmail.endsWith(".auth") && pData.ownerEmail.includes("@")) {
+            targetEmails.add(pData.ownerEmail.toLowerCase().trim());
+          }
+          const p = (pData.ownerPhone || "").replace(/\D/g, "").slice(-10);
+          if (p && isGenuineIndianMobile(p)) targetPhones.add(p);
+          if (pData.ownerUid) targetUids.add(pData.ownerUid);
+        }
+      } catch {}
+    }
+
+    // 3. Cross-query users collection with discovered emails & phones
+    for (const em of Array.from(targetEmails)) {
+      try {
+        const uSnap = await getDocs(query(collection(db, "users"), where("email", "==", em)));
+        uSnap.docs.forEach((ud) => {
+          targetUids.add(ud.id);
+          const uD = ud.data();
+          const p = (uD.phone || "").replace(/\D/g, "").slice(-10);
+          if (p && isGenuineIndianMobile(p)) targetPhones.add(p);
+          if (uD.primaryUid) targetUids.add(uD.primaryUid);
+          if (uD.assignedPropertyId) targetPropIds.add(uD.assignedPropertyId);
+        });
+      } catch {}
+    }
+    for (const ph of Array.from(targetPhones)) {
+      try {
+        const uSnap = await getDocs(query(collection(db, "users"), where("phone", "==", ph)));
+        uSnap.docs.forEach((ud) => {
+          targetUids.add(ud.id);
+          const uD = ud.data();
+          if (uD.email && !uD.email.endsWith(".auth") && !uD.email.startsWith("phone_") && uD.email.includes("@")) {
+            targetEmails.add(uD.email.toLowerCase().trim());
+          }
+          if (uD.primaryUid) targetUids.add(uD.primaryUid);
+          if (uD.assignedPropertyId) targetPropIds.add(uD.assignedPropertyId);
+        });
+      } catch {}
+    }
+
+    const canonicalEmail = Array.from(targetEmails)[0] || "";
+    const canonicalPhone = Array.from(targetPhones)[0] || "";
+    const canonicalPropId = Array.from(targetPropIds)[0] || "";
+
+    const userPayload: Record<string, any> = {
       securityPin: pin,
       hasSetPin: true,
       sessionVersion: newSessionVersion,
       pinUpdatedAt: nowTimestamp,
       updatedAt: nowIso,
     };
+    if (canonicalPhone) userPayload.phone = canonicalPhone;
+    if (canonicalEmail) userPayload.email = canonicalEmail;
+    if (canonicalPropId) userPayload.assignedPropertyId = canonicalPropId;
 
-    if (targetUid) {
-      writes.push(
-        setDoc(
-          doc(db, "users", targetUid),
-          userPayload,
-          { merge: true }
-        )
-      );
+    // 4. ATOMICALLY UPDATE ALL DISCOVERED USER DOCS
+    for (const u of Array.from(targetUids)) {
+      writes.push(setDoc(doc(db, "users", u), userPayload, { merge: true }));
     }
 
-    // Bi-directional synchronization across both login channels for users:
-    // If phone is linked, update all matching user documents
-    if (purePhone) {
+    // 5. ATOMICALLY UPDATE ALL STAFF DOCS IF APPLICABLE
+    for (const em of Array.from(targetEmails)) {
       try {
-        const qPhone = query(collection(db, "users"), where("phone", "==", purePhone));
-        const phoneDocs = await getDocs(qPhone);
-        phoneDocs.forEach((d) => {
-          if (d.id !== targetUid) {
-            writes.push(setDoc(d.ref, userPayload, { merge: true }));
+        const staffRef = doc(db, "staff_accounts", em);
+        const sSnap = await getDoc(staffRef);
+        if (sSnap.exists()) {
+          const sData = sSnap.data();
+          if (sData?.role === "admin" || sData?.role === "receptionist") {
+            const staffPayload = {
+              securityPin: pin,
+              hasSetPin: true,
+              sessionVersion: newSessionVersion,
+              pinUpdatedAt: nowTimestamp,
+              updatedAt: nowIso,
+            };
+            writes.push(setDoc(staffRef, staffPayload, { merge: true }));
+            if (canonicalPhone) {
+              writes.push(setDoc(doc(db, "staff_accounts", `phone_${canonicalPhone}`), staffPayload, { merge: true }));
+            }
+            if (sData.assignedPropertyId && (sData.staffId || sData.id)) {
+              writes.push(setDoc(doc(db, "properties", sData.assignedPropertyId, "staff", sData.staffId || sData.id), staffPayload, { merge: true }));
+              try { staffStore.setSecurityPinInMemory(sData.staffId || sData.id, pin, newSessionVersion); } catch {}
+            }
           }
-        });
-      } catch (err) {
-        console.warn("users collection phone pin sync notice:", err);
-      }
+        }
+      } catch {}
     }
-
-    // If real email is linked, update all matching user documents
-    if (cleanEmail && cleanEmail.includes("@") && !cleanEmail.endsWith(".auth")) {
+    for (const ph of Array.from(targetPhones)) {
       try {
-        const qEmail = query(collection(db, "users"), where("email", "==", cleanEmail));
-        const emailDocs = await getDocs(qEmail);
-        emailDocs.forEach((d) => {
-          if (d.id !== targetUid) {
-            writes.push(setDoc(d.ref, userPayload, { merge: true }));
+        const staffPhoneRef = doc(db, "staff_accounts", `phone_${ph}`);
+        const sSnap = await getDoc(staffPhoneRef);
+        if (sSnap.exists()) {
+          const sData = sSnap.data();
+          if (sData?.role === "admin" || sData?.role === "receptionist") {
+            const staffPayload = {
+              securityPin: pin,
+              hasSetPin: true,
+              sessionVersion: newSessionVersion,
+              pinUpdatedAt: nowTimestamp,
+              updatedAt: nowIso,
+            };
+            writes.push(setDoc(staffPhoneRef, staffPayload, { merge: true }));
+            if (sData.email) {
+              writes.push(setDoc(doc(db, "staff_accounts", sData.email.toLowerCase().trim()), staffPayload, { merge: true }));
+            }
+            if (sData.assignedPropertyId && (sData.staffId || sData.id)) {
+              writes.push(setDoc(doc(db, "properties", sData.assignedPropertyId, "staff", sData.staffId || sData.id), staffPayload, { merge: true }));
+              try { staffStore.setSecurityPinInMemory(sData.staffId || sData.id, pin, newSessionVersion); } catch {}
+            }
           }
-        });
-      } catch (err) {
-        console.warn("users collection email pin sync notice:", err);
-      }
+        }
+      } catch {}
     }
 
     // Safety timeout: Never hang caller if Firestore WebChannel socket is reconnecting
     await Promise.race([
       Promise.all(writes),
-      new Promise((resolve) => setTimeout(resolve, 2500)),
+      new Promise((resolve) => setTimeout(resolve, 3000)),
     ]);
   } catch (err) {
     console.warn("syncUserSecurityPinToCloud warning:", err);
