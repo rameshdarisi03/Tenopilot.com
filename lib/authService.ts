@@ -777,63 +777,158 @@ export async function syncUserSecurityPinToCloud(
   email: string,
   pin: string,
   uid?: string,
-  customSessionVersion?: string
+  customSessionVersion?: string,
+  phone?: string
 ): Promise<string> {
-  const cleanEmail = email.trim().toLowerCase();
+  const cleanEmail = (email || "").trim().toLowerCase();
+  const rawPhone = (phone || "").replace(/\D/g, "");
+  const purePhone = rawPhone.length >= 10 ? rawPhone.slice(-10) : (cleanEmail.startsWith("phone_") ? cleanEmail.replace(/\D/g, "").slice(-10) : "");
   const newSessionVersion = customSessionVersion || Date.now().toString();
   const nowIso = new Date().toISOString();
   const nowTimestamp = Date.now();
 
-  // Commit local session version immediately
+  // Commit local session version & cached pin immediately
   if (typeof window !== "undefined") {
     localStorage.setItem("tenopilot_session_version", newSessionVersion);
+    try {
+      const savedRaw = localStorage.getItem("tenopilot_saved_session");
+      if (savedRaw) {
+        const saved = JSON.parse(savedRaw);
+        saved.securityPin = pin;
+        saved.hasSetPin = true;
+        saved.sessionVersion = newSessionVersion;
+        if (purePhone && !saved.phone) saved.phone = purePhone;
+        localStorage.setItem("tenopilot_saved_session", JSON.stringify(saved));
+      }
+    } catch {}
   }
 
   try {
     const writes: Promise<any>[] = [];
 
-    // 1. Update staff_accounts collection in Firestore ONLY if the account is an existing staff member
+    // 1. Update staff_accounts collection in Firestore ONLY if the account is an existing staff member (admin or receptionist)
+    // Never mix up Staff accounts with Master Admin accounts!
     try {
-      const staffRef = doc(db, "staff_accounts", cleanEmail);
-      const staffSnap = await getDoc(staffRef);
-      if (staffSnap.exists()) {
-        const sData = staffSnap.data();
-        if (sData?.role === "admin" || sData?.role === "receptionist") {
+      let matchedStaffData: any = null;
+
+      // A. Check staff_accounts with cleanEmail
+      if (cleanEmail && cleanEmail.includes("@")) {
+        const staffRef = doc(db, "staff_accounts", cleanEmail);
+        const staffSnap = await getDoc(staffRef);
+        if (staffSnap.exists()) {
+          const sData = staffSnap.data();
+          if (sData?.role === "admin" || sData?.role === "receptionist") {
+            matchedStaffData = sData;
+          }
+        }
+      }
+
+      // B. If not found or purePhone exists, check staff phone index
+      if (purePhone) {
+        const phoneDocRef = doc(db, "staff_accounts", `phone_${purePhone}`);
+        if (!matchedStaffData) {
+          const pSnap = await getDoc(phoneDocRef);
+          if (pSnap.exists()) {
+            const pData = pSnap.data();
+            if (pData?.role === "admin" || pData?.role === "receptionist") {
+              matchedStaffData = pData;
+            }
+          }
+        }
+      }
+
+      // If verified staff member, atomically update across both channels:
+      // staff_accounts/{email}, staff_accounts/phone_{pure10}, properties/{propId}/staff/{staffId}, and in-memory store
+      if (matchedStaffData) {
+        const staffPayload = {
+          securityPin: pin,
+          hasSetPin: true,
+          sessionVersion: newSessionVersion,
+          pinUpdatedAt: nowTimestamp,
+          updatedAt: nowIso,
+        };
+
+        // Write to email doc in staff_accounts
+        const staffEmail = (matchedStaffData.email || (cleanEmail.includes("@") && !cleanEmail.endsWith(".auth") ? cleanEmail : "")).trim().toLowerCase();
+        if (staffEmail) {
+          writes.push(setDoc(doc(db, "staff_accounts", staffEmail), staffPayload, { merge: true }));
+        }
+
+        // Write to phone index doc in staff_accounts
+        const finalStaffPhone = (matchedStaffData.purePhone || matchedStaffData.phone || purePhone || "").replace(/\D/g, "").slice(-10);
+        if (finalStaffPhone) {
+          writes.push(setDoc(doc(db, "staff_accounts", `phone_${finalStaffPhone}`), staffPayload, { merge: true }));
+        }
+
+        // Write to property staff subcollection
+        const propId = matchedStaffData.assignedPropertyId;
+        const staffId = matchedStaffData.staffId || matchedStaffData.id;
+        if (propId && staffId) {
           writes.push(
             setDoc(
-              staffRef,
-              {
-                securityPin: pin,
-                hasSetPin: true,
-                sessionVersion: newSessionVersion,
-                pinUpdatedAt: nowTimestamp,
-                updatedAt: nowIso,
-              },
+              doc(db, "properties", propId, "staff", staffId),
+              staffPayload,
               { merge: true }
             )
           );
+          try {
+            staffStore.setSecurityPinInMemory(staffId, pin, newSessionVersion);
+          } catch {}
         }
       }
     } catch (e) {
       console.warn("staff_accounts pin sync notice:", e);
     }
 
-    // 2. Update users collection in Firestore
+    // 2. Update users collection in Firestore (For Master Admin, Property Owners & Registered Users)
     const targetUid = uid || auth.currentUser?.uid;
+    const userPayload = {
+      securityPin: pin,
+      hasSetPin: true,
+      sessionVersion: newSessionVersion,
+      pinUpdatedAt: nowTimestamp,
+      updatedAt: nowIso,
+    };
+
     if (targetUid) {
       writes.push(
         setDoc(
           doc(db, "users", targetUid),
-          {
-            securityPin: pin,
-            hasSetPin: true,
-            sessionVersion: newSessionVersion,
-            pinUpdatedAt: nowTimestamp,
-            updatedAt: nowIso,
-          },
+          userPayload,
           { merge: true }
         )
       );
+    }
+
+    // Bi-directional synchronization across both login channels for users:
+    // If phone is linked, update all matching user documents
+    if (purePhone) {
+      try {
+        const qPhone = query(collection(db, "users"), where("phone", "==", purePhone));
+        const phoneDocs = await getDocs(qPhone);
+        phoneDocs.forEach((d) => {
+          if (d.id !== targetUid) {
+            writes.push(setDoc(d.ref, userPayload, { merge: true }));
+          }
+        });
+      } catch (err) {
+        console.warn("users collection phone pin sync notice:", err);
+      }
+    }
+
+    // If real email is linked, update all matching user documents
+    if (cleanEmail && cleanEmail.includes("@") && !cleanEmail.endsWith(".auth")) {
+      try {
+        const qEmail = query(collection(db, "users"), where("email", "==", cleanEmail));
+        const emailDocs = await getDocs(qEmail);
+        emailDocs.forEach((d) => {
+          if (d.id !== targetUid) {
+            writes.push(setDoc(d.ref, userPayload, { merge: true }));
+          }
+        });
+      } catch (err) {
+        console.warn("users collection email pin sync notice:", err);
+      }
     }
 
     // Safety timeout: Never hang caller if Firestore WebChannel socket is reconnecting

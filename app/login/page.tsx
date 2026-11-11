@@ -24,6 +24,9 @@ import {
   X,
   UserCheck,
   ShieldAlert,
+  MessageSquare,
+  Loader2,
+  ArrowLeft,
 } from "lucide-react";
 import {
   continueWithGoogle,
@@ -139,6 +142,28 @@ export default function LoginPage() {
   const [verifyPasswordForPin, setVerifyPasswordForPin] = useState("");
   const [verifyPasswordError, setVerifyPasswordError] = useState<string | null>(null);
   const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
+
+  // Multi-Channel PIN Reset State (WhatsApp Cloud API + Amazon SES)
+  const [resetOtpChannel, setResetOtpChannel] = useState<"whatsapp" | "email">("whatsapp");
+  const [resetOtpStep, setResetOtpStep] = useState<"SELECT_CHANNEL" | "ENTER_OTP">("SELECT_CHANNEL");
+  const [resetOtpDigits, setResetOtpDigits] = useState<string[]>(["", "", "", "", "", ""]);
+  const [resetOtpToken, setResetOtpToken] = useState("");
+  const [resetOtpCooldown, setResetOtpCooldown] = useState(0);
+  const [isSendingResetOtp, setIsSendingResetOtp] = useState(false);
+  const [isVerifyingResetOtp, setIsVerifyingResetOtp] = useState(false);
+  const [resetOtpError, setResetOtpError] = useState<string | null>(null);
+  const [resetOtpSuccess, setResetOtpSuccess] = useState<string | null>(null);
+  const [showLegacyPasswordFallback, setShowLegacyPasswordFallback] = useState(false);
+  const resetOtpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Cooldown timer for PIN reset OTP resend
+  useEffect(() => {
+    if (resetOtpCooldown <= 0) return;
+    const interval = setInterval(() => {
+      setResetOtpCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [resetOtpCooldown]);
 
   // Forgot Password Modal State
   const [showResetModal, setShowResetModal] = useState(false);
@@ -657,8 +682,18 @@ export default function LoginPage() {
     try {
       const targetEmail = (savedSession?.email || email || "admin@tenopilot.com").trim().toLowerCase();
       const allStaff = staffStore.getAllGlobalStaff();
-      const match = allStaff.find((s) => s.email.toLowerCase() === targetEmail.toLowerCase());
+      const match = allStaff.find(
+        (s) =>
+          s.email.toLowerCase() === targetEmail.toLowerCase() ||
+          (s.phone && savedSession?.phone && s.phone.replace(/\D/g, "").slice(-10) === savedSession.phone.replace(/\D/g, "").slice(-10))
+      );
       const unifiedSessionVersion = Date.now().toString();
+
+      // Resolve Phone Number across active session, staff record, or phone login email
+      const targetPhone =
+        savedSession?.phone ||
+        match?.phone ||
+        (targetEmail.startsWith("phone_") ? targetEmail.replace(/\D/g, "").slice(-10) : "");
 
       // 1. LOCAL-FIRST PRE-COMMIT: Update in-memory & localStorage immediately!
       // This guarantees that any real-time snapshot listener sees the exact matching PIN & version.
@@ -671,7 +706,7 @@ export default function LoginPage() {
           id: `staff_user_${Date.now()}`,
           name: savedSession?.name || sanitizeTitleCase(targetEmail.split("@")[0]) || "Master Admin",
           email: targetEmail,
-          phone: "+91 98000 00000",
+          phone: targetPhone || "+91 98000 00000",
           role: savedSession?.role || "master_admin",
           assignedPropertyId: cleanAssignedProp,
           assignedPropertyIds: ["*"],
@@ -697,6 +732,7 @@ export default function LoginPage() {
         assignedPropertyId: cleanAssignedProp,
         securityPin: finalPin,
         hasSetPin: true,
+        phone: targetPhone || savedSession?.phone,
       };
       setSavedSession(updated);
       localStorage.setItem("tenopilot_saved_session", JSON.stringify(updated));
@@ -709,7 +745,7 @@ export default function LoginPage() {
       const role = updated.role || "master_admin";
       staffStore.setActiveRole(role);
 
-      // 2. TIMEOUT-GUARDED CLOUD SYNC: Run cloud sync with a 2.5s race timeout
+      // 2. TIMEOUT-GUARDED CLOUD SYNC: Run cloud sync with bi-directional phone & email sync
       const cloudSyncAction = async () => {
         try {
           if (match && match.assignedPropertyId) {
@@ -725,7 +761,13 @@ export default function LoginPage() {
               { merge: true }
             ).catch(() => {});
           }
-          await syncUserSecurityPinToCloud(targetEmail, finalPin, auth.currentUser?.uid, unifiedSessionVersion);
+          await syncUserSecurityPinToCloud(
+            targetEmail,
+            finalPin,
+            auth.currentUser?.uid,
+            unifiedSessionVersion,
+            targetPhone
+          );
         } catch (syncErr) {
           console.warn("Cloud PIN sync non-blocking warning:", syncErr);
         }
@@ -1058,6 +1100,223 @@ export default function LoginPage() {
       setVerifyPasswordError(getCleanAuthErrorMessage(err));
     } finally {
       setIsVerifyingPassword(false);
+    }
+  };
+
+  // Masking helpers for security presentation
+  const maskPhone = (num: string) => {
+    const clean = num.replace(/\D/g, "");
+    if (clean.length < 10) return num;
+    const last4 = clean.slice(-4);
+    return `+91 ••••• ••${last4}`;
+  };
+
+  const maskEmail = (em: string) => {
+    if (!em || !em.includes("@")) return em;
+    const [name, domain] = em.split("@");
+    if (name.length <= 2) return `${name[0]}•••@${domain}`;
+    return `${name.slice(0, 2)}••••••${name.slice(-1)}@${domain}`;
+  };
+
+  // Resolve active channels for PIN Reset
+  const activeSessionEmail = (savedSession?.email || email || "").trim();
+  const isPhoneSessionEmail =
+    activeSessionEmail.startsWith("phone_") ||
+    activeSessionEmail.includes("@phone.tenopilot.auth") ||
+    activeSessionEmail.includes("@auth.tenopilot.com");
+  const cleanRealEmail = !isPhoneSessionEmail && activeSessionEmail.includes("@") ? activeSessionEmail.toLowerCase() : "";
+
+  let candidatePhone = (savedSession?.phone || "").replace(/\D/g, "");
+  if (!candidatePhone && isPhoneSessionEmail) {
+    candidatePhone = activeSessionEmail.replace(/\D/g, "");
+  }
+  if (!candidatePhone && cleanRealEmail) {
+    const stMatch = staffStore.getAllGlobalStaff().find((s) => s.email.toLowerCase() === cleanRealEmail);
+    if (stMatch?.phone) candidatePhone = stMatch.phone.replace(/\D/g, "");
+  }
+  const purePhone10 = candidatePhone.length >= 10 ? candidatePhone.slice(-10) : "";
+
+  const hasPhoneResetChannel = Boolean(purePhone10);
+  const hasEmailResetChannel = Boolean(cleanRealEmail);
+  const hasBothResetChannels = hasPhoneResetChannel && hasEmailResetChannel;
+
+  // Open Multi-Channel Reset PIN Modal
+  const handleOpenPinResetModal = () => {
+    setVerifyPasswordError(null);
+    setVerifyPasswordForPin("");
+    setResetOtpError(null);
+    setResetOtpSuccess(null);
+    setResetOtpToken("");
+    setResetOtpDigits(["", "", "", "", "", ""]);
+    setShowLegacyPasswordFallback(false);
+
+    if (hasPhoneResetChannel && !hasEmailResetChannel) {
+      setResetOtpChannel("whatsapp");
+    } else if (hasEmailResetChannel && !hasPhoneResetChannel) {
+      setResetOtpChannel("email");
+    } else {
+      setResetOtpChannel("whatsapp");
+    }
+
+    setResetOtpStep("SELECT_CHANNEL");
+    setShowPasswordResetPinModal(true);
+  };
+
+  // Dispatch OTP via WhatsApp Cloud API or Amazon SES
+  const handleSendResetOtp = async (channelOverride?: "whatsapp" | "email") => {
+    const channel = channelOverride || resetOtpChannel;
+    setResetOtpChannel(channel);
+    setResetOtpError(null);
+    setResetOtpSuccess(null);
+    setIsSendingResetOtp(true);
+
+    try {
+      if (channel === "whatsapp") {
+        if (!purePhone10) {
+          throw new Error("No valid mobile phone number linked to this account.");
+        }
+        const res = await fetch("/api/auth/phone/send-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: purePhone10 }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.message || "Failed to dispatch WhatsApp OTP.");
+        }
+        setResetOtpToken(data.verificationToken || "");
+        setResetOtpStep("ENTER_OTP");
+        setResetOtpCooldown(30);
+        setResetOtpSuccess(`WhatsApp verification code sent to ${maskPhone(purePhone10)}`);
+        setTimeout(() => resetOtpInputRefs.current[0]?.focus(), 150);
+      } else {
+        if (!cleanRealEmail) {
+          throw new Error("No valid email address linked to this account.");
+        }
+        const res = await fetch("/api/auth/email/send-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: cleanRealEmail }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.message || "Failed to dispatch Email OTP.");
+        }
+        setResetOtpToken(data.verificationToken || "");
+        setResetOtpStep("ENTER_OTP");
+        setResetOtpCooldown(30);
+        setResetOtpSuccess(`Email verification code sent to ${maskEmail(cleanRealEmail)}`);
+        setTimeout(() => resetOtpInputRefs.current[0]?.focus(), 150);
+      }
+    } catch (err: any) {
+      setResetOtpError(err.message || "Failed to dispatch OTP verification code.");
+    } finally {
+      setIsSendingResetOtp(false);
+    }
+  };
+
+  // Verify OTP Code
+  const handleVerifyResetOtp = async (codeOverride?: string) => {
+    const code = (codeOverride || resetOtpDigits.join("")).trim();
+    if (code.length !== 6) {
+      setResetOtpError("Please enter all 6 digits of your OTP code.");
+      return;
+    }
+
+    setResetOtpError(null);
+    setIsVerifyingResetOtp(true);
+
+    try {
+      if (resetOtpChannel === "whatsapp") {
+        const res = await fetch("/api/auth/phone/verify-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone: purePhone10,
+            otp: code,
+            verificationToken: resetOtpToken,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.message || "Invalid or expired WhatsApp OTP code.");
+        }
+      } else {
+        const res = await fetch("/api/auth/email/verify-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: cleanRealEmail,
+            otp: code,
+            verificationToken: resetOtpToken,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.message || "Invalid or expired Email OTP code.");
+        }
+      }
+
+      // Verification Succeeded!
+      clearLockout();
+      setShowPasswordResetPinModal(false);
+      setResetOtpDigits(["", "", "", "", "", ""]);
+      setResetOtpToken("");
+      setVerifyPasswordForPin("");
+      setIsResetMode(true);
+      setPinCreationStep("ENTER");
+      setFirstTimePin("");
+      setConfirmPinValue("");
+      setPinMismatchError(null);
+      setAuthStep("SET_OR_RESET_PIN");
+    } catch (err: any) {
+      setResetOtpError(err.message || "Verification failed. Please check the code and try again.");
+    } finally {
+      setIsVerifyingResetOtp(false);
+    }
+  };
+
+  // Handle OTP digit changes
+  const handleResetOtpDigitChange = (index: number, val: string) => {
+    const clean = val.replace(/\D/g, "").slice(-1);
+    const newDigits = [...resetOtpDigits];
+    newDigits[index] = clean;
+    setResetOtpDigits(newDigits);
+    setResetOtpError(null);
+
+    if (clean && index < 5) {
+      resetOtpInputRefs.current[index + 1]?.focus();
+    }
+
+    if (clean && index === 5 && newDigits.every((d) => d.length === 1)) {
+      setTimeout(() => {
+        handleVerifyResetOtp(newDigits.join(""));
+      }, 150);
+    }
+  };
+
+  const handleResetOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace" && !resetOtpDigits[index] && index > 0) {
+      resetOtpInputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleResetOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (!pasted) return;
+    const newDigits = ["", "", "", "", "", ""];
+    for (let i = 0; i < pasted.length; i++) {
+      newDigits[i] = pasted[i];
+    }
+    setResetOtpDigits(newDigits);
+    if (pasted.length === 6) {
+      setTimeout(() => {
+        handleVerifyResetOtp(pasted);
+      }, 150);
+    } else {
+      const nextIdx = Math.min(pasted.length, 5);
+      resetOtpInputRefs.current[nextIdx]?.focus();
     }
   };
 
@@ -1663,10 +1922,11 @@ export default function LoginPage() {
 
       </div>
 
-      {/* 🔐 Identity Verification Modal to Reset PIN */}
+      {/* 🔐 Multi-Channel Identity Verification Modal to Reset PIN */}
       {showPasswordResetPinModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-4 text-xs animate-in zoom-in-95">
+            {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div className="flex items-center gap-2 text-gray-900">
                 <ShieldCheck className="w-5 h-5 text-[#c2652a]" />
@@ -1676,7 +1936,9 @@ export default function LoginPage() {
                 type="button"
                 onClick={() => {
                   setShowPasswordResetPinModal(false);
-                  setVerifyPasswordError(null);
+                  setResetOtpStep("SELECT_CHANNEL");
+                  setResetOtpError(null);
+                  setResetOtpSuccess(null);
                 }}
                 className="p-1 text-gray-400 hover:text-gray-600 rounded-full cursor-pointer"
               >
@@ -1684,87 +1946,213 @@ export default function LoginPage() {
               </button>
             </div>
 
-            <p className="text-gray-500 text-[11px] leading-relaxed">
-              Verify your identity to reset your 6-digit MPIN for{" "}
-              <strong className="text-gray-800 font-semibold">{savedSession?.email || email}</strong>.
-            </p>
-
+            {/* Error or Success Alerts */}
+            {resetOtpError && (
+              <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-900 rounded-xl font-semibold flex items-center gap-2 text-[11px] animate-in fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{resetOtpError}</span>
+              </div>
+            )}
+            {resetOtpSuccess && (
+              <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl font-semibold flex items-center gap-2 text-[11px] animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                <span>{resetOtpSuccess}</span>
+              </div>
+            )}
             {verifyPasswordError && (
-              <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-900 rounded-xl font-semibold flex items-center gap-2 text-[11px]">
+              <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-900 rounded-xl font-semibold flex items-center gap-2 text-[11px] animate-in fade-in">
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                 <span>{verifyPasswordError}</span>
               </div>
             )}
 
-            {/* 1. Google 1-Click Verification Option */}
-            <div className="space-y-3">
-              <button
-                type="button"
-                onClick={handleVerifyWithGoogleForPinReset}
-                disabled={isVerifyingPassword}
-                className="w-full py-2.5 px-4 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-800 font-bold text-xs shadow-xs flex items-center justify-center gap-2.5 cursor-pointer transition-all active:scale-98 disabled:opacity-50"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                  />
-                </svg>
-                <span>{isVerifyingPassword ? "Verifying..." : "Verify with Google Account"}</span>
-              </button>
+            {/* STEP 1: SELECT CHANNEL / DISPATCH OTP */}
+            {resetOtpStep === "SELECT_CHANNEL" && (
+              <div className="space-y-4">
+                <p className="text-gray-600 text-[11px] leading-relaxed">
+                  Verify your identity via 1-time verification code (OTP) to securely reset your 6-digit MPIN.
+                </p>
 
-              <div className="flex items-center gap-2 my-2 text-gray-400">
-                <hr className="flex-1 border-gray-200" />
-                <span className="text-[10px] font-bold uppercase tracking-wider">or with password</span>
-                <hr className="flex-1 border-gray-200" />
-              </div>
+                {/* Primary OTP Channels */}
+                <div className="space-y-2.5">
+                  {/* WhatsApp Channel (Available if user has a mobile number) */}
+                  {hasPhoneResetChannel && (
+                    <button
+                      type="button"
+                      onClick={() => handleSendResetOtp("whatsapp")}
+                      disabled={isSendingResetOtp}
+                      className="w-full p-3 rounded-2xl border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100/70 text-left transition-all flex items-center justify-between group cursor-pointer disabled:opacity-50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                          <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                            <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="font-bold text-gray-900 flex items-center gap-1.5">
+                            <span>WhatsApp OTP</span>
+                            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-200/80 text-emerald-900 font-bold">Fast</span>
+                          </p>
+                          <p className="text-[10px] text-gray-500 font-mono">{maskPhone(purePhone10)}</p>
+                        </div>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-emerald-700 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  )}
 
-              {/* 2. Password Verification Form (for Staff & Password accounts) */}
-              <form onSubmit={handleVerifyPasswordForPinReset} className="space-y-3">
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Account Password</label>
-                  <input
-                    type="password"
-                    value={verifyPasswordForPin}
-                    onChange={(e) => setVerifyPasswordForPin(e.target.value)}
-                    placeholder="Enter your account password"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#c2652a] text-xs bg-white text-gray-900"
-                  />
+                  {/* Email Channel (Available if user has a verified email) */}
+                  {hasEmailResetChannel && (
+                    <button
+                      type="button"
+                      onClick={() => handleSendResetOtp("email")}
+                      disabled={isSendingResetOtp}
+                      className="w-full p-3 rounded-2xl border border-blue-200 bg-blue-50/60 hover:bg-blue-100/70 text-left transition-all flex items-center justify-between group cursor-pointer disabled:opacity-50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                          <Mail className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-gray-900 flex items-center gap-1.5">
+                            <span>Email OTP</span>
+                            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-blue-200/80 text-blue-900 font-bold">Instant</span>
+                          </p>
+                          <p className="text-[10px] text-gray-500 font-mono">{maskEmail(cleanRealEmail)}</p>
+                        </div>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-blue-700 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  )}
+
+                  {/* Fallback if neither phone nor email was resolved */}
+                  {!hasPhoneResetChannel && !hasEmailResetChannel && (
+                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px]">
+                      No linked phone or email found. Please use your account password or Google account below to verify your identity.
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                {/* Secondary Option: Password & Google Accordion */}
+                <div className="pt-2 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowLegacyPasswordFallback(!showLegacyPasswordFallback)}
+                    className="w-full text-center text-[11px] font-bold text-gray-500 hover:text-gray-900 cursor-pointer py-1"
+                  >
+                    {showLegacyPasswordFallback ? "▲ Hide Other Methods" : "▼ Or Verify with Password / Google"}
+                  </button>
+
+                  {showLegacyPasswordFallback && (
+                    <div className="space-y-3 pt-3 animate-in fade-in">
+                      <button
+                        type="button"
+                        onClick={handleVerifyWithGoogleForPinReset}
+                        disabled={isVerifyingPassword}
+                        className="w-full py-2.5 px-4 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-800 font-bold text-xs shadow-xs flex items-center justify-center gap-2.5 cursor-pointer transition-all active:scale-98 disabled:opacity-50"
+                      >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24">
+                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                        </svg>
+                        <span>{isVerifyingPassword ? "Verifying..." : "Verify with Google Account"}</span>
+                      </button>
+
+                      <form onSubmit={handleVerifyPasswordForPinReset} className="space-y-2.5">
+                        <input
+                          type="password"
+                          value={verifyPasswordForPin}
+                          onChange={(e) => setVerifyPasswordForPin(e.target.value)}
+                          placeholder="Enter account password"
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#c2652a] text-xs bg-white text-gray-900"
+                        />
+                        <button
+                          type="submit"
+                          disabled={isVerifyingPassword || !verifyPasswordForPin}
+                          className="w-full py-2.5 rounded-xl bg-gray-900 hover:bg-black text-white font-bold cursor-pointer disabled:opacity-50 text-xs"
+                        >
+                          {isVerifyingPassword ? "Verifying..." : "Verify Password & Reset MPIN"}
+                        </button>
+                      </form>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: ENTER OTP CODE */}
+            {resetOtpStep === "ENTER_OTP" && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-gray-900 text-xs">Enter 6-Digit Verification Code</p>
+                    <p className="text-[11px] text-gray-500 font-mono">
+                      {resetOtpChannel === "whatsapp"
+                        ? `Sent to WhatsApp: ${maskPhone(purePhone10)}`
+                        : `Sent to Email: ${maskEmail(cleanRealEmail)}`}
+                    </p>
+                  </div>
                   <button
                     type="button"
                     onClick={() => {
-                      setShowPasswordResetPinModal(false);
-                      setVerifyPasswordError(null);
+                      setResetOtpStep("SELECT_CHANNEL");
+                      setResetOtpDigits(["", "", "", "", "", ""]);
+                      setResetOtpError(null);
                     }}
-                    className="px-3.5 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold cursor-pointer"
+                    className="text-[10px] text-gray-500 hover:text-gray-900 font-bold underline cursor-pointer"
                   >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isVerifyingPassword || !verifyPasswordForPin}
-                    className="px-4 py-2 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold disabled:opacity-50 cursor-pointer"
-                  >
-                    {isVerifyingPassword ? "Verifying..." : "Verify & Set MPIN"}
+                    Change Method
                   </button>
                 </div>
-              </form>
-            </div>
+
+                {/* 6 Digit Individual Cells */}
+                <div className="flex items-center justify-center gap-2 py-2" onPaste={handleResetOtpPaste}>
+                  {resetOtpDigits.map((digit, index) => (
+                    <input
+                      key={index}
+                      ref={(el) => {
+                        resetOtpInputRefs.current[index] = el;
+                      }}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleResetOtpDigitChange(index, e.target.value)}
+                      onKeyDown={(e) => handleResetOtpKeyDown(index, e)}
+                      className="w-10 h-12 text-center text-lg font-mono font-bold rounded-xl border-2 border-gray-200 focus:border-[#c2652a] focus:ring-2 focus:ring-[#c2652a]/20 bg-gray-50/50 text-gray-900 outline-none transition-all"
+                    />
+                  ))}
+                </div>
+
+                {/* Resend OTP Timer & Actions */}
+                <div className="flex items-center justify-between text-[11px] pt-1">
+                  {resetOtpCooldown > 0 ? (
+                    <span className="text-gray-400 font-medium">Resend code in {resetOtpCooldown}s</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleSendResetOtp(resetOtpChannel)}
+                      disabled={isSendingResetOtp}
+                      className="text-[#c2652a] font-bold hover:underline cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Resend OTP Code</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => handleVerifyResetOtp()}
+                    disabled={isVerifyingResetOtp || resetOtpDigits.some((d) => !d)}
+                    className="px-4 py-2 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold disabled:opacity-50 cursor-pointer shadow-xs"
+                  >
+                    {isVerifyingResetOtp ? "Verifying..." : "Verify & Reset"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
