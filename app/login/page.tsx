@@ -107,6 +107,8 @@ interface SavedSession {
   trialEndsAtMs?: number | string | null;
   masterAdminUid?: string;
   ownerEmail?: string;
+  primaryUid?: string;
+  uid?: string;
 }
 
 export default function LoginPage() {
@@ -160,7 +162,7 @@ export default function LoginPage() {
   }
 
   const [resetOtpChannel, setResetOtpChannel] = useState<"whatsapp" | "email">("whatsapp");
-  const [resetOtpStep, setResetOtpStep] = useState<"VERIFY_ACCOUNT" | "SELECT_CHANNEL" | "ENTER_OTP">("SELECT_CHANNEL");
+  const [resetOtpStep, setResetOtpStep] = useState<"VERIFY_ACCOUNT" | "SELECT_CHANNEL" | "ENTER_OTP">("VERIFY_ACCOUNT");
   const [verifiedResetAccount, setVerifiedResetAccount] = useState<VerifiedResetAccount | null>(null);
   const [resetIdentifierInput, setResetIdentifierInput] = useState("");
   const [isVerifyingAccount, setIsVerifyingAccount] = useState(false);
@@ -1155,19 +1157,51 @@ export default function LoginPage() {
   };
 
   // 🔍 STRICT CLOUD LOOKUP: Verify credentials directly against Firestore before offering or sending OTP
-  const lookupVerifiedAccountInCloud = async (rawIdentifier: string): Promise<VerifiedResetAccount | null> => {
+  const lookupVerifiedAccountInCloud = async (
+    rawIdentifier?: string,
+    optionalUid?: string
+  ): Promise<VerifiedResetAccount | null> => {
+    // 0. Direct UID lookup (For active sessions)
+    const targetUid = optionalUid || savedSession?.primaryUid || (savedSession as any)?.uid || (auth.currentUser ? auth.currentUser.uid : "");
+    if (targetUid) {
+      try {
+        const uDoc = await getDoc(doc(db, "users", targetUid));
+        if (uDoc.exists()) {
+          const uData = uDoc.data();
+          const rawP = (uData?.phone || "").replace(/\D/g, "");
+          const verifiedPhone = rawP.length >= 10 && isGenuineIndianMobile(rawP.slice(-10)) ? rawP.slice(-10) : undefined;
+          const rawEm = uData?.email || "";
+          const verifiedEmail = rawEm && isValidRealEmail(rawEm) ? rawEm.toLowerCase() : undefined;
+          if (verifiedPhone || verifiedEmail) {
+            return {
+              exists: true,
+              uid: uDoc.id,
+              role: uData.role || "master_admin",
+              displayName: uData.displayName || uData.name || savedSession?.name || "Property Owner",
+              phone: verifiedPhone,
+              email: verifiedEmail,
+              hasPhone: Boolean(verifiedPhone),
+              hasEmail: Boolean(verifiedEmail),
+              isStaff: false,
+              assignedPropertyId: uData.assignedPropertyId,
+            };
+          }
+        }
+      } catch (e) {
+        console.warn("Direct uid user lookup notice:", e);
+      }
+    }
+
     const clean = (rawIdentifier || "").trim();
     if (!clean) return null;
 
     const digits = clean.replace(/\D/g, "");
-    const isPhoneCandidate = digits.length >= 10;
-    const isEmailCandidate = clean.includes("@") && isValidRealEmail(clean);
+    const pure10 = digits.length >= 10 ? digits.slice(-10) : "";
+    const isPhoneCandidate = Boolean(pure10 && isGenuineIndianMobile(pure10));
+    const isEmailCandidate = Boolean(clean.includes("@") && isValidRealEmail(clean));
 
     // A. LOOKUP BY PHONE NUMBER
     if (isPhoneCandidate) {
-      const pure10 = digits.slice(-10);
-      if (!isGenuineIndianMobile(pure10)) return null;
-
       // 1. Check in staff_accounts collection
       try {
         const saDoc = await getDoc(doc(db, "staff_accounts", `phone_${pure10}`));
@@ -1195,6 +1229,29 @@ export default function LoginPage() {
         if (!saSnap.empty) {
           const sData = saSnap.docs[0].data();
           if (sData?.role === "admin" || sData?.role === "receptionist") {
+            const realEmail = sData.email && isValidRealEmail(sData.email) ? sData.email.toLowerCase() : undefined;
+            return {
+              exists: true,
+              uid: sData.id || `staff_${pure10}`,
+              role: sData.role,
+              displayName: sData.name || "Staff Member",
+              phone: pure10,
+              email: realEmail,
+              hasPhone: true,
+              hasEmail: Boolean(realEmail),
+              isStaff: true,
+              assignedPropertyId: sData.assignedPropertyId,
+              staffId: sData.staffId || sData.id,
+            };
+          }
+        }
+
+        // Fallback scan for documents with country code/spaces in staff_accounts
+        const allStaffSnap = await getDocs(collection(db, "staff_accounts"));
+        for (const sDoc of allStaffSnap.docs) {
+          const sData = sDoc.data();
+          const sPhone = (sData.phone || "").replace(/\D/g, "").slice(-10);
+          if (sPhone === pure10 && (sData.role === "admin" || sData.role === "receptionist")) {
             const realEmail = sData.email && isValidRealEmail(sData.email) ? sData.email.toLowerCase() : undefined;
             return {
               exists: true,
@@ -1297,6 +1354,34 @@ export default function LoginPage() {
       }
     }
 
+    // C. LOOKUP IN IN-MEMORY STAFF STORE (Instant fallback)
+    try {
+      const all = staffStore.getAllGlobalStaff();
+      const match = all.find(
+        (s) =>
+          (pure10 && s.phone && s.phone.replace(/\D/g, "").slice(-10) === pure10) ||
+          (clean && s.email && s.email.toLowerCase() === clean.toLowerCase())
+      );
+      if (match) {
+        const rawP = (match.phone || "").replace(/\D/g, "");
+        const sPhone = rawP.length >= 10 && isGenuineIndianMobile(rawP.slice(-10)) ? rawP.slice(-10) : undefined;
+        const realEmail = match.email && isValidRealEmail(match.email) ? match.email.toLowerCase() : undefined;
+        return {
+          exists: true,
+          uid: match.id,
+          role: match.role,
+          displayName: match.name,
+          phone: sPhone,
+          email: realEmail,
+          hasPhone: Boolean(sPhone),
+          hasEmail: Boolean(realEmail),
+          isStaff: match.role === "admin" || match.role === "receptionist",
+          assignedPropertyId: match.assignedPropertyId,
+          staffId: match.id,
+        };
+      }
+    } catch {}
+
     return null;
   };
 
@@ -1311,19 +1396,59 @@ export default function LoginPage() {
     setAccountVerificationError(null);
     setShowLegacyPasswordFallback(false);
 
-    // Determine initial candidate identifier to verify
-    const candidateId =
-      (savedSession?.phone && isGenuineIndianMobile(savedSession.phone) ? savedSession.phone : "") ||
-      (savedSession?.email && isValidRealEmail(savedSession.email) ? savedSession.email : "") ||
-      (email && (isGenuineIndianMobile(email) || isValidRealEmail(email)) ? email : "");
+    // Resolve candidate identifier from all active session sources
+    let candidateId = "";
+
+    // 1. Saved session phone
+    if (savedSession?.phone) {
+      const rawP = savedSession.phone.replace(/\D/g, "");
+      if (rawP.length >= 10 && isGenuineIndianMobile(rawP.slice(-10))) {
+        candidateId = rawP.slice(-10);
+      }
+    }
+
+    // 2. Saved session email (phone_... encoding)
+    if (!candidateId && savedSession?.email && savedSession.email.includes("phone_")) {
+      const rawE = savedSession.email.replace(/\D/g, "");
+      if (rawE.length >= 10 && isGenuineIndianMobile(rawE.slice(-10))) {
+        candidateId = rawE.slice(-10);
+      }
+    }
+
+    // 3. Saved session email (real email)
+    if (!candidateId && savedSession?.email && isValidRealEmail(savedSession.email)) {
+      candidateId = savedSession.email.trim().toLowerCase();
+    }
+
+    // 4. Form email state
+    if (!candidateId && email) {
+      const rawFormDigits = email.replace(/\D/g, "");
+      if (rawFormDigits.length >= 10 && isGenuineIndianMobile(rawFormDigits.slice(-10))) {
+        candidateId = rawFormDigits.slice(-10);
+      } else if (isValidRealEmail(email)) {
+        candidateId = email.trim().toLowerCase();
+      }
+    }
+
+    // 5. Firebase current user
+    if (!candidateId && auth.currentUser) {
+      if (auth.currentUser.phoneNumber) {
+        candidateId = auth.currentUser.phoneNumber.replace(/\D/g, "").slice(-10);
+      } else if (auth.currentUser.email && isValidRealEmail(auth.currentUser.email)) {
+        candidateId = auth.currentUser.email.trim().toLowerCase();
+      }
+    }
+
+    const candidateUid = savedSession?.primaryUid || (savedSession as any)?.uid || auth.currentUser?.uid;
 
     setResetIdentifierInput(candidateId);
+    setResetOtpStep("VERIFY_ACCOUNT");
     setShowPasswordResetPinModal(true);
 
-    if (candidateId) {
+    if (candidateId || candidateUid) {
       setIsVerifyingAccount(true);
       try {
-        const verified = await lookupVerifiedAccountInCloud(candidateId);
+        const verified = await lookupVerifiedAccountInCloud(candidateId, candidateUid);
         if (verified && verified.exists) {
           setVerifiedResetAccount(verified);
           if (verified.hasPhone && !verified.hasEmail) {
@@ -1337,9 +1462,6 @@ export default function LoginPage() {
         } else {
           setVerifiedResetAccount(null);
           setResetOtpStep("VERIFY_ACCOUNT");
-          setAccountVerificationError(
-            `No registered TenoPilot account was found for "${candidateId}". Please enter your registered phone or email.`
-          );
         }
       } catch {
         setVerifiedResetAccount(null);
@@ -1353,7 +1475,6 @@ export default function LoginPage() {
     }
   };
 
-  // Manually verify account from input
   const handleVerifyAccountInput = async (e: React.FormEvent) => {
     e.preventDefault();
     const clean = resetIdentifierInput.trim();
@@ -2228,48 +2349,84 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* LOADING STATE */}
-            {isVerifyingAccount && (
+            {/* 1. LOADING STATE */}
+            {isVerifyingAccount ? (
               <div className="py-8 text-center space-y-3">
                 <Loader2 className="w-8 h-8 text-[#c2652a] animate-spin mx-auto" />
                 <p className="text-gray-600 text-xs font-semibold">Verifying registered account in cloud database...</p>
               </div>
-            )}
-
-            {/* STEP 0: VERIFY REGISTERED CREDENTIALS IF NOT FOUND */}
-            {!isVerifyingAccount && resetOtpStep === "VERIFY_ACCOUNT" && (
-              <div className="space-y-4 animate-in fade-in">
-                <p className="text-gray-600 text-[11px] leading-relaxed">
-                  Enter your registered mobile phone number or work email address. We will verify that an active account exists before sending an OTP.
-                </p>
-
-                <form onSubmit={handleVerifyAccountInput} className="space-y-3">
+            ) : resetOtpStep === "ENTER_OTP" && verifiedResetAccount ? (
+              /* 2. STEP 2: ENTER OTP CODE */
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
                   <div>
-                    <label className="block font-bold text-gray-700 mb-1">Registered Phone or Email</label>
-                    <input
-                      type="text"
-                      value={resetIdentifierInput}
-                      onChange={(e) => setResetIdentifierInput(e.target.value)}
-                      placeholder="e.g. 9876543210 or name@property.com"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#c2652a] text-xs bg-white text-gray-900 font-mono"
-                      autoFocus
-                    />
+                    <p className="font-bold text-gray-900 text-xs">Enter 6-Digit Verification Code</p>
+                    <p className="text-[11px] text-gray-500 font-mono">
+                      {resetOtpChannel === "whatsapp"
+                        ? `Sent to WhatsApp: ${maskPhone(verifiedResetAccount.phone)}`
+                        : `Sent to Email: ${maskEmail(verifiedResetAccount.email)}`}
+                    </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResetOtpStep("SELECT_CHANNEL");
+                      setResetOtpDigits(["", "", "", "", "", ""]);
+                      setResetOtpError(null);
+                    }}
+                    className="text-[10px] text-gray-500 hover:text-gray-900 font-bold underline cursor-pointer"
+                  >
+                    Change Method
+                  </button>
+                </div>
+
+                {/* 6 Digit Individual Cells */}
+                <div className="flex items-center justify-center gap-2 py-2" onPaste={handleResetOtpPaste}>
+                  {resetOtpDigits.map((digit, index) => (
+                    <input
+                      key={index}
+                      ref={(el) => {
+                        resetOtpInputRefs.current[index] = el;
+                      }}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleResetOtpDigitChange(index, e.target.value)}
+                      onKeyDown={(e) => handleResetOtpKeyDown(index, e)}
+                      className="w-10 h-12 text-center text-lg font-mono font-bold rounded-xl border-2 border-gray-200 focus:border-[#c2652a] focus:ring-2 focus:ring-[#c2652a]/20 bg-gray-50/50 text-gray-900 outline-none transition-all"
+                    />
+                  ))}
+                </div>
+
+                {/* Resend OTP Timer & Actions */}
+                <div className="flex items-center justify-between text-[11px] pt-1">
+                  {resetOtpCooldown > 0 ? (
+                    <span className="text-gray-400 font-medium">Resend code in {resetOtpCooldown}s</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleSendResetOtp(resetOtpChannel)}
+                      disabled={isSendingResetOtp}
+                      className="text-[#c2652a] font-bold hover:underline cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Resend OTP Code</span>
+                    </button>
+                  )}
 
                   <button
-                    type="submit"
-                    disabled={isVerifyingAccount || !resetIdentifierInput.trim()}
-                    className="w-full py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold cursor-pointer disabled:opacity-50 text-xs shadow-xs flex items-center justify-center gap-2"
+                    type="button"
+                    onClick={() => handleVerifyResetOtp()}
+                    disabled={isVerifyingResetOtp || resetOtpDigits.some((d) => !d)}
+                    className="px-4 py-2 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold disabled:opacity-50 cursor-pointer shadow-xs"
                   >
-                    <span>Verify Account & Continue</span>
-                    <ArrowRight className="w-4 h-4" />
+                    {isVerifyingResetOtp ? "Verifying..." : "Verify & Reset"}
                   </button>
-                </form>
+                </div>
               </div>
-            )}
-
-            {/* STEP 1: SELECT VERIFIED CHANNEL */}
-            {!isVerifyingAccount && resetOtpStep === "SELECT_CHANNEL" && verifiedResetAccount && (
+            ) : resetOtpStep === "SELECT_CHANNEL" && verifiedResetAccount ? (
+              /* 3. STEP 1: SELECT VERIFIED CHANNEL */
               <div className="space-y-4 animate-in fade-in">
                 {/* Verified Account Badge */}
                 <div className="p-2.5 rounded-2xl bg-orange-50/80 border border-orange-200 flex items-center justify-between">
@@ -2403,76 +2560,81 @@ export default function LoginPage() {
                   )}
                 </div>
               </div>
-            )}
+            ) : (
+              /* 4. STEP 0: VERIFY REGISTERED CREDENTIALS (DEFAULT GUARANTEED FALLBACK) */
+              <div className="space-y-4 animate-in fade-in">
+                <p className="text-gray-600 text-[11px] leading-relaxed">
+                  Enter your registered mobile phone number or work email address. We will verify your account before dispatching a secure 1-time verification code.
+                </p>
 
-            {/* STEP 2: ENTER OTP CODE */}
-            {!isVerifyingAccount && resetOtpStep === "ENTER_OTP" && verifiedResetAccount && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <form onSubmit={handleVerifyAccountInput} className="space-y-3">
                   <div>
-                    <p className="font-bold text-gray-900 text-xs">Enter 6-Digit Verification Code</p>
-                    <p className="text-[11px] text-gray-500 font-mono">
-                      {resetOtpChannel === "whatsapp"
-                        ? `Sent to WhatsApp: ${maskPhone(verifiedResetAccount.phone)}`
-                        : `Sent to Email: ${maskEmail(verifiedResetAccount.email)}`}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setResetOtpStep("SELECT_CHANNEL");
-                      setResetOtpDigits(["", "", "", "", "", ""]);
-                      setResetOtpError(null);
-                    }}
-                    className="text-[10px] text-gray-500 hover:text-gray-900 font-bold underline cursor-pointer"
-                  >
-                    Change Method
-                  </button>
-                </div>
-
-                {/* 6 Digit Individual Cells */}
-                <div className="flex items-center justify-center gap-2 py-2" onPaste={handleResetOtpPaste}>
-                  {resetOtpDigits.map((digit, index) => (
+                    <label className="block font-bold text-gray-700 mb-1">Registered Phone or Email</label>
                     <input
-                      key={index}
-                      ref={(el) => {
-                        resetOtpInputRefs.current[index] = el;
-                      }}
                       type="text"
-                      inputMode="numeric"
-                      maxLength={1}
-                      value={digit}
-                      onChange={(e) => handleResetOtpDigitChange(index, e.target.value)}
-                      onKeyDown={(e) => handleResetOtpKeyDown(index, e)}
-                      className="w-10 h-12 text-center text-lg font-mono font-bold rounded-xl border-2 border-gray-200 focus:border-[#c2652a] focus:ring-2 focus:ring-[#c2652a]/20 bg-gray-50/50 text-gray-900 outline-none transition-all"
+                      value={resetIdentifierInput}
+                      onChange={(e) => setResetIdentifierInput(e.target.value)}
+                      placeholder="e.g. 9876543210 or name@property.com"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#c2652a] text-xs bg-white text-gray-900 font-mono"
+                      autoFocus
                     />
-                  ))}
-                </div>
-
-                {/* Resend OTP Timer & Actions */}
-                <div className="flex items-center justify-between text-[11px] pt-1">
-                  {resetOtpCooldown > 0 ? (
-                    <span className="text-gray-400 font-medium">Resend code in {resetOtpCooldown}s</span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleSendResetOtp(resetOtpChannel)}
-                      disabled={isSendingResetOtp}
-                      className="text-[#c2652a] font-bold hover:underline cursor-pointer disabled:opacity-50 flex items-center gap-1"
-                    >
-                      <RotateCcw className="w-3 h-3" />
-                      <span>Resend OTP Code</span>
-                    </button>
-                  )}
+                  </div>
 
                   <button
-                    type="button"
-                    onClick={() => handleVerifyResetOtp()}
-                    disabled={isVerifyingResetOtp || resetOtpDigits.some((d) => !d)}
-                    className="px-4 py-2 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold disabled:opacity-50 cursor-pointer shadow-xs"
+                    type="submit"
+                    disabled={isVerifyingAccount || !resetIdentifierInput.trim()}
+                    className="w-full py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold cursor-pointer disabled:opacity-50 text-xs shadow-xs flex items-center justify-center gap-2"
                   >
-                    {isVerifyingResetOtp ? "Verifying..." : "Verify & Reset"}
+                    <span>Verify Account & Continue</span>
+                    <ArrowRight className="w-4 h-4" />
                   </button>
+                </form>
+
+                {/* Secondary Option: Password & Google Accordion */}
+                <div className="pt-2 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowLegacyPasswordFallback(!showLegacyPasswordFallback)}
+                    className="w-full text-center text-[11px] font-bold text-gray-500 hover:text-gray-900 cursor-pointer py-1"
+                  >
+                    {showLegacyPasswordFallback ? "▲ Hide Other Methods" : "▼ Or Verify with Password / Google"}
+                  </button>
+
+                  {showLegacyPasswordFallback && (
+                    <div className="space-y-3 pt-3 animate-in fade-in">
+                      <button
+                        type="button"
+                        onClick={handleVerifyWithGoogleForPinReset}
+                        disabled={isVerifyingPassword}
+                        className="w-full py-2.5 px-4 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-800 font-bold text-xs shadow-xs flex items-center justify-center gap-2.5 cursor-pointer transition-all active:scale-98 disabled:opacity-50"
+                      >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24">
+                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                        </svg>
+                        <span>{isVerifyingPassword ? "Verifying..." : "Verify with Google Account"}</span>
+                      </button>
+
+                      <form onSubmit={handleVerifyPasswordForPinReset} className="space-y-2.5">
+                        <input
+                          type="password"
+                          value={verifyPasswordForPin}
+                          onChange={(e) => setVerifyPasswordForPin(e.target.value)}
+                          placeholder="Enter account password"
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#c2652a] text-xs bg-white text-gray-900"
+                        />
+                        <button
+                          type="submit"
+                          disabled={isVerifyingPassword || !verifyPasswordForPin}
+                          className="w-full py-2.5 rounded-xl bg-gray-900 hover:bg-black text-white font-bold cursor-pointer disabled:opacity-50 text-xs"
+                        >
+                          {isVerifyingPassword ? "Verifying..." : "Verify Password & Reset MPIN"}
+                        </button>
+                      </form>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
