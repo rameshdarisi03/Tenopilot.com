@@ -217,6 +217,44 @@ export const whatsappCreditStore = {
           return;
         }
 
+        // 💎 Pro Plan Wallet Auto-Healing: If active Pro subscription exists but wallet was never credited Pro quota
+        if (isPro) {
+          const targetQuota = proCredits && proCredits >= 100 ? proCredits : 1000;
+          const hasProAllocation = cleanTransactions.some(
+            (tx) => tx.type === "PURCHASE" && (tx.amount >= 500 || tx.description?.toLowerCase().includes("pro plan") || tx.description?.toLowerCase().includes("plan activation"))
+          );
+          if (!hasProAllocation && credits <= 50) {
+            let consumed = 0;
+            cleanTransactions.forEach((tx) => {
+              if (tx.type === "USAGE" && typeof tx.amount === "number") {
+                consumed += Math.abs(tx.amount);
+              }
+            });
+            const netCredits = Math.max(0, targetQuota - consumed);
+            credits = netCredits;
+            const newTx: WhatsAppCreditTransaction = {
+              id: `tx-pro-auto-sync-${Date.now()}`,
+              type: "PURCHASE",
+              amount: netCredits,
+              balanceAfter: netCredits,
+              description: `Pro Plan Allocation (+${netCredits} WhatsApp Credits after deducting ${consumed} used in trial)`,
+              timestamp: new Date().toISOString(),
+              status: "DELIVERED",
+            };
+            cleanTransactions.unshift(newTx);
+
+            const proState: PropertyWalletState = {
+              credits,
+              transactions: cleanTransactions,
+            };
+            PROPERTY_WALLET_MAP.set(propertyId, proState);
+            setStoredWallet(propertyId, proState);
+            await this.syncToFirestore(propertyId, proState);
+            notify();
+            return;
+          }
+        }
+
         const state: PropertyWalletState = {
           credits,
           transactions: cleanTransactions,

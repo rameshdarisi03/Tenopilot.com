@@ -85,7 +85,7 @@ export const emailCreditStore = {
     return fromStorage;
   },
 
-  initFirebaseListener(propertyId?: string) {
+  initFirebaseListener(propertyId?: string, isPro?: boolean, proCredits?: number) {
     if (!propertyId || typeof window === "undefined" || !db) return;
     if (ACTIVE_EMAIL_WALLET_UNSUBSCRIBES.has(propertyId)) return;
 
@@ -118,15 +118,52 @@ export const emailCreditStore = {
     }
   },
 
-  async fetchWalletFromFirestore(propertyId?: string) {
+  async fetchWalletFromFirestore(propertyId?: string, isPro?: boolean, proCredits?: number) {
     if (!propertyId || !db) return;
     try {
       const docRef = doc(db, `properties/${propertyId}/email/wallet`);
       const snap = await getDoc(docRef);
       if (snap.exists()) {
         const data = snap.data();
-        const credits = typeof data.credits === "number" ? data.credits : DEFAULT_STARTER_EMAIL_CREDITS;
+        let credits = typeof data.credits === "number" ? data.credits : DEFAULT_STARTER_EMAIL_CREDITS;
         const transactions: EmailCreditTransaction[] = Array.isArray(data.transactions) ? data.transactions : [];
+
+        // 💎 Pro Plan Email Wallet Auto-Healing
+        if (isPro) {
+          const targetEmailQuota = proCredits && proCredits >= 300 ? proCredits : 3000;
+          const hasProAllocation = transactions.some(
+            (tx) => tx.type === "PURCHASE" && (tx.amount >= 1000 || tx.description?.toLowerCase().includes("pro plan") || tx.description?.toLowerCase().includes("plan activation"))
+          );
+          if (!hasProAllocation && credits <= 100) {
+            let consumed = 0;
+            transactions.forEach((tx) => {
+              if (tx.type === "USAGE" && typeof tx.amount === "number") {
+                consumed += Math.abs(tx.amount);
+              }
+            });
+            const netCredits = Math.max(0, targetEmailQuota - consumed);
+            credits = netCredits;
+            const newTx: EmailCreditTransaction = {
+              id: `tx-email-pro-sync-${Date.now()}`,
+              type: "PURCHASE",
+              amount: netCredits,
+              balanceAfter: netCredits,
+              description: `Pro Plan Email Allocation (+${netCredits} Email Credits after deducting ${consumed} used in trial)`,
+              timestamp: new Date().toISOString(),
+              status: "DELIVERED",
+            };
+            transactions.unshift(newTx);
+            const proState: PropertyEmailWalletState = {
+              credits,
+              transactions,
+            };
+            PROPERTY_EMAIL_WALLET_MAP.set(propertyId, proState);
+            setStoredEmailWallet(propertyId, proState);
+            await this.syncToFirestore(propertyId, proState);
+            notify();
+            return;
+          }
+        }
 
         const state: PropertyEmailWalletState = {
           credits,
