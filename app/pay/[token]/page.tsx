@@ -15,6 +15,7 @@ import {
   FileText,
   Sparkles,
   Clock,
+  ZoomIn,
 } from "lucide-react";
 import { compressImageToDataUrl } from "@/utils/imageCompression";
 import { doc, setDoc, onSnapshot, collection } from "firebase/firestore";
@@ -54,16 +55,17 @@ export default function TenantPaymentBridgePage() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Real-time Verified Receipt & Status State
-  const [verifiedReceipt, setVerifiedReceipt] = useState<{
-    receiptNo: string;
-    amount: number;
-    date: string;
-    mode: string;
-    paidTo?: string;
+  // Real-time Submitted Proof & Approval State
+  const [existingProof, setExistingProof] = useState<{
+    id: string;
+    screenshotUrl?: string | null;
+    tenantNote?: string | null;
+    createdAt?: string;
+    status: "PENDING_VERIFICATION" | "APPROVED" | "REJECTED";
   } | null>(null);
-  const [liveProofStatus, setLiveProofStatus] = useState<"NONE" | "PENDING" | "APPROVED">("NONE");
+  const [isApproved, setIsApproved] = useState(false);
   const [allowReupload, setAllowReupload] = useState(false);
+  const [zoomedScreenshot, setZoomedScreenshot] = useState<string | null>(null);
 
   // Quick PDF Download Redirections
   useEffect(() => {
@@ -150,11 +152,11 @@ export default function TenantPaymentBridgePage() {
     setLoading(false);
   }, [rawToken, searchParams]);
 
-  // Real-time Firestore sync for receipt and proof status
+  // Real-time Firestore sync for approval and proof status
   useEffect(() => {
     if (!details || !db || !details.propertyId || !details.tenantId) return;
 
-    // 1. Listen for occupant document to see if payment was recorded
+    // 1. Listen for occupant document to see if payment was recorded/approved
     const unsubOccupant = onSnapshot(
       doc(db, "properties", details.propertyId, "occupants", details.tenantId),
       (docSnap) => {
@@ -190,16 +192,7 @@ export default function TenantPaymentBridgePage() {
             });
 
             if (matchingRent) {
-              setVerifiedReceipt({
-                receiptNo: matchingRent.receiptNo || "RCP-VERIFIED",
-                amount: Number(matchingRent.amount) || details.amount,
-                date: matchingRent.date || new Date().toLocaleDateString("en-IN"),
-                mode: matchingRent.mode || "UPI / Digital",
-                paidTo: matchingRent.paidTo || details.partnerName,
-              });
-              setLiveProofStatus("APPROVED");
-            } else {
-              setVerifiedReceipt(null);
+              setIsApproved(true);
             }
           }
         }
@@ -212,10 +205,10 @@ export default function TenantPaymentBridgePage() {
       collection(db, "properties", details.propertyId, "tenants", details.tenantId, "reported_proofs"),
       (snap) => {
         if (!snap.empty) {
-          const docs = snap.docs.map((d) => d.data());
-          docs.sort((a, b) => ((b.createdAt as string) || "").localeCompare((a.createdAt as string) || ""));
+          const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          docs.sort((a: any, b: any) => ((b.createdAt as string) || "").localeCompare((a.createdAt as string) || ""));
           // Filter to recent proof matching current bill amount
-          const matchingProof = docs.find((p: any) => {
+          const matchingProof: any = docs.find((p: any) => {
             const pAmt = Number(p.approvedAmount || p.reportedAmount || 0);
             const amountMatches = Math.abs(pAmt - details.amount) < 2;
             let isRecent = false;
@@ -230,22 +223,16 @@ export default function TenantPaymentBridgePage() {
           });
 
           if (matchingProof) {
+            setExistingProof({
+              id: matchingProof.id,
+              screenshotUrl: matchingProof.screenshotUrl,
+              tenantNote: matchingProof.tenantNote,
+              createdAt: matchingProof.createdAt,
+              status: matchingProof.status,
+            });
+
             if (matchingProof.status === "APPROVED") {
-              setLiveProofStatus("APPROVED");
-              setVerifiedReceipt((prev) => {
-                if (prev && Math.abs(prev.amount - details.amount) < 2) return prev;
-                return {
-                  receiptNo: matchingProof.receiptNumber || `RCP-${matchingProof.id.slice(-6)}`,
-                  amount: Number(matchingProof.approvedAmount || matchingProof.reportedAmount || details.amount),
-                  date: matchingProof.verifiedAt
-                    ? new Date(matchingProof.verifiedAt).toLocaleDateString("en-IN")
-                    : new Date().toLocaleDateString("en-IN"),
-                  mode: "UPI / Digital",
-                  paidTo: matchingProof.partnerName || details.partnerName,
-                };
-              });
-            } else if (matchingProof.status === "PENDING_VERIFICATION") {
-              setLiveProofStatus("PENDING");
+              setIsApproved(true);
             }
           }
         }
@@ -355,7 +342,18 @@ export default function TenantPaymentBridgePage() {
         }).catch(() => {});
       } catch {}
 
+      setExistingProof({
+        id: proofId,
+        screenshotUrl: screenshotDataUrl || null,
+        tenantNote: tenantNote.trim() || null,
+        createdAt: nowIso,
+        status: "PENDING_VERIFICATION",
+      });
       setIsSubmitted(true);
+      setAllowReupload(false);
+      setScreenshotDataUrl(null);
+      setScreenshotFileName(null);
+      setCompressedSizeKb(null);
     } catch (err: any) {
       setSubmitError(err?.message || "Failed to submit payment proof. Please try again or share directly on WhatsApp.");
     } finally {
@@ -407,330 +405,321 @@ export default function TenantPaymentBridgePage() {
       </header>
 
       <main className="max-w-lg mx-auto p-4 space-y-4 pt-4">
-        {/* 🏢 Accommodation & Bill Summary Card */}
-        <div className={`bg-white p-5 rounded-3xl border shadow-sm ${verifiedReceipt ? "border-emerald-300 bg-gradient-to-r from-emerald-50/40 to-white" : "border-[#d7c2b9]/60"}`}>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <span className={`text-[10px] font-extrabold uppercase tracking-wider ${verifiedReceipt ? "text-emerald-700" : "text-[#c2652a]"}`}>
-                {verifiedReceipt ? "✓ Payment Completed & Cleared" : "Payment Verification"}
-              </span>
-              <h1 className="font-serif font-bold text-base sm:text-lg text-gray-900 mt-0.5">
-                {details.propertyName}
-              </h1>
-              <p className="text-xs text-gray-500 font-medium mt-0.5">
-                {details.tenantName} • <span className="font-bold text-gray-700">{details.roomNumber}</span>
-              </p>
-            </div>
-            {verifiedReceipt ? (
-              <div className="text-right shrink-0">
-                <span className="text-[10px] font-bold text-emerald-700 block">Cycle Status</span>
-                <div className="font-mono font-black text-xl text-emerald-800 mt-0.5">
-                  ₹0 Due
-                </div>
-                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300 inline-block mt-1">
-                  ✓ Paid ₹{verifiedReceipt.amount.toLocaleString("en-IN")}
-                </span>
-              </div>
-            ) : (
-              <div className="text-right shrink-0">
-                <span className="text-[10px] font-bold text-gray-400 block">Payable Rent</span>
-                <div className="font-mono font-black text-xl text-gray-900 mt-0.5">
-                  ₹{details.amount.toLocaleString("en-IN")}
-                </div>
-                {details.dueDate && (
-                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 inline-block mt-1">
-                    Due: {details.dueDate}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* 📸 1. If verified receipt is ready, show the Verified Payment & Receipt View */}
-        {verifiedReceipt && (
-          <div className="bg-white p-6 sm:p-7 rounded-3xl border-2 border-emerald-400 shadow-xl text-center space-y-4 animate-in zoom-in-95">
+        {/* 🔒 CASE 1: PAYMENT APPROVED & VERIFIED -> LINK EXPIRED */}
+        {isApproved ? (
+          <div className="bg-white p-7 sm:p-8 rounded-3xl border border-emerald-300 shadow-xl text-center space-y-4 animate-in zoom-in-95">
             <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-xs">
               <CheckCircle2 className="w-9 h-9" />
             </div>
 
             <div>
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full border border-emerald-300">
-                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                Payment Verified & Recorded
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full border border-emerald-300">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                Payment Approved & Verified
               </span>
-              <h2 className="font-serif font-bold text-xl text-gray-900 mt-2.5">Rent Receipt Ready!</h2>
-              <p className="text-xs text-gray-600 mt-1 max-w-sm mx-auto">
-                Thank you, <strong>{details.tenantName}</strong>. Your rent payment for <strong>{details.propertyName}</strong> has been fully verified and recorded in the property ledger.
-              </p>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-left text-xs space-y-2">
-              <div className="flex justify-between items-center pb-2 border-b border-emerald-200/60">
-                <span className="text-gray-500 font-medium">Official Receipt #:</span>
-                <span className="font-mono font-bold text-gray-900 bg-white px-2 py-0.5 rounded border border-emerald-200">{verifiedReceipt.receiptNo}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-500 font-medium">Amount Received:</span>
-                <span className="font-mono font-black text-emerald-800 text-sm">₹{verifiedReceipt.amount.toLocaleString("en-IN")}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-500 font-medium">Payment Mode & Date:</span>
-                <span className="font-semibold text-gray-800">{verifiedReceipt.mode} • {verifiedReceipt.date}</span>
-              </div>
-              {verifiedReceipt.paidTo && (
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-500 font-medium">Receiving Account:</span>
-                  <span className="font-semibold text-gray-800">{verifiedReceipt.paidTo}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-2 pt-1">
-              <a
-                href={`/api/receipt/pdf?receiptNo=${encodeURIComponent(verifiedReceipt.receiptNo)}&amount=${verifiedReceipt.amount}&propertyName=${encodeURIComponent(details.propertyName)}&residentName=${encodeURIComponent(details.tenantName)}&roomNumber=${encodeURIComponent(details.roomNumber)}&paidDate=${encodeURIComponent(verifiedReceipt.date)}&paymentMode=${encodeURIComponent(verifiedReceipt.mode)}&paidTo=${encodeURIComponent(verifiedReceipt.paidTo || details.partnerName || "Main Account")}&download=true`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download Official PDF Receipt</span>
-              </a>
-
-              <a
-                href={`/api/receipt/pdf?receiptNo=${encodeURIComponent(verifiedReceipt.receiptNo)}&amount=${verifiedReceipt.amount}&propertyName=${encodeURIComponent(details.propertyName)}&residentName=${encodeURIComponent(details.tenantName)}&roomNumber=${encodeURIComponent(details.roomNumber)}&paidDate=${encodeURIComponent(verifiedReceipt.date)}&paymentMode=${encodeURIComponent(verifiedReceipt.mode)}&paidTo=${encodeURIComponent(verifiedReceipt.paidTo || details.partnerName || "Main Account")}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full py-2.5 px-4 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs flex items-center justify-center gap-2 transition-all"
-              >
-                <FileText className="w-3.5 h-3.5 text-gray-500" />
-                <span>View Receipt Online</span>
-              </a>
-            </div>
-          </div>
-        )}
-
-        {/* 📸 2. ALWAYS keep the Upload Payment Screenshot section open and accessible */}
-        {!isSubmitted && (liveProofStatus !== "PENDING" || allowReupload) ? (
-          <form onSubmit={handleSubmitProof} className="bg-white p-5 sm:p-6 rounded-3xl border border-[#d7c2b9]/60 shadow-sm space-y-4">
-            <div>
-              <h2 className="font-serif font-bold text-sm sm:text-base text-gray-900 flex items-center gap-2">
-                <Camera className="w-4 h-4 text-[#c2652a]" />
-                <span>{verifiedReceipt ? "Upload Payment Screenshot / Additional Proof" : "Upload Payment Screenshot"}</span>
+              <h2 className="font-serif font-bold text-xl text-gray-900 mt-2.5">
+                Payment Verification Completed
               </h2>
-              <p className="text-[11px] text-gray-500 mt-0.5">
-                {verifiedReceipt
-                  ? "Attach your UPI payment confirmation screenshot to update management with proof of transaction."
-                  : "Attach your payment confirmation to verify your rent payment and generate your digital receipt."}
+              <p className="text-xs text-gray-600 mt-1.5 max-w-sm mx-auto leading-relaxed">
+                Thank you, <strong>{details.tenantName}</strong>. Your payment of <strong>₹{details.amount.toLocaleString("en-IN")}</strong> for <strong>{details.propertyName}</strong> has been verified and recorded in the property ledger.
               </p>
             </div>
 
-            {submitError && (
-              <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                <span>{submitError}</span>
-              </div>
-            )}
-
-            {/* Screenshot Dropzone */}
-            <div>
-              <input
-                type="file"
-                accept="image/*"
-                id="screenshot-input"
-                className="hidden"
-                onChange={handleScreenshotChange}
-              />
-              {screenshotDataUrl ? (
-                <div className="relative rounded-2xl border border-emerald-300 bg-emerald-50/50 p-3 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-14 h-14 rounded-xl overflow-hidden border border-emerald-300 bg-gray-950 shrink-0 shadow-xs">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={screenshotDataUrl}
-                        alt="Uploaded proof"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        <span className="font-bold text-xs text-emerald-950 truncate block">
-                          {screenshotFileName || "Screenshot Attached"}
-                        </span>
-                      </div>
-                      {compressedSizeKb && (
-                        <span className="text-[10px] text-emerald-700 font-mono block mt-0.5">
-                          ✓ Optimized ({compressedSizeKb} KB)
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <label
-                      htmlFor="screenshot-input"
-                      className="px-2.5 py-1 text-xs font-bold text-emerald-800 bg-white border border-emerald-200 rounded-lg hover:bg-emerald-50 cursor-pointer shadow-2xs"
-                    >
-                      Change
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setScreenshotDataUrl(null);
-                        setScreenshotFileName(null);
-                        setCompressedSizeKb(null);
-                      }}
-                      className="p-1.5 text-gray-400 hover:text-rose-600 rounded-lg cursor-pointer"
-                      title="Remove screenshot"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <label
-                  htmlFor="screenshot-input"
-                  className={`w-full py-8 px-4 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2.5 cursor-pointer transition-all ${
-                    isCompressing
-                      ? "border-[#c2652a] bg-orange-50/30"
-                      : "border-gray-300 hover:border-[#c2652a] bg-gray-50/50 hover:bg-orange-50/20"
-                  }`}
-                >
-                  {isCompressing ? (
-                    <div className="flex items-center gap-2 text-xs font-bold text-gray-600">
-                      <div className="w-4 h-4 border-2 border-[#c2652a] border-t-transparent rounded-full animate-spin" />
-                      <span>Optimizing screenshot...</span>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="w-12 h-12 rounded-2xl bg-orange-100/80 text-[#c2652a] flex items-center justify-center shadow-xs">
-                        <Camera className="w-5 h-5" />
-                      </div>
-                      <div className="text-center">
-                        <span className="text-xs font-bold text-gray-800 block">
-                          Tap to select screenshot or take photo
-                        </span>
-                        <span className="text-[10px] text-gray-400 block mt-0.5">
-                          Google Pay • PhonePe • Paytm • CRED • BHIM • Net Banking
-                        </span>
-                      </div>
-                    </>
-                  )}
-                </label>
-              )}
-            </div>
-
-            {/* Optional Remark Input */}
-            <div>
-              <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                Remark / Note (Optional)
-              </label>
-              <input
-                type="text"
-                maxLength={100}
-                value={tenantNote}
-                onChange={(e) => setTenantNote(e.target.value)}
-                placeholder="e.g. Paid from brother's account Rahul"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a] bg-white"
-              />
-            </div>
-
-            {/* Primary Submit Button */}
-            <button
-              type="submit"
-              disabled={isSubmitting || isCompressing || !screenshotDataUrl}
-              className="w-full py-3.5 px-4 rounded-2xl bg-[#c2652a] hover:bg-[#964407] disabled:opacity-50 text-white font-bold text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all"
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Submitting to Management...</span>
-                </>
-              ) : (
-                <>
-                  <span>Submit Payment Proof</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
-        ) : isSubmitted ? (
-          /* ✅ Submission Success Confirmation View */
-          <div className="bg-white p-6 rounded-3xl border border-emerald-300 shadow-md text-center space-y-4 animate-in zoom-in-95">
-            <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-xs">
-              <CheckCircle2 className="w-8 h-8" />
-            </div>
-
-            <div>
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700">
-                Proof Acknowledged
+            <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-center text-xs text-emerald-950 font-medium space-y-1">
+              <span className="block font-bold">📄 Official Rent Receipt Dispatched</span>
+              <span className="text-[11px] text-emerald-800 block">
+                Your official rent receipt has been delivered directly to your registered WhatsApp.
               </span>
-              <h2 className="font-serif font-bold text-lg text-gray-900 mt-0.5">Payment Proof Submitted!</h2>
-              <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
-                Thank you, <strong>{details.tenantName}</strong>. Your payment screenshot for <strong>{details.propertyName}</strong> has been received by management.
-              </p>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-left text-xs space-y-1.5">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Accommodation:</span>
-                <span className="font-bold text-gray-800">{details.propertyName} ({details.roomNumber})</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Amount:</span>
-                <span className="font-mono font-bold text-emerald-800">₹{details.amount.toLocaleString("en-IN")}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Verification Status:</span>
-                <span className="font-bold text-amber-700">⏳ Awaiting Verification</span>
-              </div>
-            </div>
-
-            <p className="text-[11px] text-gray-400">
-              Your official verified receipt will be delivered directly to your WhatsApp once reviewed.
-            </p>
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSubmitted(false);
-                  setScreenshotDataUrl(null);
-                  setScreenshotFileName(null);
-                  setAllowReupload(true);
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-200 text-xs font-bold text-[#c2652a] cursor-pointer transition-all"
-              >
-                <Camera className="w-3.5 h-3.5" />
-                <span>Upload Another Screenshot</span>
-              </button>
+            <div className="pt-2 text-[11px] text-gray-400">
+              🔒 This upload link is now closed to prevent duplicate submissions.
             </div>
           </div>
         ) : (
-          /* ⏳ Awaiting Verification View with option to submit replacement */
-          <div className="bg-white p-6 rounded-3xl border border-amber-300 shadow-md text-center space-y-4 animate-in zoom-in-95">
-            <div className="w-14 h-14 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto shadow-xs">
-              <Clock className="w-8 h-8" />
+          <>
+            {/* 🏢 Accommodation & Bill Summary Card */}
+            <div className="bg-white p-5 rounded-3xl border border-[#d7c2b9]/60 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#c2652a]">
+                    Payment Verification
+                  </span>
+                  <h1 className="font-serif font-bold text-base sm:text-lg text-gray-900 mt-0.5">
+                    {details.propertyName}
+                  </h1>
+                  <p className="text-xs text-gray-500 font-medium mt-0.5">
+                    {details.tenantName} • <span className="font-bold text-gray-700">{details.roomNumber}</span>
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-[10px] font-bold text-gray-400 block">Payable Rent</span>
+                  <div className="font-mono font-black text-xl text-gray-900 mt-0.5">
+                    ₹{details.amount.toLocaleString("en-IN")}
+                  </div>
+                  {existingProof || isSubmitted ? (
+                    <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 inline-block mt-1">
+                      ⏳ Verification Pending
+                    </span>
+                  ) : details.dueDate ? (
+                    <span className="text-[10px] font-bold text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full border border-gray-200 inline-block mt-1">
+                      Due: {details.dueDate}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
             </div>
 
-            <div>
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700">
-                Under Review
-              </span>
-              <h2 className="font-serif font-bold text-lg text-gray-900 mt-0.5">Proof Under Verification</h2>
-              <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
-                Your payment screenshot has been submitted and is currently being verified by management.
-              </p>
-            </div>
+            {/* 📸 Case A: Existing Screenshot Submitted (Keep Attached with Option to Change) */}
+            {(existingProof || isSubmitted) && !allowReupload ? (
+              <div className="bg-white p-5 sm:p-6 rounded-3xl border border-amber-200 shadow-sm space-y-4 animate-in fade-in">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300">
+                      ⏳ Awaiting Owner Verification
+                    </span>
+                    <h2 className="font-serif font-bold text-base text-gray-900 mt-1.5 flex items-center gap-2">
+                      <Camera className="w-4 h-4 text-[#c2652a]" />
+                      <span>Payment Screenshot Attached</span>
+                    </h2>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      Your proof has been submitted to management. You can review or change this screenshot before approval.
+                    </p>
+                  </div>
+                </div>
 
-            <div className="pt-2">
+                {/* Screenshot Display */}
+                {existingProof?.screenshotUrl ? (
+                  <div className="space-y-2">
+                    <div
+                      onClick={() => setZoomedScreenshot(existingProof.screenshotUrl || null)}
+                      className="relative group rounded-2xl overflow-hidden border border-gray-200 bg-gray-950 shadow-inner max-h-64 flex items-center justify-center cursor-pointer hover:opacity-95 transition-all"
+                      title="Tap to enlarge"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={existingProof.screenshotUrl}
+                        alt="Submitted Payment Proof"
+                        className="max-h-60 w-auto object-contain"
+                      />
+                      <div className="absolute bottom-2 right-2 px-2.5 py-1 rounded-lg bg-black/75 text-white text-[10px] font-bold flex items-center gap-1 shadow-md">
+                        <ZoomIn className="w-3 h-3" />
+                        <span>Tap to Enlarge</span>
+                      </div>
+                    </div>
+
+                    {existingProof.tenantNote && (
+                      <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 text-xs">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Your Note</span>
+                        <p className="text-gray-800 font-medium mt-0.5">&ldquo;{existingProof.tenantNote}&rdquo;</p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-2xl bg-gray-50 border border-dashed border-gray-300 text-center text-xs text-gray-500">
+                    Payment screenshot attached • Management notified
+                  </div>
+                )}
+
+                {/* Change Screenshot Action Button */}
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAllowReupload(true);
+                      if (existingProof?.tenantNote) setTenantNote(existingProof.tenantNote);
+                    }}
+                    className="w-full py-3 px-4 rounded-2xl bg-orange-50 hover:bg-orange-100 border border-orange-200 text-xs font-bold text-[#c2652a] flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
+                  >
+                    <Camera className="w-4 h-4" />
+                    <span>Change Screenshot / Re-upload Proof</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* 📸 Case B: Screenshot Upload Form (New or Replacement) */
+              <form onSubmit={handleSubmitProof} className="bg-white p-5 sm:p-6 rounded-3xl border border-[#d7c2b9]/60 shadow-sm space-y-4 animate-in fade-in">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="font-serif font-bold text-sm sm:text-base text-gray-900 flex items-center gap-2">
+                      <Camera className="w-4 h-4 text-[#c2652a]" />
+                      <span>{allowReupload ? "Replace Payment Screenshot" : "Upload Payment Screenshot"}</span>
+                    </h2>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      {allowReupload
+                        ? "Select a new screenshot to replace your previously submitted proof."
+                        : "Attach your UPI payment confirmation screenshot to verify your rent payment."}
+                    </p>
+                  </div>
+                  {allowReupload && existingProof && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAllowReupload(false);
+                        setScreenshotDataUrl(null);
+                        setScreenshotFileName(null);
+                      }}
+                      className="px-2.5 py-1 text-[11px] font-bold text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-lg cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+
+                {submitError && (
+                  <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <span>{submitError}</span>
+                  </div>
+                )}
+
+                {/* Screenshot Dropzone */}
+                <div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    id="screenshot-input"
+                    className="hidden"
+                    onChange={handleScreenshotChange}
+                  />
+                  {screenshotDataUrl ? (
+                    <div className="relative rounded-2xl border border-emerald-300 bg-emerald-50/50 p-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-14 h-14 rounded-xl overflow-hidden border border-emerald-300 bg-gray-950 shrink-0 shadow-xs">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={screenshotDataUrl}
+                            alt="Uploaded proof"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span className="font-bold text-xs text-emerald-950 truncate block">
+                              {screenshotFileName || "Screenshot Attached"}
+                            </span>
+                          </div>
+                          {compressedSizeKb && (
+                            <span className="text-[10px] text-emerald-700 font-mono block mt-0.5">
+                              ✓ Optimized ({compressedSizeKb} KB)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <label
+                          htmlFor="screenshot-input"
+                          className="px-2.5 py-1 text-xs font-bold text-emerald-800 bg-white border border-emerald-200 rounded-lg hover:bg-emerald-50 cursor-pointer shadow-2xs"
+                        >
+                          Change
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setScreenshotDataUrl(null);
+                            setScreenshotFileName(null);
+                            setCompressedSizeKb(null);
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-rose-600 rounded-lg cursor-pointer"
+                          title="Remove screenshot"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label
+                      htmlFor="screenshot-input"
+                      className={`w-full py-8 px-4 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2.5 cursor-pointer transition-all ${
+                        isCompressing
+                          ? "border-[#c2652a] bg-orange-50/30"
+                          : "border-gray-300 hover:border-[#c2652a] bg-gray-50/50 hover:bg-orange-50/20"
+                      }`}
+                    >
+                      {isCompressing ? (
+                        <div className="flex items-center gap-2 text-xs font-bold text-gray-600">
+                          <div className="w-4 h-4 border-2 border-[#c2652a] border-t-transparent rounded-full animate-spin" />
+                          <span>Optimizing screenshot...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="w-12 h-12 rounded-2xl bg-orange-100/80 text-[#c2652a] flex items-center justify-center shadow-xs">
+                            <Camera className="w-5 h-5" />
+                          </div>
+                          <div className="text-center">
+                            <span className="text-xs font-bold text-gray-800 block">
+                              Tap to select screenshot or take photo
+                            </span>
+                            <span className="text-[10px] text-gray-400 block mt-0.5">
+                              Google Pay • PhonePe • Paytm • CRED • BHIM • Net Banking
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    </label>
+                  )}
+                </div>
+
+                {/* Optional Remark Input */}
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                    Remark / Note (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={100}
+                    value={tenantNote}
+                    onChange={(e) => setTenantNote(e.target.value)}
+                    placeholder="e.g. Paid from brother's account Rahul"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a] bg-white"
+                  />
+                </div>
+
+                {/* Primary Submit Button */}
+                <button
+                  type="submit"
+                  disabled={isSubmitting || isCompressing || !screenshotDataUrl}
+                  className="w-full py-3.5 px-4 rounded-2xl bg-[#c2652a] hover:bg-[#964407] disabled:opacity-50 text-white font-bold text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Submitting to Management...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>{allowReupload ? "Update Payment Proof" : "Submit Payment Proof"}</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
+          </>
+        )}
+
+        {/* 🔍 Fullscreen Image Lightbox Modal for Tenant */}
+        {zoomedScreenshot && (
+          <div
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in"
+            onClick={() => setZoomedScreenshot(null)}
+          >
+            <div className="relative max-w-3xl max-h-[90vh]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={zoomedScreenshot}
+                alt="Enlarged Proof"
+                className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
+              />
               <button
                 type="button"
-                onClick={() => setAllowReupload(true)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-200 text-xs font-bold text-[#c2652a] cursor-pointer transition-all"
+                onClick={() => setZoomedScreenshot(null)}
+                className="absolute -top-10 right-0 text-white font-bold text-xs flex items-center gap-1 hover:text-orange-300"
               >
-                <Camera className="w-3.5 h-3.5" />
-                <span>Upload Replacement Screenshot</span>
+                <X className="w-5 h-5" />
+                <span>Close Fullscreen</span>
               </button>
             </div>
           </div>
