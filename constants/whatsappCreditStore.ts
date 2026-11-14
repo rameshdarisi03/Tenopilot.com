@@ -220,8 +220,11 @@ export const whatsappCreditStore = {
         // 💎 Pro Plan Wallet Auto-Healing: If active Pro subscription exists
         if (isPro) {
           const targetQuota = 1000;
-          // If balance is stuck at 290 or below 500 on an active Pro plan, heal to true 1,000 quota minus usage
-          if (credits < 500) {
+          const hasBuggy290 = cleanTransactions.some(
+            (tx) => (tx.amount === 290 || tx.amount === 300) && tx.description?.includes("Pro Plan Allocation")
+          );
+          // If balance was distorted by buggy +290 transactions or stuck below 500 on an active Pro plan, heal to true 1,000 quota minus usage
+          if (hasBuggy290 || credits < 500) {
             let consumed = 0;
             cleanTransactions.forEach((tx) => {
               if (tx.type === "USAGE" && typeof tx.amount === "number") {
@@ -234,16 +237,21 @@ export const whatsappCreditStore = {
             const filteredTransactions = cleanTransactions.filter(
               (tx) => !(tx.type === "PURCHASE" && (tx.amount === 290 || tx.amount === 300) && tx.description?.includes("Pro Plan Allocation"))
             );
-            const newTx: WhatsAppCreditTransaction = {
-              id: `tx-pro-quota-1000-${Date.now()}`,
-              type: "PURCHASE",
-              amount: netCredits,
-              balanceAfter: netCredits,
-              description: `Pro Plan Allocation (+${netCredits} WhatsApp Credits after deducting ${consumed} used in trial)`,
-              timestamp: new Date().toISOString(),
-              status: "DELIVERED",
-            };
-            filteredTransactions.unshift(newTx);
+            const hasExistingProAllocation = filteredTransactions.some(
+              (tx) => tx.type === "PURCHASE" && tx.amount >= 900 && tx.description?.includes("Pro Plan Allocation")
+            );
+            if (!hasExistingProAllocation) {
+              const newTx: WhatsAppCreditTransaction = {
+                id: `tx-pro-quota-1000-${Date.now()}`,
+                type: "PURCHASE",
+                amount: netCredits,
+                balanceAfter: netCredits,
+                description: `Pro Plan Allocation (+${netCredits} WhatsApp Credits after deducting ${consumed} used in trial)`,
+                timestamp: new Date().toISOString(),
+                status: "DELIVERED",
+              };
+              filteredTransactions.unshift(newTx);
+            }
 
             const proState: PropertyWalletState = {
               credits,
