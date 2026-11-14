@@ -14,6 +14,7 @@ import {
   Download,
   FileText,
   Sparkles,
+  Clock,
 } from "lucide-react";
 import { compressImageToDataUrl } from "@/utils/imageCompression";
 import { doc, setDoc, onSnapshot, collection } from "firebase/firestore";
@@ -62,6 +63,7 @@ export default function TenantPaymentBridgePage() {
     paidTo?: string;
   } | null>(null);
   const [liveProofStatus, setLiveProofStatus] = useState<"NONE" | "PENDING" | "APPROVED">("NONE");
+  const [allowReupload, setAllowReupload] = useState(false);
 
   // Quick PDF Download Redirections
   useEffect(() => {
@@ -160,23 +162,44 @@ export default function TenantPaymentBridgePage() {
           const occData = docSnap.data();
           const history = occData.paymentHistory;
           if (Array.isArray(history) && history.length > 0) {
-            // Priority: Find the receipt matching this bill amount or current rent cycle, fallback to latest non-deposit, then history[0]
-            const matchingRent = history.find(
-              (h: any) =>
-                h.status !== "VOIDED" &&
-                (Math.abs(Number(h.amount || 0) - details.amount) < 2 ||
-                  (!h.month?.toLowerCase().includes("security deposit") && (h.rentAmount || 0) > 0))
-            );
-            const latest = matchingRent || history[0];
-            if (latest && latest.status !== "VOIDED") {
+            // Find a valid, non-voided receipt matching the CURRENT bill amount and cycle
+            const matchingRent = history.find((h: any) => {
+              if (h.status === "VOIDED") return false;
+              const hAmt = Number(h.amount || 0);
+              const amountMatches = Math.abs(hAmt - details.amount) < 2;
+
+              // Check if payment was made in the current cycle / recent 35 days
+              let isRecent = false;
+              if (h.date) {
+                const parsedDate = new Date(h.date);
+                if (!isNaN(parsedDate.getTime())) {
+                  const daysAgo = (Date.now() - parsedDate.getTime()) / (1000 * 60 * 60 * 24);
+                  isRecent = daysAgo >= -1 && daysAgo <= 35;
+                }
+              }
+
+              // Check if month label matches current cycle or dueDate
+              const monthMatches = Boolean(
+                details.dueDate &&
+                h.month &&
+                (h.month.toLowerCase().includes(details.dueDate.toLowerCase()) ||
+                  details.dueDate.toLowerCase().includes(h.month.toLowerCase()))
+              );
+
+              return amountMatches && (isRecent || monthMatches);
+            });
+
+            if (matchingRent) {
               setVerifiedReceipt({
-                receiptNo: latest.receiptNo || "RCP-VERIFIED",
-                amount: Number(latest.amount) || details.amount,
-                date: latest.date || new Date().toLocaleDateString("en-IN"),
-                mode: latest.mode || "UPI / Digital",
-                paidTo: latest.paidTo || details.partnerName,
+                receiptNo: matchingRent.receiptNo || "RCP-VERIFIED",
+                amount: Number(matchingRent.amount) || details.amount,
+                date: matchingRent.date || new Date().toLocaleDateString("en-IN"),
+                mode: matchingRent.mode || "UPI / Digital",
+                paidTo: matchingRent.paidTo || details.partnerName,
               });
               setLiveProofStatus("APPROVED");
+            } else {
+              setVerifiedReceipt(null);
             }
           }
         }
@@ -191,16 +214,25 @@ export default function TenantPaymentBridgePage() {
         if (!snap.empty) {
           const docs = snap.docs.map((d) => d.data());
           docs.sort((a, b) => ((b.createdAt as string) || "").localeCompare((a.createdAt as string) || ""));
-          // Filter to proof matching current bill amount or most recent proof
-          const matchingProof = docs.find(
-            (p) => Math.abs(Number(p.approvedAmount || p.reportedAmount || 0) - details.amount) < 2
-          ) || docs[0];
+          // Filter to recent proof matching current bill amount
+          const matchingProof = docs.find((p: any) => {
+            const pAmt = Number(p.approvedAmount || p.reportedAmount || 0);
+            const amountMatches = Math.abs(pAmt - details.amount) < 2;
+            let isRecent = false;
+            if (p.createdAt) {
+              const parsedDate = new Date(p.createdAt);
+              if (!isNaN(parsedDate.getTime())) {
+                const daysAgo = (Date.now() - parsedDate.getTime()) / (1000 * 60 * 60 * 24);
+                isRecent = daysAgo >= -1 && daysAgo <= 35;
+              }
+            }
+            return amountMatches && isRecent;
+          });
 
           if (matchingProof) {
             if (matchingProof.status === "APPROVED") {
               setLiveProofStatus("APPROVED");
               setVerifiedReceipt((prev) => {
-                // If occupant history already provided a matching receipt, keep it
                 if (prev && Math.abs(prev.amount - details.amount) < 2) return prev;
                 return {
                   receiptNo: matchingProof.receiptNumber || `RCP-${matchingProof.id.slice(-6)}`,
@@ -415,9 +447,8 @@ export default function TenantPaymentBridgePage() {
           </div>
         </div>
 
-        {/* 📸 Hyper-Minimal, Laser-Focused Upload Form or Verified Receipt View */}
-        {verifiedReceipt ? (
-          /* ✅ Verified Payment & Downloadable Official Receipt View */
+        {/* 📸 1. If verified receipt is ready, show the Verified Payment & Receipt View */}
+        {verifiedReceipt && (
           <div className="bg-white p-6 sm:p-7 rounded-3xl border-2 border-emerald-400 shadow-xl text-center space-y-4 animate-in zoom-in-95">
             <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-xs">
               <CheckCircle2 className="w-9 h-9" />
@@ -477,14 +508,20 @@ export default function TenantPaymentBridgePage() {
               </a>
             </div>
           </div>
-        ) : !isSubmitted && liveProofStatus !== "PENDING" ? (
+        )}
+
+        {/* 📸 2. ALWAYS keep the Upload Payment Screenshot section open and accessible */}
+        {!isSubmitted && (liveProofStatus !== "PENDING" || allowReupload) ? (
           <form onSubmit={handleSubmitProof} className="bg-white p-5 sm:p-6 rounded-3xl border border-[#d7c2b9]/60 shadow-sm space-y-4">
             <div>
-              <h2 className="font-serif font-bold text-sm sm:text-base text-gray-900">
-                Upload Payment Screenshot
+              <h2 className="font-serif font-bold text-sm sm:text-base text-gray-900 flex items-center gap-2">
+                <Camera className="w-4 h-4 text-[#c2652a]" />
+                <span>{verifiedReceipt ? "Upload Payment Screenshot / Additional Proof" : "Upload Payment Screenshot"}</span>
               </h2>
               <p className="text-[11px] text-gray-500 mt-0.5">
-                Attach your payment confirmation to verify your rent payment and generate your digital receipt.
+                {verifiedReceipt
+                  ? "Attach your UPI payment confirmation screenshot to update management with proof of transaction."
+                  : "Attach your payment confirmation to verify your rent payment and generate your digital receipt."}
               </p>
             </div>
 
@@ -618,7 +655,7 @@ export default function TenantPaymentBridgePage() {
               )}
             </button>
           </form>
-        ) : (
+        ) : isSubmitted ? (
           /* ✅ Submission Success Confirmation View */
           <div className="bg-white p-6 rounded-3xl border border-emerald-300 shadow-md text-center space-y-4 animate-in zoom-in-95">
             <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-xs">
@@ -653,6 +690,49 @@ export default function TenantPaymentBridgePage() {
             <p className="text-[11px] text-gray-400">
               Your official verified receipt will be delivered directly to your WhatsApp once reviewed.
             </p>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSubmitted(false);
+                  setScreenshotDataUrl(null);
+                  setScreenshotFileName(null);
+                  setAllowReupload(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-200 text-xs font-bold text-[#c2652a] cursor-pointer transition-all"
+              >
+                <Camera className="w-3.5 h-3.5" />
+                <span>Upload Another Screenshot</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* ⏳ Awaiting Verification View with option to submit replacement */
+          <div className="bg-white p-6 rounded-3xl border border-amber-300 shadow-md text-center space-y-4 animate-in zoom-in-95">
+            <div className="w-14 h-14 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto shadow-xs">
+              <Clock className="w-8 h-8" />
+            </div>
+
+            <div>
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700">
+                Under Review
+              </span>
+              <h2 className="font-serif font-bold text-lg text-gray-900 mt-0.5">Proof Under Verification</h2>
+              <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
+                Your payment screenshot has been submitted and is currently being verified by management.
+              </p>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setAllowReupload(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-200 text-xs font-bold text-[#c2652a] cursor-pointer transition-all"
+              >
+                <Camera className="w-3.5 h-3.5" />
+                <span>Upload Replacement Screenshot</span>
+              </button>
+            </div>
           </div>
         )}
 
