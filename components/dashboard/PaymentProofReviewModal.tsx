@@ -48,8 +48,11 @@ interface PaymentProofReviewModalProps {
   proof: PaymentProofRecord | null;
   isOpen: boolean;
   onClose: () => void;
-  onProceedToCollect: (proof: PaymentProofRecord) => void;
+  onProceedToCollect: (proof: PaymentProofRecord, overrideAmount?: number, receivingAccount?: string) => void;
+  onApproveAndCollect?: (proof: PaymentProofRecord, approvedAmount: number, receivingAccount: string) => Promise<void>;
   onRejectProof: (proofId: string, reason: string) => Promise<void>;
+  paymentAccounts?: { id?: string; name: string }[];
+  isApproving?: boolean;
 }
 
 export function PaymentProofReviewModal({
@@ -57,13 +60,32 @@ export function PaymentProofReviewModal({
   isOpen,
   onClose,
   onProceedToCollect,
+  onApproveAndCollect,
   onRejectProof,
+  paymentAccounts = [],
+  isApproving = false,
 }: PaymentProofReviewModalProps) {
   const [copiedUtr, setCopiedUtr] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
   const [showRejectBox, setShowRejectBox] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [isRejecting, setIsRejecting] = useState(false);
+  const [approvedAmount, setApprovedAmount] = useState<number>(0);
+  const [selectedAccount, setSelectedAccount] = useState<string>("");
+  const [isEditingAmount, setIsEditingAmount] = useState(false);
+
+  // Sync initial state whenever proof changes
+  React.useEffect(() => {
+    if (proof) {
+      const baseAmt = proof.reportedAmount || proof.originalDueAmount || 0;
+      setApprovedAmount(baseAmt);
+      const acc = proof.partnerName || (paymentAccounts.length > 0 ? paymentAccounts[0].name : "PG Account");
+      setSelectedAccount(acc);
+      setShowRejectBox(false);
+      setRejectReason("");
+      setIsEditingAmount(false);
+    }
+  }, [proof, paymentAccounts]);
 
   if (!isOpen || !proof) return null;
 
@@ -181,7 +203,53 @@ export function PaymentProofReviewModal({
           )}
 
           {/* Payment Metadata Grid */}
-          <div className="p-3.5 rounded-2xl bg-gray-50/90 border border-gray-200 space-y-2">
+          <div className="p-3.5 rounded-2xl bg-gray-50/90 border border-gray-200 space-y-2.5">
+            {/* Amount Verification & In-place edit */}
+            <div className="p-3 rounded-xl bg-white border border-gray-200 shadow-2xs flex items-center justify-between">
+              <div>
+                <span className="text-[10px] uppercase tracking-wider font-extrabold text-gray-400 block">
+                  Amount Reported / Received
+                </span>
+                {isEditingAmount ? (
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="font-bold text-gray-500 text-sm">₹</span>
+                    <input
+                      type="number"
+                      value={approvedAmount}
+                      onChange={(e) => setApprovedAmount(Number(e.target.value) || 0)}
+                      className="w-28 px-2 py-1 rounded-lg border border-orange-400 text-sm font-bold text-gray-900 focus:ring-1 focus:ring-orange-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingAmount(false)}
+                      className="px-2 py-1 bg-emerald-600 text-white text-[10px] font-bold rounded-lg cursor-pointer"
+                    >
+                      Done
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="font-serif font-black text-lg text-gray-900">
+                      ₹{approvedAmount.toLocaleString("en-IN")}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingAmount(true)}
+                      className="text-[10px] text-orange-600 hover:text-orange-700 underline font-semibold cursor-pointer"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] font-bold text-gray-400 block">Bill Due Amount</span>
+                <span className="text-xs font-bold text-gray-600">
+                  ₹{(proof.originalDueAmount || approvedAmount).toLocaleString("en-IN")}
+                </span>
+              </div>
+            </div>
+
             {/* Show UTR only if an actual 12-digit UTR was provided */}
             {proof.utrNumber && proof.utrNumber !== "Screenshot Attached" && (
               <div className="flex items-center justify-between pb-2 border-b border-gray-200/70">
@@ -203,11 +271,25 @@ export function PaymentProofReviewModal({
             )}
 
             {/* Receiving Account */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between pt-0.5">
               <span className="font-bold text-gray-600">Paid To Account:</span>
-              <span className="font-bold text-gray-800 text-right">
-                {proof.partnerName ? `${proof.partnerName} (${proof.upiId || "UPI"})` : (proof.upiId || "PG UPI")}
-              </span>
+              {paymentAccounts && paymentAccounts.length > 1 ? (
+                <select
+                  value={selectedAccount}
+                  onChange={(e) => setSelectedAccount(e.target.value)}
+                  className="px-2 py-1 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-800 cursor-pointer focus:ring-1 focus:ring-orange-500"
+                >
+                  {paymentAccounts.map((acc, idx) => (
+                    <option key={acc.id || idx} value={acc.name}>
+                      {acc.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="font-bold text-gray-800 text-right">
+                  {selectedAccount || proof.partnerName || "PG Account"}
+                </span>
+              )}
             </div>
           </div>
 
@@ -247,12 +329,13 @@ export function PaymentProofReviewModal({
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 border-t border-gray-100 flex items-center justify-between gap-3 bg-gray-50/50">
+        <div className="p-4 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2.5 bg-gray-50/70">
           {!showRejectBox && (
             <button
               type="button"
+              disabled={isApproving}
               onClick={() => setShowRejectBox(true)}
-              className="py-2.5 px-3.5 rounded-xl text-rose-600 hover:bg-rose-50 font-bold text-xs transition-colors cursor-pointer"
+              className="py-2.5 px-3 rounded-xl text-rose-600 hover:bg-rose-50 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
             >
               Reject Proof
             </button>
@@ -261,19 +344,46 @@ export function PaymentProofReviewModal({
           <div className="flex items-center gap-2 ml-auto">
             <button
               type="button"
-              onClick={onClose}
-              className="py-2.5 px-4 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 font-bold text-xs transition-colors cursor-pointer"
+              disabled={isApproving}
+              onClick={() => onProceedToCollect(proof, approvedAmount, selectedAccount)}
+              className="py-2.5 px-3 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
+              title="Open full form to customize dues or allocations"
             >
-              Close
+              Adjust in Full Form
             </button>
-            <button
-              type="button"
-              onClick={() => onProceedToCollect(proof)}
-              className="py-2.5 px-5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
-            >
-              <span>Proceed to Collect Rent</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+
+            {onApproveAndCollect ? (
+              <button
+                type="button"
+                disabled={isApproving || approvedAmount <= 0}
+                onClick={() => onApproveAndCollect(proof, approvedAmount, selectedAccount)}
+                className="py-2.5 px-4 sm:px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all disabled:opacity-50"
+              >
+                {isApproving ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Recording...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+                    <span>Approve & Record Rent</span>
+                    <span className="font-mono bg-white/20 px-1.5 py-0.5 rounded text-[10px]">
+                      ₹{approvedAmount.toLocaleString("en-IN")}
+                    </span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onProceedToCollect(proof, approvedAmount, selectedAccount)}
+                className="py-2.5 px-5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+              >
+                <span>Proceed to Collect Rent</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
       </div>

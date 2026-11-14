@@ -236,6 +236,9 @@ export default function TenantsDirectoryPage({
   const [activeProofBanner, setActiveProofBanner] = useState<PaymentProofRecord | null>(null);
   const [collectScreenshotUrl, setCollectScreenshotUrl] = useState<string | null>(null);
   const [zoomedCollectScreenshot, setZoomedCollectScreenshot] = useState<string | null>(null);
+  const [isApprovingProof, setIsApprovingProof] = useState<boolean>(false);
+  const isOpeningFromProofRef = useRef<boolean>(false);
+  const handledProofParamRef = useRef<string | null>(null);
 
   // Collect Rent Modal State (Defaults dynamically to today's running calendar date)
   const [collectRentOccupant, setCollectRentOccupant] = useState<Occupant | null>(null);
@@ -286,6 +289,11 @@ export default function TenantsDirectoryPage({
   // Sync initial allocation when opening Collect Payment Modal
   useEffect(() => {
     if (collectRentOccupant) {
+      if (isOpeningFromProofRef.current) {
+        // Skip clobbering allocation if specifically initiated from proof review
+        isOpeningFromProofRef.current = false;
+        return;
+      }
       const stmt = calculateOccupantFinancialStatement(collectRentOccupant, currentSettings);
       setParkingPaymentPortion(stmt.remainingParkingDue > 0 ? stmt.remainingParkingDue : 0);
       const rentDue = stmt.remainingRentDue > 0 ? stmt.remainingRentDue : collectRentOccupant.rentAmount;
@@ -518,11 +526,12 @@ export default function TenantsDirectoryPage({
   // 🔗 Auto-open Payment Proof Modal when "?proof=[id]" is passed via WhatsApp Ping
   useEffect(() => {
     const proofParam = searchParams?.get("proof");
-    if (proofParam && propertyId) {
+    if (proofParam && propertyId && handledProofParamRef.current !== proofParam) {
+      handledProofParamRef.current = proofParam;
       const existing = pendingProofs.find((p) => p.id === proofParam);
       if (existing) {
         setSelectedProofForReview(existing);
-      } else {
+      } else if (db) {
         getDoc(doc(db, "properties", propertyId, "payment_proofs", proofParam))
           .then((snap) => {
             if (snap.exists()) {
@@ -1507,20 +1516,268 @@ export default function TenantsDirectoryPage({
   };
 
   // Handle Rent Collection Submission (Supports Rent, Deposit, and Combined Allocations)
-  // ⚡ Transition from Payment Proof Modal directly into Collect Rent Modal
-  const handleProceedToCollectFromProof = (proof: PaymentProofRecord) => {
+  // ⚡ 1-Click Direct Approval & Collection from Resident Payment Proof Modal
+  const handleApproveAndCollectFromProof = async (
+    proof: PaymentProofRecord,
+    approvedAmount: number,
+    receivingAccount: string
+  ) => {
     if (proof.status === "APPROVED") {
       triggerToast("ℹ️ This payment was already approved by " + (proof.verifiedBy || "another staff member") + ".");
       setSelectedProofForReview(null);
       return;
     }
 
-    const matched = occupantsList.find(
+    setIsApprovingProof(true);
+    try {
+      // 1. Clear ?proof= from URL immediately to prevent re-opening loops
+      if (typeof window !== "undefined") {
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+
+      // 2. Resolve occupant (memory first, fallback to Firestore if cold load from WhatsApp ping)
+      let occ = occupantsList.find(
+        (o) =>
+          o.id === proof.tenantId ||
+          (o.name && proof.tenantName && o.name.trim().toLowerCase() === proof.tenantName.trim().toLowerCase()) ||
+          o.roomNumber === proof.roomNumber
+      );
+
+      if (!occ && proof.tenantId && db) {
+        try {
+          const occSnap = await getDoc(doc(db, "properties", propertyId, "occupants", proof.tenantId));
+          if (occSnap.exists()) {
+            occ = { id: occSnap.id, ...occSnap.data() } as Occupant;
+          }
+        } catch (e) {
+          console.warn("Notice fetching occupant from Firestore:", e);
+        }
+      }
+
+      if (!occ) {
+        triggerToast("⚠️ Resident " + proof.tenantName + " (Room " + proof.roomNumber + ") not found in active list.");
+        return;
+      }
+
+      const totalCollected = approvedAmount > 0 ? approvedAmount : (proof.reportedAmount || proof.originalDueAmount || occ.rentAmount);
+      const effectivePaidTo = receivingAccount || proof.partnerName || paymentAccounts[0]?.name || partners[0]?.name || "Partner Account";
+
+      const today = new Date();
+      const dParts = [
+        today.getFullYear().toString(),
+        String(today.getMonth() + 1).padStart(2, "0"),
+        String(today.getDate()).padStart(2, "0"),
+      ];
+      const formattedPaidDate = `${dParts[2]} ${
+        ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][
+          parseInt(dParts[1], 10) - 1
+        ] || "Nov"
+      } ${dParts[0]}`;
+
+      const staffName = profile?.displayName || "Admin";
+      const staffRole = profile?.role === "master_admin" ? "Master Admin" : profile?.role === "receptionist" ? "Receptionist" : "Admin";
+      const modeLabel = proof.utrNumber ? `UPI (UTR: ${proof.utrNumber})` : "UPI (Direct UPI Transfer)";
+      const currentBillingMonth = today.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+      // Generate Official Receipt Number
+      const receiptNo = generateReceiptNumber(currentSettings, {
+        date: formattedPaidDate,
+        existingOccupants: occupantsList.length > 0 ? occupantsList : (occ ? [occ] : []),
+        propertyId,
+      });
+
+      const newReceipt: PaymentHistoryItem = {
+        id: `rcpt_proof_${Date.now()}`,
+        receiptNo,
+        month: currentBillingMonth,
+        amount: totalCollected,
+        rentAmount: totalCollected,
+        depositAmount: 0,
+        date: formattedPaidDate,
+        mode: modeLabel,
+        paidTo: effectivePaidTo,
+        status: "PAID",
+        screenshotUrl: proof.screenshotUrl || undefined,
+        proofId: proof.id,
+        collectedBy: {
+          id: profile?.uid,
+          name: staffName,
+          role: staffRole,
+          email: profile?.email,
+        },
+      };
+
+      const updatedHistory = [newReceipt, ...(occ.paymentHistory || [])];
+      const updatedDraft: Occupant = {
+        ...occ,
+        paymentHistory: updatedHistory,
+      };
+      const stmt = calculateOccupantFinancialStatement(updatedDraft, currentSettings);
+
+      const updatedOcc: Occupant = {
+        ...occ,
+        paymentStatus: stmt.isFullyPaid ? "Paid" : "Due",
+        lastPaidDate: formattedPaidDate,
+        daysRemainingText: stmt.isFullyPaid ? "—" : "PARTIAL DUE",
+        depositStatus: stmt.depositStatusLabel,
+        partialPaidThisCycle: stmt.totalPaid,
+        paymentHistory: updatedHistory,
+      };
+
+      // 3. Update memory store & Cloud Firestore
+      occupantStore.updateOccupant(updatedOcc, propertyId);
+      await saveOccupantToFirestore(propertyId, updatedOcc);
+
+      // 4. DDS-13 Dynamic Cascading Matrix: Update bed occupant status in propertyStore
+      const currentStructure = propertyStore.getStructure(propertyId);
+      const updatedStructure = currentStructure.map((floor) => ({
+        ...floor,
+        rooms: floor.rooms.map((room) => {
+          if (room.roomNumber !== occ.roomNumber) return room;
+          return {
+            ...room,
+            beds: room.beds.map((bed) => {
+              if (bed.bedCode !== occ.bedCode) return bed;
+              return {
+                ...bed,
+                occupant: updatedOcc,
+              };
+            }),
+          };
+        }),
+      }));
+      propertyStore.updateStructure(updatedStructure, propertyId);
+
+      // 5. Activity Audit Log
+      activityAuditStore.logActivity(propertyId, {
+        type: "PAYMENT",
+        title: `Payment Collected (Proof Verified): ₹${totalCollected.toLocaleString("en-IN")}`,
+        subtitle: `${occ.name} (Room ${occ.roomNumber})`,
+        staffName,
+        staffRole,
+        staffEmail: profile?.email,
+      });
+
+      // 6. Mark Proof as APPROVED in Cloud Firestore
+      if (db) {
+        await setDoc(
+          doc(db, "properties", propertyId, "payment_proofs", proof.id),
+          {
+            status: "APPROVED",
+            verifiedBy: staffName,
+            verifiedAt: new Date().toISOString(),
+            approvedAmount: totalCollected,
+            receiptNumber: receiptNo,
+            partnerName: effectivePaidTo,
+          },
+          { merge: true }
+        );
+
+        if (occ.id) {
+          await setDoc(
+            doc(db, "properties", propertyId, "tenants", occ.id, "reported_proofs", proof.id),
+            {
+              status: "APPROVED",
+              verifiedBy: staffName,
+              verifiedAt: new Date().toISOString(),
+              approvedAmount: totalCollected,
+              receiptNumber: receiptNo,
+              partnerName: effectivePaidTo,
+            },
+            { merge: true }
+          );
+        }
+      }
+
+      // 7. Auto-dispatch official WhatsApp receipt
+      fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          propertyId,
+          userId: profile?.uid,
+          userEmail: profile?.email,
+          messages: [
+            {
+              toPhone: occ.phone,
+              recipientName: occ.name,
+              propertyId,
+              propertyName: currentSettings.propertyName || "TenoPilot PG",
+              type: "PAYMENT_RECEIPT",
+              params: {
+                roomNumber: occ.roomNumber,
+                bedCode: occ.bedCode,
+                amount: totalCollected,
+                rentAmount: totalCollected,
+                depositAmount: 0,
+                month: newReceipt.month,
+                receiptId: newReceipt.receiptNo,
+                paidDate: formattedPaidDate,
+                paymentMode: modeLabel,
+                tenantPhone: occ.phone,
+              },
+            },
+          ],
+        }),
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.success && data.successfulCount > 0) {
+            triggerToast(`💬 WhatsApp verified receipt dispatched to ${occ.name}!`);
+          }
+        })
+        .catch((e) => console.warn("Notice sending WhatsApp receipt from proof:", e));
+
+      fireCelebrationConfetti();
+      triggerToast(
+        `🎉 Rent of ₹${totalCollected.toLocaleString("en-IN")} recorded for ${occ.name}! Receipt #${receiptNo} issued 🟢`
+      );
+
+      setSelectedProofForReview(null);
+      setActiveProofBanner(null);
+    } catch (err: any) {
+      console.error("Error approving and collecting proof:", err);
+      triggerToast("⚠️ Failed to record rent: " + (err.message || "Unknown error"));
+    } finally {
+      setIsApprovingProof(false);
+    }
+  };
+
+  // ⚡ Transition from Payment Proof Modal directly into Collect Rent Modal
+  const handleProceedToCollectFromProof = async (
+    proof: PaymentProofRecord,
+    overrideAmount?: number,
+    receivingAccount?: string
+  ) => {
+    if (proof.status === "APPROVED") {
+      triggerToast("ℹ️ This payment was already approved by " + (proof.verifiedBy || "another staff member") + ".");
+      setSelectedProofForReview(null);
+      return;
+    }
+
+    // 1. Clear ?proof= from URL so it doesn't loop
+    if (typeof window !== "undefined") {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+
+    // 2. Resolve occupant
+    let matched = occupantsList.find(
       (o) =>
         o.id === proof.tenantId ||
         (o.name && proof.tenantName && o.name.trim().toLowerCase() === proof.tenantName.trim().toLowerCase()) ||
         o.roomNumber === proof.roomNumber
     );
+
+    if (!matched && proof.tenantId && db) {
+      try {
+        const occSnap = await getDoc(doc(db, "properties", propertyId, "occupants", proof.tenantId));
+        if (occSnap.exists()) {
+          matched = { id: occSnap.id, ...occSnap.data() } as Occupant;
+        }
+      } catch (e) {
+        console.warn("Notice loading occupant for proof collection:", e);
+      }
+    }
 
     if (!matched) {
       triggerToast("⚠️ Resident " + proof.tenantName + " (Room " + proof.roomNumber + ") not found in active list.");
@@ -1532,10 +1789,8 @@ export default function TenantsDirectoryPage({
     setCollectScreenshotUrl(proof.screenshotUrl || null);
 
     // Determine suggested collection amount:
-    // If tenant left a note stating an amount (e.g. "Paid 6000" or "6000"), prioritize that;
-    // otherwise default to proof.reportedAmount or originalDueAmount.
-    let initialCollectAmount = proof.reportedAmount || proof.originalDueAmount;
-    if (proof.tenantNote) {
+    let initialCollectAmount = overrideAmount || proof.reportedAmount || proof.originalDueAmount;
+    if (!overrideAmount && proof.tenantNote) {
       const match = proof.tenantNote.match(/(?:paid|rs\.?|inr|₹)?\s*(\d{3,6})\b/i);
       if (match && match[1]) {
         const parsed = parseInt(match[1], 10);
@@ -1544,6 +1799,9 @@ export default function TenantsDirectoryPage({
         }
       }
     }
+
+    // Mark flag to prevent useEffect clobbering
+    isOpeningFromProofRef.current = true;
 
     // Pre-fill values from tenant's reported payment
     setPaymentAmount(initialCollectAmount);
@@ -1554,15 +1812,18 @@ export default function TenantsDirectoryPage({
     setPaymentMode("UPI");
     setTransactionRef(proof.utrNumber ? ("UTR: " + proof.utrNumber) : "Direct UPI Transfer");
 
-    if (proof.partnerName) {
+    const effectiveAccount = receivingAccount || proof.partnerName;
+    if (effectiveAccount) {
       const matchedAccount = paymentAccounts.find(
-        (a) => a.name.toLowerCase() === proof.partnerName?.toLowerCase()
+        (a) => a.name.toLowerCase() === effectiveAccount.toLowerCase()
       );
       if (matchedAccount) {
         setPaidTo(matchedAccount.name);
       } else {
-        setPaidTo(proof.partnerName);
+        setPaidTo(effectiveAccount);
       }
+    } else {
+      setPaidTo(paymentAccounts[0]?.name || partners[0]?.name || "Partner Account");
     }
 
     setCollectRentOccupant(matched);
@@ -6218,9 +6479,17 @@ Scroll vertically to browse all residents without pagination limits
         <PaymentProofReviewModal
           proof={selectedProofForReview}
           isOpen={Boolean(selectedProofForReview)}
-          onClose={() => setSelectedProofForReview(null)}
+          onClose={() => {
+            setSelectedProofForReview(null);
+            if (typeof window !== "undefined") {
+              window.history.replaceState({}, "", window.location.pathname);
+            }
+          }}
           onProceedToCollect={handleProceedToCollectFromProof}
+          onApproveAndCollect={handleApproveAndCollectFromProof}
           onRejectProof={handleRejectProof}
+          paymentAccounts={paymentAccounts}
+          isApproving={isApprovingProof}
         />
 
         {/* 🔍 Fullscreen Attached Payment Proof Lightbox Modal */}
