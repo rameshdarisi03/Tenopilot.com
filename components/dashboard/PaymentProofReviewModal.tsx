@@ -208,20 +208,9 @@ export function PaymentProofReviewModal({
             <div className="grid grid-cols-2 gap-2.5">
               {/* Amount Received / Paid */}
               <div className="bg-white p-3 rounded-xl border border-gray-200/90 shadow-2xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block truncate">
-                    Amount Received
-                  </span>
-                  {!isEditingAmount && (
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingAmount(true)}
-                      className="text-[10px] font-bold text-[#c2652a] hover:underline cursor-pointer shrink-0 ml-1"
-                    >
-                      Edit
-                    </button>
-                  )}
-                </div>
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 block">
+                  Amount Received
+                </span>
                 {isEditingAmount ? (
                   <div className="flex items-center gap-1 mt-1">
                     <span className="font-bold text-gray-500 text-xs">₹</span>
@@ -241,18 +230,27 @@ export function PaymentProofReviewModal({
                     </button>
                   </div>
                 ) : (
-                  <div className="font-serif font-black text-lg text-emerald-800 mt-0.5">
-                    ₹{approvedAmount.toLocaleString("en-IN")}
+                  <div className="flex items-baseline justify-between gap-1 mt-1">
+                    <span className="font-sans font-bold text-lg text-emerald-800">
+                      ₹{approvedAmount.toLocaleString("en-IN")}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingAmount(true)}
+                      className="text-[10px] font-bold text-[#c2652a] hover:underline cursor-pointer"
+                    >
+                      Edit
+                    </button>
                   </div>
                 )}
               </div>
 
               {/* Bill Due Amount */}
               <div className="bg-white p-3 rounded-xl border border-gray-200/90 shadow-2xs">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block truncate">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 block">
                   Bill Due Amount
                 </span>
-                <div className="font-mono font-bold text-base text-gray-700 mt-1">
+                <div className="font-sans font-bold text-lg text-gray-700 mt-1">
                   ₹{(proof.originalDueAmount || approvedAmount).toLocaleString("en-IN")}
                 </div>
               </div>
@@ -388,10 +386,10 @@ export function PaymentProofReviewModal({
                 type="button"
                 disabled={isApproving}
                 onClick={() => onProceedToCollect(proof, approvedAmount, selectedAccount)}
-                className="flex-1 py-2.5 px-3 rounded-xl border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-xs transition-colors cursor-pointer text-center disabled:opacity-50 truncate"
+                className="flex-1 py-2.5 px-3 rounded-xl border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-xs transition-colors cursor-pointer text-center disabled:opacity-50 whitespace-nowrap"
                 title="Open full form to customize dues or allocations"
               >
-                Customize / Full Form
+                Customize Form
               </button>
             </div>
           )}
