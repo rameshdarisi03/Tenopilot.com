@@ -366,13 +366,15 @@ export async function GET(req: NextRequest) {
             data.maxTenantsLimit ??
             (subEvaluation.status === "ACTIVE_PRO" || subEvaluation.status === "PRO_PRE_EXPIRY" ? 300 : 50),
           tenantExtensionPacks: data.tenantExtensionPacks ?? 0,
-          whatsappCreditsLimit: liveWhatsAppCredits !== null
-            ? liveWhatsAppCredits
-            : (data.whatsappCreditsLimit ?? (subEvaluation.status === "ACTIVE_PRO" || subEvaluation.status === "PRO_PRE_EXPIRY" ? 300 : 10)),
-          emailMultiplier: data.emailMultiplier ?? founderClient?.emailMultiplier ?? 3,
-          emailCreditsLimit: liveEmailCredits !== null
-            ? liveEmailCredits
-            : (data.emailCreditsLimit ?? founderClient?.emailCreditsLimit ?? ((data.whatsappCreditsLimit ?? 300) * (data.emailMultiplier ?? 3))),
+          whatsappCreditsLimit: (data.hasCustomLimitsOverride && typeof data.whatsappCreditsLimit === "number")
+            ? data.whatsappCreditsLimit
+            : (typeof founderClient?.whatsappCreditsLimit === "number" ? founderClient.whatsappCreditsLimit : undefined),
+          emailMultiplier: (data.hasCustomLimitsOverride && typeof data.emailMultiplier === "number")
+            ? data.emailMultiplier
+            : (founderClient?.emailMultiplier ?? undefined),
+          emailCreditsLimit: (data.hasCustomLimitsOverride && typeof data.emailCreditsLimit === "number")
+            ? data.emailCreditsLimit
+            : (founderClient?.emailCreditsLimit ?? undefined),
         });
       }
     } catch (e) {

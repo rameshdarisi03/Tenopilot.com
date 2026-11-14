@@ -419,8 +419,16 @@ export default function ApexCommandClientsPage() {
       );
       setCapacityBaseTenants(hasCustomOverride && selectedCustomer360.maxTenantsLimit ? selectedCustomer360.maxTenantsLimit : (isPro ? globalProLimit : globalTrialLimit));
       setCapacityExtensionPacks(selectedCustomer360.tenantExtensionPacks ?? 0);
-      setCapacityWhatsAppCredits(selectedCustomer360.whatsappCreditsLimit ?? (isPro ? (platformConfig.proWhatsAppCredits || 1000) : (platformConfig.trialWhatsAppCredits || 10)));
-      setCapacityEmailMultiplier(selectedCustomer360.emailMultiplier ?? (platformConfig.emailMultiplier || 3));
+      setCapacityWhatsAppCredits(
+        hasCustomOverride && typeof selectedCustomer360.whatsappCreditsLimit === "number"
+          ? selectedCustomer360.whatsappCreditsLimit
+          : (isPro ? (platformConfig.proWhatsAppCredits || 1000) : (platformConfig.trialWhatsAppCredits || 25))
+      );
+      setCapacityEmailMultiplier(
+        hasCustomOverride && typeof selectedCustomer360.emailMultiplier === "number"
+          ? selectedCustomer360.emailMultiplier
+          : (platformConfig.emailMultiplier || 3)
+      );
       setLiveWalletCredits(null);
       setLiveWalletEmailCredits(null);
 
@@ -2208,8 +2216,8 @@ export default function ApexCommandClientsPage() {
                         <p className="font-bold text-emerald-400">WhatsApp Message Credits</p>
                         <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-mono">
                           {selectedCustomer360.subscriptionStatus === "ACTIVE_PRO" || selectedCustomer360.subscriptionStatus === "PRO_PRE_EXPIRY"
-                            ? `Pro Default: ${platformConfig.proWhatsAppCredits || 300}`
-                            : `Trial Default: ${platformConfig.trialWhatsAppCredits || 10}`}
+                            ? `Pro Default: ${platformConfig.proWhatsAppCredits || 1000}`
+                            : `Trial Default: ${platformConfig.trialWhatsAppCredits || 25}`}
                         </span>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 mt-0.5">

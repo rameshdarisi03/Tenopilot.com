@@ -38,6 +38,9 @@ export async function POST(req: NextRequest) {
       updatePayload.hasCustomLimitsOverride = false;
       updatePayload.maxPropertiesAllowed = null;
       updatePayload.maxTenantsLimit = null;
+      updatePayload.whatsappCreditsLimit = null;
+      updatePayload.emailCreditsLimit = null;
+      updatePayload.emailMultiplier = null;
     } else {
       updatePayload.hasCustomLimitsOverride = true;
       updatePayload.customLimitsOverrideAt = nowIso;

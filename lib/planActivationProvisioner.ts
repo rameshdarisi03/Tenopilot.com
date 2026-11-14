@@ -303,8 +303,28 @@ export async function executePlanActivationPipeline(
       multiplierMonths = 1;
     }
 
-    waCreditsToAdd = proWhatsAppCredits * multiplierMonths;
-    emailCreditsToAdd = waCreditsToAdd * emailMultiplier;
+    // Check if customer account has an active individual custom limits override
+    let effectiveProWA = proWhatsAppCredits;
+    let effectiveEmailMult = emailMultiplier;
+    if (userId) {
+      try {
+        const uDoc = await getDoc(doc(db, "users", userId));
+        if (uDoc.exists()) {
+          const uData = uDoc.data();
+          if (uData.hasCustomLimitsOverride) {
+            if (typeof uData.whatsappCreditsLimit === "number" && uData.whatsappCreditsLimit > 0) {
+              effectiveProWA = uData.whatsappCreditsLimit;
+            }
+            if (typeof uData.emailMultiplier === "number" && uData.emailMultiplier > 0) {
+              effectiveEmailMult = uData.emailMultiplier;
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    waCreditsToAdd = effectiveProWA * multiplierMonths;
+    emailCreditsToAdd = waCreditsToAdd * effectiveEmailMult;
   }
 
   // Authoritative Rollover Expiry Date for New Credit Batches from Founder Master Controls
