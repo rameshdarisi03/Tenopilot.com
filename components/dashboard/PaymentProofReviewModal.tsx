@@ -115,28 +115,28 @@ export function PaymentProofReviewModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
       <div className="bg-white w-full max-w-lg rounded-3xl border border-gray-200 shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95">
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-orange-50/60 via-white to-amber-50/60">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-orange-100 text-[#c2652a] flex items-center justify-center font-bold">
+        <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-orange-50/70 via-white to-amber-50/50">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-2xl bg-[#c2652a]/10 text-[#c2652a] flex items-center justify-center font-bold shrink-0">
               <CreditCard className="w-5 h-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="font-serif font-bold text-sm sm:text-base text-gray-900">
+                <h3 className="font-serif font-bold text-sm sm:text-base text-gray-900 leading-tight">
                   Review Payment Proof
                 </h3>
-                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border whitespace-nowrap shrink-0 ${
                   proof.status === "APPROVED"
                     ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                     : proof.status === "REJECTED"
                     ? "bg-rose-50 text-rose-800 border-rose-200"
-                    : "bg-amber-50 text-amber-800 border-amber-300 animate-pulse"
+                    : "bg-amber-50 text-amber-800 border-amber-300"
                 }`}>
-                  {proof.status === "APPROVED" ? "VERIFIED" : proof.status === "REJECTED" ? "REJECTED" : "AWAITING REVIEW"}
+                  {proof.status === "APPROVED" ? "Verified" : proof.status === "REJECTED" ? "Rejected" : "Pending Review"}
                 </span>
               </div>
-              <p className="text-xs text-gray-500 font-medium mt-0.5">
-                {proof.tenantName} • <span className="font-bold text-gray-700">{proof.roomNumber}</span>
+              <p className="text-xs text-gray-500 font-medium mt-0.5 truncate">
+                {proof.tenantName} • <span className="font-bold text-gray-800">Room {proof.roomNumber}</span>
               </p>
             </div>
           </div>
@@ -144,7 +144,7 @@ export function PaymentProofReviewModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+            className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors cursor-pointer shrink-0 ml-2"
           >
             <X className="w-5 h-5" />
           </button>
@@ -203,57 +203,65 @@ export function PaymentProofReviewModal({
           )}
 
           {/* Payment Metadata Grid */}
-          <div className="p-3.5 rounded-2xl bg-gray-50/90 border border-gray-200 space-y-2.5">
-            {/* Amount Verification & In-place edit */}
-            <div className="p-3 rounded-xl bg-white border border-gray-200 shadow-2xs flex items-center justify-between">
-              <div>
-                <span className="text-[10px] uppercase tracking-wider font-extrabold text-gray-400 block">
-                  Amount Reported / Received
-                </span>
+          <div className="rounded-2xl border border-gray-200 bg-gray-50/70 p-3.5 space-y-2.5">
+            {/* Clean 2-Column Amount Breakdown */}
+            <div className="grid grid-cols-2 gap-2.5">
+              {/* Amount Received / Paid */}
+              <div className="bg-white p-3 rounded-xl border border-gray-200/90 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block truncate">
+                    Amount Received
+                  </span>
+                  {!isEditingAmount && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingAmount(true)}
+                      className="text-[10px] font-bold text-[#c2652a] hover:underline cursor-pointer shrink-0 ml-1"
+                    >
+                      Edit
+                    </button>
+                  )}
+                </div>
                 {isEditingAmount ? (
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <span className="font-bold text-gray-500 text-sm">₹</span>
+                  <div className="flex items-center gap-1 mt-1">
+                    <span className="font-bold text-gray-500 text-xs">₹</span>
                     <input
                       type="number"
                       value={approvedAmount}
                       onChange={(e) => setApprovedAmount(Number(e.target.value) || 0)}
-                      className="w-28 px-2 py-1 rounded-lg border border-orange-400 text-sm font-bold text-gray-900 focus:ring-1 focus:ring-orange-500"
+                      className="w-full px-1.5 py-0.5 rounded border border-[#c2652a] text-sm font-bold text-gray-900 focus:outline-none"
+                      autoFocus
                     />
                     <button
                       type="button"
                       onClick={() => setIsEditingAmount(false)}
-                      className="px-2 py-1 bg-emerald-600 text-white text-[10px] font-bold rounded-lg cursor-pointer"
+                      className="px-2 py-0.5 bg-emerald-600 text-white text-[10px] font-bold rounded cursor-pointer"
                     >
-                      Done
+                      ✓
                     </button>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="font-serif font-black text-lg text-gray-900">
-                      ₹{approvedAmount.toLocaleString("en-IN")}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingAmount(true)}
-                      className="text-[10px] text-orange-600 hover:text-orange-700 underline font-semibold cursor-pointer"
-                    >
-                      Edit
-                    </button>
+                  <div className="font-serif font-black text-lg text-emerald-800 mt-0.5">
+                    ₹{approvedAmount.toLocaleString("en-IN")}
                   </div>
                 )}
               </div>
-              <div className="text-right">
-                <span className="text-[10px] font-bold text-gray-400 block">Bill Due Amount</span>
-                <span className="text-xs font-bold text-gray-600">
-                  ₹{(proof.originalDueAmount || approvedAmount).toLocaleString("en-IN")}
+
+              {/* Bill Due Amount */}
+              <div className="bg-white p-3 rounded-xl border border-gray-200/90 shadow-2xs">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block truncate">
+                  Bill Due Amount
                 </span>
+                <div className="font-mono font-bold text-base text-gray-700 mt-1">
+                  ₹{(proof.originalDueAmount || approvedAmount).toLocaleString("en-IN")}
+                </div>
               </div>
             </div>
 
             {/* Show UTR only if an actual 12-digit UTR was provided */}
             {proof.utrNumber && proof.utrNumber !== "Screenshot Attached" && (
-              <div className="flex items-center justify-between pb-2 border-b border-gray-200/70">
-                <span className="font-bold text-gray-600">UTR / Ref:</span>
+              <div className="flex items-center justify-between px-3 py-2 bg-white rounded-xl border border-gray-200/80 text-xs">
+                <span className="text-[11px] font-bold text-gray-500">UTR / Ref:</span>
                 <div className="flex items-center gap-1.5">
                   <span className="font-mono font-bold text-gray-900 text-xs">
                     {proof.utrNumber}
@@ -261,7 +269,7 @@ export function PaymentProofReviewModal({
                   <button
                     type="button"
                     onClick={handleCopyUtr}
-                    className="p-1 rounded-md hover:bg-gray-200 text-gray-600 transition-colors cursor-pointer"
+                    className="p-1 rounded-md hover:bg-gray-100 text-gray-500 transition-colors cursor-pointer"
                     title="Copy UTR"
                   >
                     {copiedUtr ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
@@ -271,13 +279,13 @@ export function PaymentProofReviewModal({
             )}
 
             {/* Receiving Account */}
-            <div className="flex items-center justify-between pt-0.5">
-              <span className="font-bold text-gray-600">Paid To Account:</span>
+            <div className="flex items-center justify-between px-3 py-2 bg-white rounded-xl border border-gray-200/80 text-xs">
+              <span className="text-[11px] font-bold text-gray-500">Paid To Account:</span>
               {paymentAccounts && paymentAccounts.length > 1 ? (
                 <select
                   value={selectedAccount}
                   onChange={(e) => setSelectedAccount(e.target.value)}
-                  className="px-2 py-1 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-800 cursor-pointer focus:ring-1 focus:ring-orange-500"
+                  className="px-2 py-1 bg-gray-50 border border-gray-300 rounded-lg text-xs font-bold text-gray-800 cursor-pointer focus:ring-1 focus:ring-[#c2652a]"
                 >
                   {paymentAccounts.map((acc, idx) => (
                     <option key={acc.id || idx} value={acc.name}>
@@ -286,7 +294,7 @@ export function PaymentProofReviewModal({
                   ))}
                 </select>
               ) : (
-                <span className="font-bold text-gray-800 text-right">
+                <span className="font-bold text-gray-900">
                   {selectedAccount || proof.partnerName || "PG Account"}
                 </span>
               )}
@@ -328,63 +336,65 @@ export function PaymentProofReviewModal({
           )}
         </div>
 
-        {/* Footer Actions */}
-        <div className="p-4 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2.5 bg-gray-50/70">
-          {!showRejectBox && (
+        {/* Footer Actions (Ergonomic Mobile Layout) */}
+        <div className="p-3.5 sm:p-4 border-t border-gray-100 bg-white space-y-2.5">
+          {/* PRIMARY ACTION: Full-width high-contrast tap target */}
+          {onApproveAndCollect ? (
             <button
               type="button"
-              disabled={isApproving}
-              onClick={() => setShowRejectBox(true)}
-              className="py-2.5 px-3 rounded-xl text-rose-600 hover:bg-rose-50 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
+              disabled={isApproving || approvedAmount <= 0}
+              onClick={() => onApproveAndCollect(proof, approvedAmount, selectedAccount)}
+              className="w-full py-3 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
             >
-              Reject Proof
+              {isApproving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Recording Payment...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+                  <span>Approve & Record Rent</span>
+                  <span className="font-mono bg-white/20 px-2 py-0.5 rounded-md text-xs font-black">
+                    ₹{approvedAmount.toLocaleString("en-IN")}
+                  </span>
+                </>
+              )}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onProceedToCollect(proof, approvedAmount, selectedAccount)}
+              className="w-full py-3 px-4 rounded-2xl bg-[#c2652a] hover:bg-[#964407] active:scale-98 text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all"
+            >
+              <span>Proceed to Collect Rent</span>
+              <ArrowRight className="w-4 h-4" />
             </button>
           )}
 
-          <div className="flex items-center gap-2 ml-auto">
-            <button
-              type="button"
-              disabled={isApproving}
-              onClick={() => onProceedToCollect(proof, approvedAmount, selectedAccount)}
-              className="py-2.5 px-3 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
-              title="Open full form to customize dues or allocations"
-            >
-              Adjust in Full Form
-            </button>
+          {/* SECONDARY ROW: Balanced 2-button utility row */}
+          {!showRejectBox && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={isApproving}
+                onClick={() => setShowRejectBox(true)}
+                className="flex-1 py-2.5 px-3 rounded-xl border border-rose-200 hover:bg-rose-50 text-rose-600 font-bold text-xs transition-colors cursor-pointer text-center disabled:opacity-50"
+              >
+                Reject Proof
+              </button>
 
-            {onApproveAndCollect ? (
               <button
                 type="button"
-                disabled={isApproving || approvedAmount <= 0}
-                onClick={() => onApproveAndCollect(proof, approvedAmount, selectedAccount)}
-                className="py-2.5 px-4 sm:px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all disabled:opacity-50"
-              >
-                {isApproving ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Recording...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-4 h-4 text-emerald-200" />
-                    <span>Approve & Record Rent</span>
-                    <span className="font-mono bg-white/20 px-1.5 py-0.5 rounded text-[10px]">
-                      ₹{approvedAmount.toLocaleString("en-IN")}
-                    </span>
-                  </>
-                )}
-              </button>
-            ) : (
-              <button
-                type="button"
+                disabled={isApproving}
                 onClick={() => onProceedToCollect(proof, approvedAmount, selectedAccount)}
-                className="py-2.5 px-5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                className="flex-1 py-2.5 px-3 rounded-xl border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-xs transition-colors cursor-pointer text-center disabled:opacity-50 truncate"
+                title="Open full form to customize dues or allocations"
               >
-                <span>Proceed to Collect Rent</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                Customize / Full Form
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
