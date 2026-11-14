@@ -1249,6 +1249,13 @@ export default function LoginPage() {
 
       // A. If Phone: Check staff_accounts, users, and properties
       if (isPhoneCandidate) {
+        const phoneVariants = [
+          pure10,
+          `+91${pure10}`,
+          `+91 ${pure10}`,
+          `91${pure10}`,
+        ];
+
         // Staff check
         try {
           const sSnap = await getDoc(doc(db, "staff_accounts", `phone_${pure10}`));
@@ -1256,7 +1263,7 @@ export default function LoginPage() {
             matchedAccount = sSnap.data();
             matchedIsStaff = true;
           } else {
-            const sQ = query(collection(db, "staff_accounts"), where("purePhone", "==", pure10));
+            const sQ = query(collection(db, "staff_accounts"), where("purePhone", "in", phoneVariants));
             const sSnap2 = await getDocs(sQ);
             if (!sSnap2.empty && (sSnap2.docs[0].data().role === "admin" || sSnap2.docs[0].data().role === "receptionist")) {
               matchedAccount = sSnap2.docs[0].data();
@@ -1265,23 +1272,31 @@ export default function LoginPage() {
           }
         } catch {}
 
-        // Users check
+        // Users check (check both phone and phoneNumber fields across variants)
         if (!matchedAccount) {
           try {
-            const uQ = query(collection(db, "users"), where("phone", "==", pure10));
-            const uSnap = await getDocs(uQ);
-            if (!uSnap.empty) {
-              matchedAccount = uSnap.docs[0].data();
-              matchedAccount.id = uSnap.docs[0].id;
+            const uQ1 = query(collection(db, "users"), where("phone", "in", phoneVariants));
+            const uSnap1 = await getDocs(uQ1);
+            if (!uSnap1.empty) {
+              matchedAccount = uSnap1.docs[0].data();
+              matchedAccount.id = uSnap1.docs[0].id;
               matchedIsStaff = false;
+            } else {
+              const uQ2 = query(collection(db, "users"), where("phoneNumber", "in", phoneVariants));
+              const uSnap2 = await getDocs(uQ2);
+              if (!uSnap2.empty) {
+                matchedAccount = uSnap2.docs[0].data();
+                matchedAccount.id = uSnap2.docs[0].id;
+                matchedIsStaff = false;
+              }
             }
           } catch {}
         }
 
-        // Properties check (find owner)
+        // Properties check (find owner across variants)
         if (!matchedAccount) {
           try {
-            const pQ = query(collection(db, "properties"), where("ownerPhone", "==", pure10));
+            const pQ = query(collection(db, "properties"), where("ownerPhone", "in", phoneVariants));
             const pSnap = await getDocs(pQ);
             if (!pSnap.empty) {
               const pData = pSnap.docs[0].data();
@@ -1354,7 +1369,15 @@ export default function LoginPage() {
       matchedPropId = matchedAccount.assignedPropertyId || "";
       matchedStaffId = matchedAccount.staffId || matchedAccount.id || "";
 
-      let finalPhone = (matchedAccount.phone || matchedAccount.purePhone || foundPhone || "").replace(/\D/g, "").slice(-10);
+      let finalPhone = (
+        matchedAccount.phone ||
+        matchedAccount.phoneNumber ||
+        matchedAccount.purePhone ||
+        matchedAccount.mobile ||
+        matchedAccount.whatsappPhone ||
+        foundPhone ||
+        ""
+      ).replace(/\D/g, "").slice(-10);
       let finalEmail = (matchedAccount.email || foundEmail || "").toLowerCase().trim();
       if (!isValidRealEmail(finalEmail)) finalEmail = "";
 
@@ -1363,17 +1386,28 @@ export default function LoginPage() {
         try {
           const pSnap = await getDocs(query(collection(db, "properties"), where("ownerEmail", "==", finalEmail)));
           if (!pSnap.empty) {
-            const pOwnerPhone = (pSnap.docs[0].data().ownerPhone || "").replace(/\D/g, "").slice(-10);
-            if (pOwnerPhone && isGenuineIndianMobile(pOwnerPhone)) finalPhone = pOwnerPhone;
+            for (const pDoc of pSnap.docs) {
+              const pOwnerPhone = (pDoc.data().ownerPhone || "").replace(/\D/g, "").slice(-10);
+              if (pOwnerPhone && isGenuineIndianMobile(pOwnerPhone)) {
+                finalPhone = pOwnerPhone;
+                break;
+              }
+            }
           }
         } catch {}
       }
       if (!finalEmail && finalPhone) {
+        const probePhoneVariants = [finalPhone, `+91${finalPhone}`, `+91 ${finalPhone}`, `91${finalPhone}`];
         try {
-          const pSnap = await getDocs(query(collection(db, "properties"), where("ownerPhone", "==", finalPhone)));
+          const pSnap = await getDocs(query(collection(db, "properties"), where("ownerPhone", "in", probePhoneVariants)));
           if (!pSnap.empty) {
-            const pOwnerEmail = (pSnap.docs[0].data().ownerEmail || "").toLowerCase().trim();
-            if (pOwnerEmail && isValidRealEmail(pOwnerEmail)) finalEmail = pOwnerEmail;
+            for (const pDoc of pSnap.docs) {
+              const pOwnerEmail = (pDoc.data().ownerEmail || "").toLowerCase().trim();
+              if (pOwnerEmail && isValidRealEmail(pOwnerEmail)) {
+                finalEmail = pOwnerEmail;
+                break;
+              }
+            }
           }
         } catch {}
       }
@@ -1381,7 +1415,8 @@ export default function LoginPage() {
         try {
           const uSnap = await getDoc(doc(db, "users", matchedAccount.id));
           if (uSnap.exists()) {
-            const uP = (uSnap.data().phone || "").replace(/\D/g, "").slice(-10);
+            const uData = uSnap.data();
+            const uP = (uData.phone || uData.phoneNumber || uData.mobile || "").replace(/\D/g, "").slice(-10);
             if (uP && isGenuineIndianMobile(uP)) finalPhone = uP;
           }
         } catch {}
@@ -2511,6 +2546,7 @@ export default function LoginPage() {
                     type="button"
                     onClick={() => {
                       setVerifiedResetAccount(null);
+                      setResetIdentifierInput("");
                       setResetOtpStep("VERIFY_ACCOUNT");
                       setAccountVerificationError(null);
                     }}

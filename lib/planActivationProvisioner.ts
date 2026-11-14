@@ -75,6 +75,12 @@ export async function resolveTargetPropertyIds(params: {
     } catch (e) {
       console.warn("Notice scanning users doc by userId in resolveTargetPropertyIds:", e);
     }
+
+    // 1b. Inspect properties collection directly by ownerUid
+    try {
+      const propSnap = await getDocs(query(collection(db, "properties"), where("ownerUid", "==", params.userId)));
+      propSnap.docs.forEach((d) => propertyIds.add(d.id));
+    } catch (e) {}
   }
 
   // 2. Inspect users document by email
@@ -93,6 +99,12 @@ export async function resolveTargetPropertyIds(params: {
     } catch (e) {
       console.warn("Notice scanning users doc by email in resolveTargetPropertyIds:", e);
     }
+
+    // 2b. Inspect properties collection directly by ownerEmail (Primary SSOT for active PGs)
+    try {
+      const propEmailSnap = await getDocs(query(collection(db, "properties"), where("ownerEmail", "==", cleanEmail)));
+      propEmailSnap.docs.forEach((d) => propertyIds.add(d.id));
+    } catch (e) {}
 
     // 3. Inspect portfolio_properties collection
     try {
@@ -123,8 +135,14 @@ export async function resolveTargetPropertyIds(params: {
     } catch (e) {}
   }
 
-  // 6. Inspect by phone number if present
+  // 6. Inspect by phone number if present across phone formats
   if (pure10Phone) {
+    const phoneVariants = [pure10Phone, `+91${pure10Phone}`, `+91 ${pure10Phone}`, `91${pure10Phone}`];
+    try {
+      const propPhoneSnap = await getDocs(query(collection(db, "properties"), where("ownerPhone", "in", phoneVariants)));
+      propPhoneSnap.docs.forEach((d) => propertyIds.add(d.id));
+    } catch (e) {}
+
     try {
       const invPhoneSnap = await getDocs(query(collection(db, "founder_invites"), where("ownerPhone", "==", pure10Phone)));
       invPhoneSnap.docs.forEach((d) => propertyIds.add(`prop-${d.id}`));
@@ -308,14 +326,29 @@ export async function executePlanActivationPipeline(
       const existingWaTxs = Array.isArray(waData?.transactions) ? waData.transactions : [];
       const existingWaBatches: CreditBatch[] = Array.isArray(waData?.batches) ? waData.batches : [];
 
-      finalWaBalance = currentWaCredits + waCreditsToAdd;
+      // Calculate consumed usage across previous lifecycle
+      let consumedWaCredits = 0;
+      existingWaTxs.forEach((tx: any) => {
+        if (tx.type === "USAGE" && typeof tx.amount === "number") {
+          consumedWaCredits += Math.abs(tx.amount);
+        }
+      });
+
+      if (isWhatsAppRecharge) {
+        // Standalone Recharge Top-Up: Add to existing balance
+        finalWaBalance = currentWaCredits + waCreditsToAdd;
+      } else {
+        // Subscription Plan Activation (e.g. Trial -> Pro):
+        // Pro entitlement credited minus credits already consumed
+        finalWaBalance = Math.max(0, waCreditsToAdd - consumedWaCredits);
+      }
 
       const newWaBatch: CreditBatch = {
         id: `batch-wa-act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         cycleId: `cycle-${Date.now()}`,
         source: isWhatsAppRecharge ? "RECHARGE_PACK" : "MONTHLY_QUOTA",
         initialCredits: waCreditsToAdd,
-        remainingCredits: waCreditsToAdd,
+        remainingCredits: isWhatsAppRecharge ? waCreditsToAdd : finalWaBalance,
         grantedAt: nowIso,
         expiresAt: batchExpiryIso,
       };
@@ -323,10 +356,12 @@ export async function executePlanActivationPipeline(
       const newWaTx = {
         id: `tx-wa-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         type: isWhatsAppRecharge ? "PURCHASE" : "PURCHASE",
-        amount: waCreditsToAdd,
+        amount: isWhatsAppRecharge ? waCreditsToAdd : finalWaBalance,
         balanceAfter: finalWaBalance,
         description: isWhatsAppRecharge
           ? `Recharged +${waCreditsToAdd} WhatsApp Credits (${paymentMode})`
+          : consumedWaCredits > 0
+          ? `Plan Activation Quota: ${resolvedPlan} (+${finalWaBalance} WhatsApp Credits after deducting ${consumedWaCredits} used)`
           : `Plan Activation Quota: ${resolvedPlan} (+${waCreditsToAdd} WhatsApp Credits)`,
         timestamp: nowIso,
         status: "DELIVERED",

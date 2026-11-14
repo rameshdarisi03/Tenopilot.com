@@ -67,7 +67,7 @@ export interface AuthUserProfile {
 }
 
 /**
- * ðŸ”¤ Clean Title-Case Name Sanitizer
+ * 🔤 Clean Title-Case Name Sanitizer
  */
 export function sanitizeTitleCase(input: string): string {
   if (!input) return "";
@@ -744,7 +744,7 @@ export async function continueWithGoogle(): Promise<GoogleAuthResult | null> {
       };
     }
 
-    // ðŸŒŸ PATH B: NEW, INCOMPLETE, OR PURGED ACCOUNT -> CLEAN SLATE DIRECT TO /welcome
+    // 🌟 PATH B: NEW, INCOMPLETE, OR PURGED ACCOUNT -> CLEAN SLATE DIRECT TO /welcome
     // 1. Wipe any stale session artifacts in localStorage
     if (typeof window !== "undefined") {
       localStorage.removeItem("tenopilot_saved_session");
@@ -814,7 +814,7 @@ export async function loginWithGoogle(
 }
 
 /**
- * ðŸ”’ Single Source of Truth: Sync Security PIN to Cloud Firestore across Collections
+ * 🔒 Single Source of Truth: Sync Security PIN to Cloud Firestore across Collections
  * Generates and writes a new sessionVersion to invalidate other active sessions
  */
 /**
@@ -1053,7 +1053,7 @@ export async function syncUserSecurityPinToCloud(
 }
 
 /**
- * ðŸ“§ Register New Customer with Email, Password & Send Email Verification Link
+ * 📧 Register New Customer with Email, Password & Send Email Verification Link
  * Equipped with Smart Self-Healing for orphaned / purged accounts.
  */
 export async function registerWithEmailPassword(
@@ -1070,7 +1070,7 @@ export async function registerWithEmailPassword(
       user = result.user;
     } catch (createErr: any) {
       if (createErr?.code === "auth/email-already-in-use") {
-        // ðŸ”„ Smart Self-Healing: Attempt credential login to auto-resume orphaned / purged account
+        // 🔄 Smart Self-Healing: Attempt credential login to auto-resume orphaned / purged account
         try {
           const signInRes = await signInWithEmailAndPassword(auth, cleanEmail, pass);
           user = signInRes.user;
@@ -1428,7 +1428,7 @@ export async function updateStaffFirebaseAccount(params: {
 }
 
 /**
- * ðŸ”„ Resend Verification Link to Current User Inbox
+ * 🔄 Resend Verification Link to Current User Inbox
  */
 export async function sendUserEmailVerification(): Promise<boolean> {
   const user = auth.currentUser;
@@ -1442,7 +1442,7 @@ export async function sendUserEmailVerification(): Promise<boolean> {
 }
 
 /**
- * ðŸ“± Universal Phone-to-Email Cloud Resolver
+ * 📱 Universal Phone-to-Email Cloud Resolver
  * Resolves 10-digit mobile phone numbers to registered work emails across staff_accounts, founder_invites, and users
  */
 export async function resolvePhoneOrEmail(identifier: string): Promise<string> {
@@ -1511,7 +1511,7 @@ export async function resolvePhoneOrEmail(identifier: string): Promise<string> {
 }
 
 /**
- * ðŸ“§ Sign In with Email or Mobile Phone & Password
+ * 📧 Sign In with Email or Mobile Phone & Password
  */
 export async function loginWithEmailPassword(
   emailOrPhone: string,
@@ -1573,7 +1573,7 @@ export async function loginWithEmailPassword(
 }
 
 /**
- * ðŸ”‘ Send Password Reset Link to User Inbox
+ * 🔑 Send Password Reset Link to User Inbox
  */
 export async function sendPasswordReset(email: string): Promise<boolean> {
   try {
@@ -1622,14 +1622,14 @@ export async function reauthenticateCurrentAccount(password?: string): Promise<b
 }
 
 /**
- * ðŸšª Logout Current Session
+ * 🚪 Logout Current Session
  */
 export async function logoutUser(): Promise<void> {
   await signOut(auth);
 }
 
 /**
- * ðŸ“¡ Real-time Observer for Firebase Auth State
+ * 📡 Real-time Observer for Firebase Auth State
  */
 export function subscribeToAuth(callback: (user: User | null) => void) {
   return onAuthStateChanged(auth, callback);
@@ -1644,7 +1644,7 @@ export interface PhoneAuthResult {
 }
 
 /**
- * ðŸ“± WhatsApp Phone Authentication & Account Resolution Engine
+ * 📱 WhatsApp Phone Authentication & Account Resolution Engine
  * Handles seamless credentialed sign-in / sign-up and links Firestore user record.
  */
 export async function loginOrRegisterWithPhone(

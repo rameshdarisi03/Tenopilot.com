@@ -1141,7 +1141,7 @@ function WelcomeOnboardingContent() {
                         <div className="space-y-2">
                           <div className="flex rounded-xl border border-gray-300 focus-within:border-[#c2652a] focus-within:ring-2 focus-within:ring-[#c2652a]/20 overflow-hidden bg-white">
                             <div className="flex items-center gap-1 px-2.5 bg-gray-50 border-r border-gray-200 text-xs font-bold text-gray-600 select-none">
-                              <span>ðŸ‡®ðŸ‡³ +91</span>
+                              <span>🇮🇳 +91</span>
                             </div>
                             <input
                               type="tel"
