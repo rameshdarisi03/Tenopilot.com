@@ -55,6 +55,9 @@ export interface WhatsAppSendParams {
     totalBuildings?: string | number;
     tenantName?: string;
     residentName?: string;
+    phone?: string;
+    tenantPhone?: string;
+    guestMobile?: string;
   };
 }
 
@@ -774,6 +777,9 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
           residentName: payload.recipientName,
           roomNumber: p.roomNumber || "N/A",
           bedCode: p.bedCode || "Bed 1",
+          tenantPhone: payload.toPhone || p.phone || "",
+          phone: payload.toPhone || p.phone || "",
+          guestMobile: payload.toPhone || p.phone || "",
           amount: String(p.amount || 0),
           paidDate: paidDateStr,
           paymentMode: modeStr,
@@ -1183,6 +1189,9 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
           residentName: payload.recipientName,
           roomNumber: p.roomNumber || "N/A",
           bedCode: p.bedCode || "Bed 1",
+          tenantPhone: payload.toPhone || p.phone || "",
+          phone: payload.toPhone || p.phone || "",
+          guestMobile: payload.toPhone || p.phone || "",
           amount: String(p.amount || 0),
           paidDate: paidDateStr,
           paymentMode: modeStr,

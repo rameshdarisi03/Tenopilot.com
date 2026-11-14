@@ -9,6 +9,7 @@ import { db } from "./firebase";
 export interface SESSendParams {
   toEmail: string;
   recipientName: string;
+  recipientPhone?: string;
   propertyId: string;
   propertyName?: string;
   replyToEmail?: string;
@@ -48,6 +49,8 @@ export interface SESSendParams {
     notes?: string;
     rejectionReason?: string;
     phone?: string;
+    tenantPhone?: string;
+    guestMobile?: string;
     propertyAddress?: string;
     houseRules?: string;
     billingCycle?: string;
@@ -1175,6 +1178,9 @@ export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResul
         residentName: payload.recipientName || "Resident",
         roomNumber: p.roomNumber || "N/A",
         bedCode: p.bedCode || "Standard Bed",
+        tenantPhone: p.tenantPhone || p.phone || payload.recipientPhone,
+        phone: p.phone || p.tenantPhone || payload.recipientPhone,
+        guestMobile: p.guestMobile || p.phone || payload.recipientPhone,
         amount: Number(p.amount || 0),
         paidDate: paidDate,
         paymentMode: payMode,

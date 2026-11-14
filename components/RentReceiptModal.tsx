@@ -139,6 +139,8 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
       residentName: occupant.name,
       roomNumber: occupant.roomNumber,
       bedCode: occupant.bedCode,
+      tenantPhone: occupant.phone || "",
+      phone: occupant.phone || "",
       amount: String(receiptItem.amount),
       paidDate: receiptItem.date,
       paymentMode: receiptItem.mode || "UPI",
@@ -683,6 +685,11 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
                         <span>|</span>
                         <span>Bed {occupant.bedCode.replace(/^Bed\s*/i, "")}</span>
                       </div>
+                      {occupant.phone && (
+                        <p className="text-[11.5px] font-semibold text-orange-600 mt-1 flex items-center gap-1">
+                          <span>Ph:</span> {occupant.phone}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>

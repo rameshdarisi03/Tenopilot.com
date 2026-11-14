@@ -56,8 +56,10 @@ export async function GET(req: NextRequest) {
     const replacesReceiptNo = searchParams.get("replacesReceiptNo") || undefined;
     const replacedByReceiptNo = searchParams.get("replacedByReceiptNo") || undefined;
 
-    // Dedicated Guest Parameters
+    // Dedicated Tenant & Guest Parameters
     const guestMobile = searchParams.get("guestMobile") || undefined;
+    const tenantPhone = searchParams.get("tenantPhone") || searchParams.get("phone") || searchParams.get("mobile") || undefined;
+    const resolvedResidentPhone = tenantPhone || guestMobile;
     const purpose = searchParams.get("purpose") || undefined;
     const initialPayment = searchParams.get("initialPayment") ? Number(searchParams.get("initialPayment")) : undefined;
     const initialPaymentDate = searchParams.get("initialPaymentDate") || undefined;
@@ -107,6 +109,8 @@ export async function GET(req: NextRequest) {
       residentName,
       roomNumber,
       bedCode,
+      tenantPhone: resolvedResidentPhone,
+      phone: resolvedResidentPhone,
       amount,
       paidDate,
       paymentMode,
@@ -128,7 +132,7 @@ export async function GET(req: NextRequest) {
       maintenanceAmount,
       stayType,
       isGuest,
-      guestMobile,
+      guestMobile: guestMobile || resolvedResidentPhone,
       purpose,
       checkInDate,
       checkOutDate,

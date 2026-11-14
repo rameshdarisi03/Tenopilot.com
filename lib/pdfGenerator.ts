@@ -18,6 +18,8 @@ export interface ReceiptPdfData {
   residentName: string;
   roomNumber: string;
   bedCode: string;
+  tenantPhone?: string;
+  phone?: string;
   amount: number;
   paidDate: string;
   paymentMode: string;
@@ -760,7 +762,8 @@ export async function generateGuestStayReceiptPdfBuffer(data: ReceiptPdfData): P
   page.drawText("Name", { x: card1X + 12, y: cardY + 40, size: 9, font: fontRegular, color: slate600 });
   page.drawText(`: ${data.residentName}`, { x: card1X + 68, y: cardY + 40, size: 9, font: fontBold, color: slate900 });
   page.drawText("Mobile", { x: card1X + 12, y: cardY + 22, size: 9, font: fontRegular, color: slate600 });
-  page.drawText(`: ${data.guestMobile || "+91 91234 56789"}`, { x: card1X + 68, y: cardY + 22, size: 9, font: fontMono, color: slate900 });
+  const actualGuestMobile = data.guestMobile || data.tenantPhone || data.phone || "—";
+  page.drawText(`: ${actualGuestMobile}`, { x: card1X + 68, y: cardY + 22, size: 9, font: fontMono, color: slate900 });
 
   // Card 2: Stay Details Box
   page.drawRectangle({
@@ -1320,7 +1323,7 @@ export async function generateTenantRentalReceiptPdfBuffer(data: ReceiptPdfData)
   const badgeW = fontBold.widthOfTextAtSize(roomBedStr, 8.5) + 16;
   page.drawRectangle({
     x: divX + 16,
-    y: heroY + heroH - 58,
+    y: heroY + heroH - 56,
     width: badgeW,
     height: 18,
     color: creamBg,
@@ -1330,11 +1333,23 @@ export async function generateTenantRentalReceiptPdfBuffer(data: ReceiptPdfData)
   });
   page.drawText(roomBedStr, {
     x: divX + 24,
-    y: heroY + heroH - 53,
+    y: heroY + heroH - 51,
     size: 8.5,
     font: fontBold,
     color: terracotta,
   });
+
+  // 📞 Tenant Phone under Room & Bed (Matching owner's Ph: style on the left)
+  const tenantPhoneStr = data.tenantPhone || data.phone || (data.isGuest ? data.guestMobile : undefined);
+  if (tenantPhoneStr) {
+    page.drawText("Ph: " + tenantPhoneStr, {
+      x: divX + 16,
+      y: heroY + heroH - 69,
+      size: 8,
+      font: fontBold,
+      color: warmOrange,
+    });
+  }
 
   // 3. Particulars & Table
   const tableX = 40;
