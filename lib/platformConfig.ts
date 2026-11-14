@@ -48,10 +48,10 @@ export const DEFAULT_PLATFORM_CONFIG: PlatformConfig = {
   proTenantLimit: 300,
   trialTenantLimit: 50,
   baseAllowedBuildings: 1,
-  proWhatsAppCredits: 300,
-  trialWhatsAppCredits: 10,
+  proWhatsAppCredits: 1000,
+  trialWhatsAppCredits: 25,
   emailMultiplier: 3, // Default 3X
-  trialEmailCredits: 30,
+  trialEmailCredits: 75,
   creditRolloverMonths: 4, // Default 4 months carry forward window
 
   // Founder Support & Billing

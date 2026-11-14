@@ -159,12 +159,11 @@ export default function SubscriptionBillingPage() {
   const [selectedCreditPack, setSelectedCreditPack] = useState<WhatsAppCreditPackage | null>(null);
   const [showCreditRechargeModal, setShowCreditRechargeModal] = useState(false);
   const [isPurchasingCredits, setIsPurchasingCredits] = useState(false);
-  const [isRecalibrating, setIsRecalibrating] = useState(false);
 
   // Sync WhatsApp & Email Credits in Real-Time with Auto-Healing for Pro accounts
   useEffect(() => {
-    const proWAQuota = platformConfig.proWhatsAppCredits || 1000;
-    const proEmailQuota = proWAQuota * (profile?.emailMultiplier || platformConfig.emailMultiplier || 3);
+    const proWAQuota = 1000;
+    const proEmailQuota = 3000;
 
     whatsappCreditStore.initFirebaseListener(propertyId, sub.isPro, proWAQuota);
     whatsappCreditStore.fetchWalletFromFirestore(propertyId, sub.isPro, proWAQuota);
@@ -188,34 +187,7 @@ export default function SubscriptionBillingPage() {
       unsubWa();
       unsubEmail();
     };
-  }, [propertyId, sub.isPro, platformConfig.proWhatsAppCredits, profile?.emailMultiplier]);
-
-  const handleRecalibrateWallet = async () => {
-    setIsRecalibrating(true);
-    try {
-      const res = await fetch("/api/subscription/recalibrate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ propertyId }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        await whatsappCreditStore.fetchWalletFromFirestore(propertyId, true, 1000);
-        await emailCreditStore.fetchWalletFromFirestore(propertyId, true, 3000);
-        setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
-        setWhatsappTransactions(whatsappCreditStore.getTransactions(propertyId));
-        setEmailCredits(emailCreditStore.getCredits(propertyId));
-        setEmailTransactions(emailCreditStore.getTransactions(propertyId));
-        triggerToast(`🎉 ${data.message}`);
-      } else {
-        triggerToast(`⚠️ ${data.message || "Recalibration failed"}`);
-      }
-    } catch (e: any) {
-      triggerToast(`⚠️ Recalibration error: ${e.message}`);
-    } finally {
-      setIsRecalibrating(false);
-    }
-  };
+  }, [propertyId, sub.isPro]);
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
@@ -940,50 +912,12 @@ export default function SubscriptionBillingPage() {
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
                       Meta Cloud API Live
                     </span>
-                    <button
-                      type="button"
-                      onClick={handleRecalibrateWallet}
-                      disabled={isRecalibrating}
-                      className="p-1 px-2.5 rounded-lg border border-gray-200 hover:border-[#c2652a] text-gray-600 hover:text-[#c2652a] text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50 bg-white shadow-2xs"
-                      title="Recalibrate and sync wallet credits"
-                    >
-                      <RefreshCw className={`w-3 h-3 ${isRecalibrating ? "animate-spin text-[#c2652a]" : ""}`} />
-                      <span>{isRecalibrating ? "Syncing..." : "Sync"}</span>
-                    </button>
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5">
                     Official automated WhatsApp dispatches (Welcome Notices, Rent Reminders & Verified Payment Receipts)
                   </p>
                 </div>
               </div>
-
-              {/* Pro Plan Activation Auto-Recovery Notice */}
-              {sub.isPro && whatsappCredits <= 0 && (
-                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-900 flex items-center justify-center shrink-0">
-                      <Zap className="w-4 h-4 text-amber-700" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-gray-900 text-xs">
-                        Pro Plan WhatsApp Credits Ready to Sync
-                      </p>
-                      <p className="text-[11px] text-gray-600">
-                        Your active Pro plan comes with {platformConfig.proWhatsAppCredits || 1000} WhatsApp credits. Click to synchronize your wallet balance.
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleRecalibrateWallet}
-                    disabled={isRecalibrating}
-                    className="px-4 py-2 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold text-xs shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0 disabled:opacity-50"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isRecalibrating ? "animate-spin" : ""}`} />
-                    <span>{isRecalibrating ? "Synchronizing Wallet..." : "⚡ Sync Pro Credits Now"}</span>
-                  </button>
-                </div>
-              )}
 
               {/* Dual-Channel Live Balance Cards */}
               <div className="flex flex-col sm:items-end gap-1.5">

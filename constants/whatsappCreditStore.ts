@@ -217,13 +217,11 @@ export const whatsappCreditStore = {
           return;
         }
 
-        // 💎 Pro Plan Wallet Auto-Healing: If active Pro subscription exists but wallet was never credited Pro quota
+        // 💎 Pro Plan Wallet Auto-Healing: If active Pro subscription exists
         if (isPro) {
-          const targetQuota = proCredits && proCredits >= 100 ? proCredits : 1000;
-          const hasProAllocation = cleanTransactions.some(
-            (tx) => tx.type === "PURCHASE" && (tx.amount >= 500 || tx.description?.toLowerCase().includes("pro plan") || tx.description?.toLowerCase().includes("plan activation"))
-          );
-          if (!hasProAllocation && credits <= 50) {
+          const targetQuota = 1000;
+          // If balance is stuck at 290 or below 500 on an active Pro plan, heal to true 1,000 quota minus usage
+          if (credits < 500) {
             let consumed = 0;
             cleanTransactions.forEach((tx) => {
               if (tx.type === "USAGE" && typeof tx.amount === "number") {
@@ -232,8 +230,12 @@ export const whatsappCreditStore = {
             });
             const netCredits = Math.max(0, targetQuota - consumed);
             credits = netCredits;
+            // Filter out any +290 or +300 bug transactions
+            const filteredTransactions = cleanTransactions.filter(
+              (tx) => !(tx.type === "PURCHASE" && (tx.amount === 290 || tx.amount === 300) && tx.description?.includes("Pro Plan Allocation"))
+            );
             const newTx: WhatsAppCreditTransaction = {
-              id: `tx-pro-auto-sync-${Date.now()}`,
+              id: `tx-pro-quota-1000-${Date.now()}`,
               type: "PURCHASE",
               amount: netCredits,
               balanceAfter: netCredits,
@@ -241,11 +243,11 @@ export const whatsappCreditStore = {
               timestamp: new Date().toISOString(),
               status: "DELIVERED",
             };
-            cleanTransactions.unshift(newTx);
+            filteredTransactions.unshift(newTx);
 
             const proState: PropertyWalletState = {
               credits,
-              transactions: cleanTransactions,
+              transactions: filteredTransactions,
             };
             PROPERTY_WALLET_MAP.set(propertyId, proState);
             setStoredWallet(propertyId, proState);

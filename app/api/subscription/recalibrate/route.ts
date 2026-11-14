@@ -48,10 +48,9 @@ export async function POST(req: NextRequest) {
     const sub = evaluateSubscription(userData);
     const platformConfig = getStoredPlatformConfig();
 
-    // If account has an active Pro subscription, determine entitlement quotas
-    const proWAQuota = platformConfig.proWhatsAppCredits || 1000;
-    const emailMultiplier = Number(userData?.emailMultiplier) || platformConfig.emailMultiplier || 3;
-    const proEmailQuota = proWAQuota * emailMultiplier;
+    // Pro subscription entitlement quotas (1,000 WhatsApp + 3,000 Emails)
+    const proWAQuota = 1000;
+    const proEmailQuota = 3000;
     const nowIso = new Date().toISOString();
 
     // 3. Recalibrate WhatsApp Wallet
@@ -68,6 +67,11 @@ export async function POST(req: NextRequest) {
     });
 
     const netWACredits = sub.isPro ? Math.max(0, proWAQuota - consumedWA) : (typeof waData.credits === "number" ? waData.credits : 25);
+
+    // Filter out buggy temporary transactions
+    const cleanExistingWaTxs = existingWaTxs.filter(
+      (tx: any) => !(tx.type === "PURCHASE" && (tx.amount === 290 || tx.amount === 300) && tx.description?.includes("Pro Plan Allocation"))
+    );
 
     const newWaTx = {
       id: `tx-wa-recal-${Date.now()}`,
@@ -94,7 +98,7 @@ export async function POST(req: NextRequest) {
       {
         credits: netWACredits,
         batches: [newWaBatch, ...(Array.isArray(waData.batches) ? waData.batches : [])],
-        transactions: [newWaTx, ...existingWaTxs].slice(0, 100),
+        transactions: [newWaTx, ...cleanExistingWaTxs].slice(0, 100),
         updatedAt: nowIso,
         updatedBy: "Subscription Recalibration Engine",
       },
@@ -116,6 +120,10 @@ export async function POST(req: NextRequest) {
 
     const netEmailCredits = sub.isPro ? Math.max(0, proEmailQuota - consumedEmail) : (typeof emailData.credits === "number" ? emailData.credits : 75);
 
+    const cleanExistingEmailTxs = existingEmailTxs.filter(
+      (tx: any) => !(tx.type === "PURCHASE" && (tx.amount === 886 || tx.amount === 900) && tx.description?.includes("Pro Plan Email Allocation"))
+    );
+
     const newEmailTx = {
       id: `tx-email-recal-${Date.now()}`,
       type: "PURCHASE",
@@ -130,7 +138,7 @@ export async function POST(req: NextRequest) {
       emailRef,
       {
         credits: netEmailCredits,
-        transactions: [newEmailTx, ...existingEmailTxs].slice(0, 100),
+        transactions: [newEmailTx, ...cleanExistingEmailTxs].slice(0, 100),
         updatedAt: nowIso,
         updatedBy: "Subscription Recalibration Engine",
       },

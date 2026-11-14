@@ -130,11 +130,8 @@ export const emailCreditStore = {
 
         // 💎 Pro Plan Email Wallet Auto-Healing
         if (isPro) {
-          const targetEmailQuota = proCredits && proCredits >= 300 ? proCredits : 3000;
-          const hasProAllocation = transactions.some(
-            (tx) => tx.type === "PURCHASE" && (tx.amount >= 1000 || tx.description?.toLowerCase().includes("pro plan") || tx.description?.toLowerCase().includes("plan activation"))
-          );
-          if (!hasProAllocation && credits <= 100) {
+          const targetEmailQuota = 3000;
+          if (credits < 1500) {
             let consumed = 0;
             transactions.forEach((tx) => {
               if (tx.type === "USAGE" && typeof tx.amount === "number") {
@@ -143,8 +140,11 @@ export const emailCreditStore = {
             });
             const netCredits = Math.max(0, targetEmailQuota - consumed);
             credits = netCredits;
+            const filteredEmailTxs = transactions.filter(
+              (tx) => !(tx.type === "PURCHASE" && (tx.amount === 886 || tx.amount === 900) && tx.description?.includes("Pro Plan Email Allocation"))
+            );
             const newTx: EmailCreditTransaction = {
-              id: `tx-email-pro-sync-${Date.now()}`,
+              id: `tx-email-pro-sync-3000-${Date.now()}`,
               type: "PURCHASE",
               amount: netCredits,
               balanceAfter: netCredits,
@@ -152,10 +152,10 @@ export const emailCreditStore = {
               timestamp: new Date().toISOString(),
               status: "DELIVERED",
             };
-            transactions.unshift(newTx);
+            filteredEmailTxs.unshift(newTx);
             const proState: PropertyEmailWalletState = {
               credits,
-              transactions,
+              transactions: filteredEmailTxs,
             };
             PROPERTY_EMAIL_WALLET_MAP.set(propertyId, proState);
             setStoredEmailWallet(propertyId, proState);
