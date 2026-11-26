@@ -1197,7 +1197,7 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
                 sub_type: "url",
                 index: "0",
                 parameters: [
-                  { type: "text", text: propSlug },
+                  { type: "text", text: `${propSlug}/subscription` },
                 ],
               },
             ],
