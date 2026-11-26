@@ -30,6 +30,7 @@ import {
   ChevronRight,
   DollarSign,
   Cpu,
+  Bell,
 } from "lucide-react";
 
 export default function ApexCommandOverviewPage() {
@@ -37,6 +38,7 @@ export default function ApexCommandOverviewPage() {
   const [metrics, setMetrics] = useState<PlatformMacroMetrics>(() => founderStore.getMetrics());
   const [clients, setClients] = useState<FounderClientRecord[]>(() => founderStore.getClients());
   const [invites, setInvites] = useState<FounderVipInvite[]>(() => founderStore.getInvites());
+  const [expiringSoonCount, setExpiringSoonCount] = useState<number>(0);
 
   useEffect(() => {
     // 100% Real-Time Cloud Firebase Firestore Sync
@@ -50,6 +52,17 @@ export default function ApexCommandOverviewPage() {
 
     updateAll();
     const unsub = founderStore.subscribe(updateAll);
+
+    // Fetch live Expiring (<=5d) count from Apex account scanner
+    fetch(`/api/apex/scan-accounts?t=${Date.now()}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.success && typeof d.expiringSoonCount === "number") {
+          setExpiringSoonCount(d.expiringSoonCount);
+        }
+      })
+      .catch(() => {});
+
     return () => {
       unsub();
     };
@@ -108,6 +121,14 @@ export default function ApexCommandOverviewPage() {
                 >
                   <Ticket className="w-4 h-4 text-[#ff5436] group-hover:rotate-12 transition-transform" />
                   <span>{pendingInvitesCount} Pending Onboardings</span>
+                </Link>
+
+                <Link
+                  href="/apex-command/clients?tab=EXPIRING_SOON"
+                  className="px-4 py-2.5 rounded-2xl bg-[#1d222a] border border-orange-500/40 hover:border-orange-400 text-xs font-bold text-white transition-all flex items-center gap-2 shadow-xs group"
+                >
+                  <Bell className={`w-4 h-4 text-orange-400 ${expiringSoonCount > 0 ? "animate-pulse" : ""}`} />
+                  <span>{expiringSoonCount} Expiring (≤5d)</span>
                 </Link>
 
                 <Link

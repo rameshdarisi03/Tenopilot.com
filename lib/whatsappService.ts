@@ -7,13 +7,15 @@ export interface WhatsAppSendParams {
   propertyId: string;
   propertyName?: string;
   occupantId?: string;
-  type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "TENANT_WELCOME" | "COMPLAINT_UPDATE" | "CHECKOUT_THANK_YOU" | "OWNER_WELCOME" | "SUBSCRIPTION_INVOICE" | "KYC_CORRECTION_REQUEST" | "PAYMENT_PROOF_ALERT" | "CUSTOM";
+  type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "TENANT_WELCOME" | "COMPLAINT_UPDATE" | "CHECKOUT_THANK_YOU" | "OWNER_WELCOME" | "SUBSCRIPTION_INVOICE" | "SUBSCRIPTION_EXPIRY_REMINDER" | "KYC_CORRECTION_REQUEST" | "PAYMENT_PROOF_ALERT" | "CUSTOM";
   params?: {
     roomNumber?: string;
     bedCode?: string;
     amount?: number | string;
     breakupNote?: string;
     dueDate?: string;
+    expiryDate?: string;
+    daysLeftText?: string;
     upiId?: string;
     bankLabel?: string;
     accountType?: string;
@@ -427,6 +429,23 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
         `${reviewUrl}\n\n` +
         `_Please verify your bank statement. Once verified, click 'Collect Rent' to generate their official digital receipt._\n\n` +
         `- *Team TenoPilot* 🏢`
+      );
+    }
+
+    case "SUBSCRIPTION_EXPIRY_REMINDER": {
+      const ownerName = payload.recipientName || "Partner";
+      const workspaceName = payload.propertyName || "Your PG Workspace";
+      const expiryStr = p.expiryDate || "soon";
+      const daysLeftStr = p.daysLeftText || "in 3 days";
+      const origin = process.env.NEXT_PUBLIC_APP_URL || "https://www.tenopilot.com";
+      const renewUrl = payload.propertyId ? `${origin}/p/${payload.propertyId}/subscription` : `${origin}/login`;
+
+      return (
+        `Hello ${ownerName},\n\n` +
+        `Your TenoPilot subscription for *${workspaceName}* is scheduled to expire on *${expiryStr}* (${daysLeftStr}).\n\n` +
+        `Please renew your plan to continue uninterrupted access to your PG dashboard, receipts, and WhatsApp services.\n\n` +
+        `👉 Renew now: ${renewUrl}\n\n` +
+        `- Team TenoPilot`
       );
     }
 
@@ -1147,6 +1166,43 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
             ],
           },
         };
+      } else if (payload.type === "SUBSCRIPTION_EXPIRY_REMINDER") {
+        const p = payload.params || {};
+        const ownerName = payload.recipientName || "Partner";
+        const workspaceName = payload.propertyName || "Your PG Workspace";
+        const expiryStr = p.expiryDate || "soon";
+        const daysLeftStr = p.daysLeftText || "in 3 days";
+        const propSlug = payload.propertyId || "default";
+
+        requestBody = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "template",
+          template: {
+            name: process.env.WHATSAPP_EXPIRY_TEMPLATE_NAME || "tp_subscription_expiry_v1",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: ownerName },
+                  { type: "text", text: workspaceName },
+                  { type: "text", text: expiryStr },
+                  { type: "text", text: daysLeftStr },
+                ],
+              },
+              {
+                type: "button",
+                sub_type: "url",
+                index: "0",
+                parameters: [
+                  { type: "text", text: propSlug },
+                ],
+              },
+            ],
+          },
+        };
       } else {
         requestBody = {
           messaging_product: "whatsapp",
@@ -1170,6 +1226,30 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
       });
 
       let resData = await response.json();
+
+      // Fallback for SUBSCRIPTION_EXPIRY_REMINDER: if Meta template is pending approval, attempt free-form text (works within 24h window)
+      if (!response.ok && payload.type === "SUBSCRIPTION_EXPIRY_REMINDER" && requestBody?.type === "template") {
+        console.warn("Notice: tp_subscription_expiry_v1 template unavailable/pending approval, attempting direct text fallback:", resData?.error?.message);
+        const textFallbackRes = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${metaToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: formattedPhone,
+            type: "text",
+            text: { preview_url: true, body: messageBody },
+          }),
+        });
+        const textFallbackData = await textFallbackRes.json();
+        if (textFallbackRes.ok) {
+          response = textFallbackRes;
+          resData = textFallbackData;
+        }
+      }
 
       // Graceful fallback: If action-based receipt templates are pending approval or error, fallback to approved pg_rent_payment_receipt_doc
       if (!response.ok && payload.type === "PAYMENT_RECEIPT" && (requestBody?.template?.name?.startsWith("pg_rent_receipt_corrected") || requestBody?.template?.name?.startsWith("pg_rent_payment_receipt"))) {
@@ -2098,22 +2178,28 @@ export async function recordOutboundDispatchLog(payload: WhatsAppSendParams, res
     // Save in global fast-lookup table
     await setDoc(doc(db, "whatsapp_outbound_dispatches", docId), dispatchDoc, { merge: true });
 
-    // Also update occupants_by_phone index
-    await setDoc(
-      doc(db, "occupants_by_phone", cleanDigits),
-      {
-        phone: cleanDigits,
-        occupantId: payload.occupantId || `occ_${cleanDigits}`,
-        occupantName: payload.recipientName,
-        propertyId: payload.propertyId,
-        propertyName: payload.propertyName || "TenoPilot PG",
-        roomNumber: p.roomNumber || null,
-        bedCode: p.bedCode || null,
-        rentAmount: p.amount ? Number(p.amount) : 0,
-        updatedAt: new Date().toISOString(),
-      },
-      { merge: true }
-    );
+    // Only index tenant messages into occupants_by_phone (skip platform owner billing alerts)
+    if (
+      payload.type !== "SUBSCRIPTION_EXPIRY_REMINDER" &&
+      payload.type !== "OWNER_WELCOME" &&
+      payload.type !== "SUBSCRIPTION_INVOICE"
+    ) {
+      await setDoc(
+        doc(db, "occupants_by_phone", cleanDigits),
+        {
+          phone: cleanDigits,
+          occupantId: payload.occupantId || `occ_${cleanDigits}`,
+          occupantName: payload.recipientName,
+          propertyId: payload.propertyId,
+          propertyName: payload.propertyName || "TenoPilot PG",
+          roomNumber: p.roomNumber || null,
+          bedCode: p.bedCode || null,
+          rentAmount: p.amount ? Number(p.amount) : 0,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    }
 
     // Also record in property-scoped history
     if (payload.propertyId) {

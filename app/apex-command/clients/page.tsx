@@ -45,6 +45,7 @@ import {
   Calendar,
   History,
   FileText,
+  Bell,
 } from "lucide-react";
 import { ScannedAccountRecord } from "@/app/api/apex/scan-accounts/route";
 import { usePlatformConfig } from "@/lib/usePlatformConfig";
@@ -71,7 +72,25 @@ export default function ApexCommandClientsPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<"ALL" | "TRIAL" | "ACTIVE_PRO" | "GRACE_PERIOD" | "EXPIRED" | "SUSPENDED">("ALL");
+  const [activeTab, setActiveTab] = useState<"ALL" | "TRIAL" | "ACTIVE_PRO" | "EXPIRING_SOON" | "GRACE_PERIOD" | "EXPIRED" | "SUSPENDED">("ALL");
+  const [notifyingAccountId, setNotifyingAccountId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get("tab");
+      if (
+        tabParam === "EXPIRING_SOON" ||
+        tabParam === "TRIAL" ||
+        tabParam === "ACTIVE_PRO" ||
+        tabParam === "GRACE_PERIOD" ||
+        tabParam === "EXPIRED" ||
+        tabParam === "SUSPENDED"
+      ) {
+        setActiveTab(tabParam);
+      }
+    }
+  }, []);
 
   // Selected account for Deep Purge modal
   const [accountToPurge, setAccountToPurge] = useState<ScannedAccountRecord | null>(null);
@@ -830,6 +849,63 @@ export default function ApexCommandClientsPage() {
     }
   };
 
+  // Helper: identifies accounts close to expiry (within 5 days)
+  const isExpiringSoon = (acc: ScannedAccountRecord) =>
+    (acc.subscriptionStatus === "ACTIVE_PRO" ||
+      acc.subscriptionStatus === "PRO_PRE_EXPIRY" ||
+      acc.subscriptionStatus === "TRIAL") &&
+    acc.trialDaysLeft <= 5;
+
+  // Trigger Manual WhatsApp Expiry Notification
+  const handleNotifyExpiry = async (acc: ScannedAccountRecord) => {
+    if (!acc.phone || acc.phone.replace(/\D/g, "").length < 10) {
+      triggerToast(`⚠️ No valid mobile number found for ${acc.displayName}.`);
+      return;
+    }
+
+    setNotifyingAccountId(acc.id);
+    try {
+      const primaryPropId = (acc.propertyIds && acc.propertyIds[0]) || "default";
+      const res = await fetch("/api/apex/notify-expiry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: acc.userId || acc.id,
+          email: acc.email,
+          propertyId: primaryPropId,
+          propertyName: acc.primaryPropertyName || "Your PG Workspace",
+          recipientName: acc.displayName,
+          phone: acc.phone,
+          expiryDate: acc.expiryDateFormatted || (acc.planExpiresAt ? new Date(acc.planExpiresAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "soon"),
+          daysRemaining: acc.trialDaysLeft,
+          subscriptionStatus: acc.subscriptionStatus,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        const stampedAt = data.lastExpiryNotifiedAt || new Date().toISOString();
+        setAccounts((prev) =>
+          prev.map((a) =>
+            a.id === acc.id
+              ? {
+                  ...a,
+                  lastExpiryNotifiedAt: stampedAt,
+                  expiryReminderCount: (a.expiryReminderCount || 0) + 1,
+                }
+              : a
+          )
+        );
+        triggerToast(`🔔 Expiry reminder sent via WhatsApp to ${acc.displayName} (${acc.phone})!`);
+      } else {
+        triggerToast(`⚠️ WhatsApp notice error: ${data.message || "Template pending Meta approval"}`);
+      }
+    } catch (err: any) {
+      triggerToast(`⚠️ Failed to send notification: ${err.message}`);
+    } finally {
+      setNotifyingAccountId(null);
+    }
+  };
+
   // Instant Multi-Field Real-Time Search Filtering
   const filteredAccounts = accounts.filter((acc) => {
     const q = searchQuery.toLowerCase().trim();
@@ -851,6 +927,8 @@ export default function ApexCommandClientsPage() {
         ? true
         : activeTab === "ACTIVE_PRO"
         ? acc.subscriptionStatus === "ACTIVE_PRO" || acc.subscriptionStatus === "PRO_PRE_EXPIRY"
+        : activeTab === "EXPIRING_SOON"
+        ? isExpiringSoon(acc)
         : acc.subscriptionStatus === activeTab;
 
     return matchesSearch && matchesTab;
@@ -859,6 +937,7 @@ export default function ApexCommandClientsPage() {
   const totalCount = accounts.length;
   const trialCount = accounts.filter((a) => a.subscriptionStatus === "TRIAL").length;
   const proCount = accounts.filter((a) => a.subscriptionStatus === "ACTIVE_PRO" || a.subscriptionStatus === "PRO_PRE_EXPIRY").length;
+  const expiringSoonCount = accounts.filter(isExpiringSoon).length;
   const graceCount = accounts.filter((a) => a.subscriptionStatus === "GRACE_PERIOD").length;
   const expiredCount = accounts.filter((a) => a.subscriptionStatus === "EXPIRED").length;
   const suspendedCount = accounts.filter((a) => a.subscriptionStatus === "SUSPENDED").length;
@@ -925,10 +1004,16 @@ export default function ApexCommandClientsPage() {
             </div>
           </div>
 
-          {/* 5 Metric Bento Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <div className="p-5 rounded-3xl bg-[#161b22] border border-white/10 flex flex-col justify-between">
-              <div className="flex items-center justify-between">
+          {/* 6 Metric Bento Cards (Clickable Filters) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+            <button
+              type="button"
+              onClick={() => setActiveTab("ALL")}
+              className={`text-left p-4 sm:p-5 rounded-3xl bg-[#161b22] border transition-all flex flex-col justify-between cursor-pointer ${
+                activeTab === "ALL" ? "border-white/40 ring-1 ring-white/20" : "border-white/10 hover:border-white/25"
+              }`}
+            >
+              <div className="flex items-center justify-between w-full">
                 <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">TOTAL</span>
                 <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400">
                   <Layers className="w-4 h-4" />
@@ -936,21 +1021,33 @@ export default function ApexCommandClientsPage() {
               </div>
               <p className="text-3xl font-black text-white mt-3">{totalCount}</p>
               <p className="text-[11px] text-gray-500 mt-1">All owners</p>
-            </div>
+            </button>
 
-            <div className="p-5 rounded-3xl bg-[#161b22] border border-amber-500/30 flex flex-col justify-between">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">⚡ 10D TRIALS</span>
+            <button
+              type="button"
+              onClick={() => setActiveTab("TRIAL")}
+              className={`text-left p-4 sm:p-5 rounded-3xl bg-[#161b22] border transition-all flex flex-col justify-between cursor-pointer ${
+                activeTab === "TRIAL" ? "border-amber-400 ring-1 ring-amber-400/30" : "border-amber-500/30 hover:border-amber-400/60"
+              }`}
+            >
+              <div className="flex items-center justify-between w-full">
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">⚡ {platformConfig.trialDays}D TRIALS</span>
                 <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
                   <Clock className="w-4 h-4" />
                 </div>
               </div>
               <p className="text-3xl font-black text-amber-400 mt-3">{trialCount}</p>
               <p className="text-[11px] text-gray-500 mt-1">Free trials</p>
-            </div>
+            </button>
 
-            <div className="p-5 rounded-3xl bg-[#161b22] border border-emerald-500/30 flex flex-col justify-between">
-              <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setActiveTab("ACTIVE_PRO")}
+              className={`text-left p-4 sm:p-5 rounded-3xl bg-[#161b22] border transition-all flex flex-col justify-between cursor-pointer ${
+                activeTab === "ACTIVE_PRO" ? "border-emerald-400 ring-1 ring-emerald-400/30" : "border-emerald-500/30 hover:border-emerald-400/60"
+              }`}
+            >
+              <div className="flex items-center justify-between w-full">
                 <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">💎 ACTIVE PRO</span>
                 <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
                   <ShieldCheck className="w-4 h-4" />
@@ -958,21 +1055,50 @@ export default function ApexCommandClientsPage() {
               </div>
               <p className="text-3xl font-black text-emerald-400 mt-3">{proCount}</p>
               <p className="text-[11px] text-gray-500 mt-1">Paid subscribers</p>
-            </div>
+            </button>
 
-            <div className="p-5 rounded-3xl bg-[#161b22] border border-amber-500/50 flex flex-col justify-between">
-              <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setActiveTab("EXPIRING_SOON")}
+              className={`text-left p-4 sm:p-5 rounded-3xl bg-[#161b22] border transition-all flex flex-col justify-between cursor-pointer ${
+                activeTab === "EXPIRING_SOON" ? "border-orange-400 ring-1 ring-orange-400/40" : "border-orange-500/40 hover:border-orange-400/70"
+              }`}
+            >
+              <div className="flex items-center justify-between w-full">
+                <span className="text-[10px] font-black uppercase tracking-wider text-orange-400">⏰ EXPIRING (≤5D)</span>
+                <div className={`p-2 rounded-xl bg-orange-500/15 text-orange-400 ${expiringSoonCount > 0 ? "animate-pulse" : ""}`}>
+                  <Bell className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-3xl font-black text-orange-400 mt-3">{expiringSoonCount}</p>
+              <p className="text-[11px] text-gray-500 mt-1">Close to 5 days</p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("GRACE_PERIOD")}
+              className={`text-left p-4 sm:p-5 rounded-3xl bg-[#161b22] border transition-all flex flex-col justify-between cursor-pointer ${
+                activeTab === "GRACE_PERIOD" ? "border-amber-300 ring-1 ring-amber-300/30" : "border-amber-500/50 hover:border-amber-300/70"
+              }`}
+            >
+              <div className="flex items-center justify-between w-full">
                 <span className="text-[10px] font-black uppercase tracking-wider text-amber-300">⏳ PRO GRACE</span>
-                <div className="p-2 rounded-xl bg-amber-500/20 text-amber-300 animate-pulse">
+                <div className="p-2 rounded-xl bg-amber-500/20 text-amber-300">
                   <Clock className="w-4 h-4" />
                 </div>
               </div>
               <p className="text-3xl font-black text-amber-300 mt-3">{graceCount}</p>
               <p className="text-[11px] text-gray-500 mt-1">7-Day grace active</p>
-            </div>
+            </button>
 
-            <div className="p-5 rounded-3xl bg-[#161b22] border border-rose-500/30 flex flex-col justify-between">
-              <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setActiveTab("EXPIRED")}
+              className={`text-left p-4 sm:p-5 rounded-3xl bg-[#161b22] border transition-all flex flex-col justify-between cursor-pointer ${
+                activeTab === "EXPIRED" ? "border-rose-400 ring-1 ring-rose-400/30" : "border-rose-500/30 hover:border-rose-400/60"
+              }`}
+            >
+              <div className="flex items-center justify-between w-full">
                 <span className="text-[10px] font-black uppercase tracking-wider text-rose-400">⚠️ EXPIRED</span>
                 <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400">
                   <AlertTriangle className="w-4 h-4" />
@@ -980,7 +1106,7 @@ export default function ApexCommandClientsPage() {
               </div>
               <p className="text-3xl font-black text-rose-400 mt-3">{expiredCount}</p>
               <p className="text-[11px] text-gray-500 mt-1">Needs renewal</p>
-            </div>
+            </button>
           </div>
 
           {/* PENDING OFFLINE PAYMENT APPROVALS QUEUE */}
@@ -1187,12 +1313,21 @@ export default function ApexCommandClientsPage() {
                 </button>
                 <button
                   onClick={() => setActiveTab("ACTIVE_PRO")}
-                  className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shrink-0 ${
                     activeTab === "ACTIVE_PRO" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : "text-gray-400 hover:text-white"
                   }`}
                 >
                   <span>💎 Pro Active</span>
                   <span className="text-[10px] bg-emerald-500/20 px-1.5 py-0.2 rounded-full">{proCount}</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab("EXPIRING_SOON")}
+                  className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shrink-0 ${
+                    activeTab === "EXPIRING_SOON" ? "bg-orange-500/20 text-orange-300 border border-orange-500/40" : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <span>⏰ Expiring (≤5d)</span>
+                  <span className="text-[10px] bg-orange-500/20 px-1.5 py-0.2 rounded-full">{expiringSoonCount}</span>
                 </button>
                 <button
                   onClick={() => setActiveTab("GRACE_PERIOD")}
@@ -1366,14 +1501,44 @@ export default function ApexCommandClientsPage() {
                               )}
                             </div>
 
-                            <p className="text-[11px] text-gray-500 italic">
-                              Status Note: {acc.detectionReason}
-                            </p>
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500 italic">
+                              <span>Status Note: {acc.detectionReason}</span>
+                              {acc.lastExpiryNotifiedAt && (
+                                <span className="not-italic font-semibold text-orange-300 bg-orange-500/10 px-2 py-0.5 rounded-full border border-orange-500/25">
+                                  🔔 Notified {new Date(acc.lastExpiryNotifiedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
                         {/* Right: Actions */}
                         <div className="flex flex-wrap items-center gap-2 shrink-0 w-full lg:w-auto justify-end">
+                          {/* 🔔 Manual Expiry WhatsApp Notify Button (Available for expiring ≤5d, grace, or expired accounts, and always re-triggerable) */}
+                          {(isExpiringSoon(acc) ||
+                            acc.subscriptionStatus === "GRACE_PERIOD" ||
+                            acc.subscriptionStatus === "EXPIRED") && (
+                            <button
+                              type="button"
+                              disabled={notifyingAccountId === acc.id}
+                              onClick={() => handleNotifyExpiry(acc)}
+                              className="px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+                              title="Send or re-send WhatsApp subscription expiry reminder from TenoPilot"
+                            >
+                              {notifyingAccountId === acc.id ? (
+                                <>
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  <span>Sending...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Bell className="w-3.5 h-3.5 text-emerald-400" />
+                                  <span>{acc.lastExpiryNotifiedAt ? "Notify Again" : "Notify"}</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+
                           {/* 👑 Customer 360° Profile & Plan Activation */}
                           <button
                             onClick={() => {

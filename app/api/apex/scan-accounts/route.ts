@@ -16,6 +16,10 @@ export interface ScannedAccountRecord {
   trialDaysLeft: number;
   graceDaysRemaining?: number;
   planExpiresAt?: string;
+  expiryDateFormatted?: string;
+  lastExpiryNotifiedAt?: string;
+  expiryReminder3dSentFor?: string;
+  expiryReminderCount?: number;
   detectionReason: string;
   propertyIds: string[];
   primaryPropertyName?: string;
@@ -341,6 +345,10 @@ export async function GET(req: NextRequest) {
           trialDaysLeft: subEvaluation.daysRemaining,
           graceDaysRemaining: subEvaluation.graceDaysRemaining,
           planExpiresAt: data.planExpiresAt || founderClient?.planExpiresAt,
+          expiryDateFormatted: subEvaluation.expiryDateFormatted,
+          lastExpiryNotifiedAt: data.lastExpiryNotifiedAt || founderClient?.lastExpiryNotifiedAt,
+          expiryReminder3dSentFor: data.expiryReminder3dSentFor || founderClient?.expiryReminder3dSentFor,
+          expiryReminderCount: Number(data.expiryReminderCount ?? founderClient?.expiryReminderCount ?? 0),
           detectionReason: subEvaluation.badgeLabel,
           propertyIds: propIds,
           primaryPropertyName: primaryPropName,
@@ -421,6 +429,14 @@ export async function GET(req: NextRequest) {
     };
     scannedAccounts.sort((a, b) => (sortWeights[a.subscriptionStatus] || 9) - (sortWeights[b.subscriptionStatus] || 9));
 
+    const expiringSoonCount = scannedAccounts.filter(
+      (a) =>
+        (a.subscriptionStatus === "ACTIVE_PRO" ||
+          a.subscriptionStatus === "PRO_PRE_EXPIRY" ||
+          a.subscriptionStatus === "TRIAL") &&
+        a.trialDaysLeft <= 5
+    ).length;
+
     return NextResponse.json(
       {
         success: true,
@@ -429,6 +445,7 @@ export async function GET(req: NextRequest) {
         proCount: scannedAccounts.filter((a) => a.subscriptionStatus === "ACTIVE_PRO" || a.subscriptionStatus === "PRO_PRE_EXPIRY").length,
         graceCount: scannedAccounts.filter((a) => a.subscriptionStatus === "GRACE_PERIOD").length,
         preExpiryCount: scannedAccounts.filter((a) => a.subscriptionStatus === "PRO_PRE_EXPIRY").length,
+        expiringSoonCount,
         expiredCount: scannedAccounts.filter((a) => a.subscriptionStatus === "EXPIRED").length,
         suspendedCount: scannedAccounts.filter((a) => a.subscriptionStatus === "SUSPENDED").length,
         accounts: scannedAccounts,
