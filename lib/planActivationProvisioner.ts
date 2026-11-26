@@ -206,8 +206,11 @@ export async function executePlanActivationPipeline(
   const resolvedSubscriptionStatus: "TRIAL" | "ACTIVE_PRO" = isTrialExtension ? "TRIAL" : "ACTIVE_PRO";
   const resolvedPlan = isTrialExtension ? "10_DAY_TRIAL" : plan;
 
-  // 📊 3. Calculate Stacked Expiry Date
+  // 📊 3. Calculate Expiry Date
+  // Rule: When upgrading from Free Trial -> Pro, nullify remaining trial days and count duration fresh from today (30 days).
+  // When renewing an existing Pro subscription early, preserve & stack remaining paid Pro days.
   let currentExpiryIso: string | null = null;
+  let existingUserRecord: Record<string, any> | null = null;
   let existingMaxProperties = 1;
   let existingExtensionPacks = 0;
 
@@ -216,6 +219,7 @@ export async function executePlanActivationPipeline(
       const uSnap = await getDoc(doc(db, "users", userId));
       if (uSnap.exists()) {
         const u = uSnap.data();
+        existingUserRecord = u;
         if (u.planExpiresAt) currentExpiryIso = u.planExpiresAt;
         if (typeof u.maxPropertiesAllowed === "number") existingMaxProperties = u.maxPropertiesAllowed;
         if (typeof u.tenantExtensionPacks === "number") existingExtensionPacks = u.tenantExtensionPacks;
@@ -223,12 +227,13 @@ export async function executePlanActivationPipeline(
     } catch (e) {}
   }
 
-  if (!currentExpiryIso && cleanEmail) {
+  if (!existingUserRecord && cleanEmail) {
     try {
       const q = query(collection(db, "users"), where("email", "==", cleanEmail));
       const snap = await getDocs(q);
       if (!snap.empty) {
         const u = snap.docs[0].data();
+        existingUserRecord = u;
         if (u.planExpiresAt) currentExpiryIso = u.planExpiresAt;
         if (typeof u.maxPropertiesAllowed === "number") existingMaxProperties = u.maxPropertiesAllowed;
         if (typeof u.tenantExtensionPacks === "number") existingExtensionPacks = u.tenantExtensionPacks;
@@ -236,7 +241,33 @@ export async function executePlanActivationPipeline(
     } catch (e) {}
   }
 
-  const expiryIso = calculateStackedExpiry(currentExpiryIso, Number(durationDays) || 30);
+  if (!existingUserRecord && cleanEmail) {
+    try {
+      const fcSnap = await getDoc(doc(db, "founder_clients", cleanEmail));
+      if (fcSnap.exists()) {
+        const fc = fcSnap.data();
+        existingUserRecord = fc;
+        if (fc.planExpiresAt) currentExpiryIso = fc.planExpiresAt;
+      }
+    } catch (e) {}
+  }
+
+  const existingPlanUpper = String(existingUserRecord?.plan || "").toUpperCase();
+  const isCurrentlyPro =
+    existingPlanUpper === "PRO_MONTHLY" ||
+    existingPlanUpper === "PRO_QUARTERLY" ||
+    existingPlanUpper === "PRO_SEMI_ANNUAL" ||
+    existingPlanUpper === "PRO_ANNUAL" ||
+    existingPlanUpper === "VIP_PASS" ||
+    existingUserRecord?.subscriptionPlan === "pro" ||
+    existingUserRecord?.subscriptionStatus === "ACTIVE_PRO" ||
+    existingUserRecord?.subscriptionStatus === "PRO_PRE_EXPIRY";
+
+  // Nullify existing trial days when converting Trial -> Pro; stack only on existing Pro renewals or explicit trial extensions
+  const stackBaseExpiryIso =
+    !isTrialExtension && !isWhatsAppRecharge && !isCurrentlyPro ? null : currentExpiryIso;
+
+  const expiryIso = calculateStackedExpiry(stackBaseExpiryIso, Number(durationDays) || 30);
 
   // 🎁 4. Authoritatively Fetch Founder Master Controls for Credit Entitlements
   let proWhatsAppCredits = 1000;
