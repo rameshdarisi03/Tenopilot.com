@@ -55,7 +55,7 @@ export default function TenantPaymentBridgePage() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Real-time Submitted Proof & Approval State
+  // Real-time Submitted Proof & Recent Payments State
   const [existingProof, setExistingProof] = useState<{
     id: string;
     screenshotUrl?: string | null;
@@ -63,7 +63,9 @@ export default function TenantPaymentBridgePage() {
     createdAt?: string;
     status: "PENDING_VERIFICATION" | "APPROVED" | "REJECTED";
   } | null>(null);
-  const [isApproved, setIsApproved] = useState(false);
+  const [recentPayments, setRecentPayments] = useState<
+    { id: string; amount: number; date: string; mode?: string; month?: string }[]
+  >([]);
   const [allowReupload, setAllowReupload] = useState(false);
   const [zoomedScreenshot, setZoomedScreenshot] = useState<string | null>(null);
 
@@ -152,11 +154,11 @@ export default function TenantPaymentBridgePage() {
     setLoading(false);
   }, [rawToken, searchParams]);
 
-  // Real-time Firestore sync for approval and proof status
+  // Real-time Firestore sync for last 2 payments and active pending proof
   useEffect(() => {
     if (!details || !db || !details.propertyId || !details.tenantId) return;
 
-    // 1. Listen for occupant document to see if payment was recorded/approved
+    // 1. Listen for occupant document to display last 2 non-voided payments (never locks upload)
     const unsubOccupant = onSnapshot(
       doc(db, "properties", details.propertyId, "occupants", details.tenantId),
       (docSnap) => {
@@ -164,77 +166,49 @@ export default function TenantPaymentBridgePage() {
           const occData = docSnap.data();
           const history = occData.paymentHistory;
           if (Array.isArray(history) && history.length > 0) {
-            // Find a valid, non-voided receipt matching the CURRENT bill amount and cycle
-            const matchingRent = history.find((h: any) => {
-              if (h.status === "VOIDED") return false;
-              const hAmt = Number(h.amount || 0);
-              const amountMatches = Math.abs(hAmt - details.amount) < 2;
-
-              // Check if payment was made in the current cycle / recent 35 days
-              let isRecent = false;
-              if (h.date) {
-                const parsedDate = new Date(h.date);
-                if (!isNaN(parsedDate.getTime())) {
-                  const daysAgo = (Date.now() - parsedDate.getTime()) / (1000 * 60 * 60 * 24);
-                  isRecent = daysAgo >= -1 && daysAgo <= 35;
-                }
-              }
-
-              // Check if month label matches current cycle or dueDate
-              const monthMatches = Boolean(
-                details.dueDate &&
-                h.month &&
-                (h.month.toLowerCase().includes(details.dueDate.toLowerCase()) ||
-                  details.dueDate.toLowerCase().includes(h.month.toLowerCase()))
-              );
-
-              return amountMatches && (isRecent || monthMatches);
-            });
-
-            if (matchingRent) {
-              setIsApproved(true);
-            }
+            const lastTwo = history
+              .filter((h: any) => h && h.status !== "VOIDED" && Number(h.amount || 0) > 0)
+              .slice(0, 2)
+              .map((h: any, idx: number) => ({
+                id: h.id || `pay_${idx}`,
+                amount: Number(h.amount || 0),
+                date: h.date || "Recorded",
+                mode: h.mode || "UPI / Digital",
+                month: h.month || "",
+              }));
+            setRecentPayments(lastTwo);
+          } else {
+            setRecentPayments([]);
           }
         }
       },
-      (err) => console.warn("Notice checking occupant receipt:", err)
+      (err) => console.warn("Notice checking occupant payment history:", err)
     );
 
-    // 2. Listen for tenant's reported proofs subcollection
+    // 2. Listen for tenant's reported proofs subcollection (show pending proof until approved/rejected)
     const unsubProofs = onSnapshot(
       collection(db, "properties", details.propertyId, "tenants", details.tenantId, "reported_proofs"),
       (snap) => {
         if (!snap.empty) {
           const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
           docs.sort((a: any, b: any) => ((b.createdAt as string) || "").localeCompare((a.createdAt as string) || ""));
-          // Filter to recent proof matching current bill amount
-          const matchingProof: any = docs.find((p: any) => {
-            const pAmt = Number(p.approvedAmount || p.reportedAmount || 0);
-            const amountMatches = Math.abs(pAmt - details.amount) < 2;
-            let isRecent = false;
-            if (p.createdAt) {
-              const parsedDate = new Date(p.createdAt);
-              if (!isNaN(parsedDate.getTime())) {
-                const daysAgo = (Date.now() - parsedDate.getTime()) / (1000 * 60 * 60 * 24);
-                isRecent = daysAgo >= -1 && daysAgo <= 35;
-              }
-            }
-            return amountMatches && isRecent;
-          });
+          const latestProof: any = docs[0];
 
-          if (matchingProof) {
+          if (latestProof && latestProof.status === "PENDING_VERIFICATION") {
             setExistingProof({
-              id: matchingProof.id,
-              screenshotUrl: matchingProof.screenshotUrl,
-              tenantNote: matchingProof.tenantNote,
-              createdAt: matchingProof.createdAt,
-              status: matchingProof.status,
+              id: latestProof.id,
+              screenshotUrl: latestProof.screenshotUrl,
+              tenantNote: latestProof.tenantNote,
+              createdAt: latestProof.createdAt,
+              status: latestProof.status,
             });
-
-            if (matchingProof.status === "APPROVED") {
-              setIsApproved(true);
-            }
+          } else {
+            // Once approved or rejected, clear pending state so tenant can upload next installment anytime
+            setExistingProof(null);
+            setIsSubmitted(false);
           }
+        } else {
+          setExistingProof(null);
         }
       },
       (err) => console.warn("Notice checking tenant proofs:", err)
@@ -405,70 +379,65 @@ export default function TenantPaymentBridgePage() {
       </header>
 
       <main className="max-w-lg mx-auto p-4 space-y-4 pt-4">
-        {/* 🔒 CASE 1: PAYMENT APPROVED & VERIFIED -> LINK EXPIRED */}
-        {isApproved ? (
-          <div className="bg-white p-7 sm:p-8 rounded-3xl border border-emerald-300 shadow-xl text-center space-y-4 animate-in zoom-in-95">
-            <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-xs">
-              <CheckCircle2 className="w-9 h-9" />
-            </div>
-
+        {/* 🏢 Accommodation & Bill Summary Card */}
+        <div className="bg-white p-5 rounded-3xl border border-[#d7c2b9]/60 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <span className="inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full border border-emerald-300">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                Payment Approved & Verified
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#c2652a]">
+                Payment Verification
               </span>
-              <h2 className="font-serif font-bold text-xl text-gray-900 mt-2.5">
-                Payment Verification Completed
-              </h2>
-              <p className="text-xs text-gray-600 mt-1.5 max-w-sm mx-auto leading-relaxed">
-                Thank you, <strong>{details.tenantName}</strong>. Your payment of <strong>₹{details.amount.toLocaleString("en-IN")}</strong> for <strong>{details.propertyName}</strong> has been verified and recorded in the property ledger.
+              <h1 className="font-serif font-bold text-base sm:text-lg text-gray-900 mt-0.5">
+                {details.propertyName}
+              </h1>
+              <p className="text-xs text-gray-500 font-medium mt-0.5">
+                {details.tenantName} • <span className="font-bold text-gray-700">{details.roomNumber}</span>
               </p>
             </div>
-
-            <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-center text-xs text-emerald-950 font-medium space-y-1">
-              <span className="block font-bold">📄 Official Rent Receipt Dispatched</span>
-              <span className="text-[11px] text-emerald-800 block">
-                Your official rent receipt has been delivered directly to your registered WhatsApp.
-              </span>
-            </div>
-
-            <div className="pt-2 text-[11px] text-gray-400">
-              🔒 This upload link is now closed to prevent duplicate submissions.
+            <div className="text-right shrink-0">
+              <span className="text-[10px] font-bold text-gray-400 block">Payable Rent</span>
+              <div className="font-mono font-black text-xl text-gray-900 mt-0.5">
+                ₹{details.amount.toLocaleString("en-IN")}
+              </div>
+              {existingProof || isSubmitted ? (
+                <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 inline-block mt-1">
+                  ⏳ Verification Pending
+                </span>
+              ) : details.dueDate ? (
+                <span className="text-[10px] font-bold text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full border border-gray-200 inline-block mt-1">
+                  Due: {details.dueDate}
+                </span>
+              ) : null}
             </div>
           </div>
-        ) : (
-          <>
-            {/* 🏢 Accommodation & Bill Summary Card */}
-            <div className="bg-white p-5 rounded-3xl border border-[#d7c2b9]/60 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#c2652a]">
-                    Payment Verification
-                  </span>
-                  <h1 className="font-serif font-bold text-base sm:text-lg text-gray-900 mt-0.5">
-                    {details.propertyName}
-                  </h1>
-                  <p className="text-xs text-gray-500 font-medium mt-0.5">
-                    {details.tenantName} • <span className="font-bold text-gray-700">{details.roomNumber}</span>
-                  </p>
-                </div>
-                <div className="text-right shrink-0">
-                  <span className="text-[10px] font-bold text-gray-400 block">Payable Rent</span>
-                  <div className="font-mono font-black text-xl text-gray-900 mt-0.5">
-                    ₹{details.amount.toLocaleString("en-IN")}
-                  </div>
-                  {existingProof || isSubmitted ? (
-                    <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 inline-block mt-1">
-                      ⏳ Verification Pending
-                    </span>
-                  ) : details.dueDate ? (
-                    <span className="text-[10px] font-bold text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full border border-gray-200 inline-block mt-1">
-                      Due: {details.dueDate}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
+        </div>
+
+        {/* 🧾 Compact Recent Payments (Last 2) */}
+        {recentPayments.length > 0 && (
+          <div className="bg-white p-4 rounded-2xl border border-emerald-200/80 shadow-2xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Recent Payments (Last {recentPayments.length})</span>
+              </span>
+              <span className="text-[10px] text-gray-400 font-medium">Recorded in ledger</span>
             </div>
+            <div className="divide-y divide-gray-100">
+              {recentPayments.map((pay) => (
+                <div key={pay.id} className="py-1.5 flex items-center justify-between gap-2 text-xs">
+                  <div className="min-w-0">
+                    <span className="font-bold text-gray-800">{pay.date}</span>
+                    {pay.mode && (
+                      <span className="text-[11px] text-gray-500 ml-1.5 truncate">• {pay.mode}</span>
+                    )}
+                  </div>
+                  <span className="font-mono font-bold text-emerald-700 shrink-0">
+                    ₹{pay.amount.toLocaleString("en-IN")}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
             {/* 📸 Case A: Existing Screenshot Submitted (Keep Attached with Option to Change) */}
             {(existingProof || isSubmitted) && !allowReupload ? (
@@ -697,8 +666,6 @@ export default function TenantPaymentBridgePage() {
                 </button>
               </form>
             )}
-          </>
-        )}
 
         {/* 🔍 Fullscreen Image Lightbox Modal for Tenant */}
         {zoomedScreenshot && (
